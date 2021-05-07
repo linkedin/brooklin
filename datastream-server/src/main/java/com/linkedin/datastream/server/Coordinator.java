@@ -156,10 +156,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public static final String PAUSED_INSTANCE = "PAUSED_INSTANCE";
   private static final String EVENT_PRODUCER_CONFIG_DOMAIN = "brooklin.server.eventProducer";
 
-  private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 30000L;
+  private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 90000L;
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
 
-  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
@@ -338,7 +338,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Stopping all the connectors so that they stop producing.
     for (String connectorType : _connectors.keySet()) {
       try {
-        _connectors.get(connectorType).getConnector().stop();
+        ConnectorInfo connectorInfo = _connectors.get(connectorType);
+        connectorInfo.getConnector().stop();
+        connectorInfo.getAssignmentStrategy().cleanupStrategy();
       } catch (Exception ex) {
         _log.warn(String.format(
             "Connector stop threw an exception for connectorType %s, " + "Swallowing it and continuing shutdown.",
@@ -491,6 +493,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toList());
 
     onDatastreamChange(new ArrayList<>());
+
+    // Perform AssignmentStrategy cleanup for all the connectors
+    _connectors.values().forEach(connectorInfo -> {
+      connectorInfo.getAssignmentStrategy().cleanupStrategy();
+    });
+
     // Shutdown the event producer to stop any further production of records.
     // Event producer shutdown sequence does not need to wait for onAssignmentChange to complete.
     // This will ensure that even if any task thread does not respond to thread interruption, it will
@@ -1918,6 +1926,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.registerGauge(connectorName, NUM_DATASTREAM_TASKS,
           () -> connectorInfo.getConnector().getNumDatastreamTasks());
       _metricInfos.add(new BrooklinGaugeInfo(MetricRegistry.name(connectorName, NUM_DATASTREAM_TASKS)));
+
+      AssignmentStrategy strategy = connectorInfo.getAssignmentStrategy();
+      if (strategy instanceof MetricsAware) {
+        addMetricInfos((MetricsAware) strategy);
+      }
     }
 
     public List<BrooklinMetricInfo> getMetricInfos() {

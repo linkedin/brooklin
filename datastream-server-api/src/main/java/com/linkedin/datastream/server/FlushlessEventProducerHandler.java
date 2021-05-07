@@ -70,7 +70,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     status.register(sourceCheckpoint);
     _eventProducer.send(record, ((metadata, exception) -> {
       if (exception != null) {
-        LOG.error("Failed to send datastream record: " + metadata, exception);
+        LOG.debug("Failed to send datastream record: " + metadata, exception);
       } else {
         status.ack(sourceCheckpoint);
       }
@@ -104,6 +104,23 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     return _callbackStatusMap.entrySet()
         .stream()
         .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getInFlightCount()));
+  }
+
+  /**
+   * Get the in-flight count of messages yet to be acknowledged for a given source and sourcePartition
+   */
+  public long getAckMessagesPastCheckpointCount(String source, int sourcePartition) {
+    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
+    return status != null ? status.getAckMessagesPastCheckpointCount() : 0;
+  }
+
+  /**
+   * Get a map of all source partitions to their in-flight message counts
+   */
+  public Map<SourcePartition, Long> getAckMessagesPastCheckpointCounts() {
+    return _callbackStatusMap.entrySet()
+        .stream()
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getAckMessagesPastCheckpointCount()));
   }
 
   /**
@@ -175,6 +192,10 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
 
     public long getInFlightCount() {
       return _inFlight.size();
+    }
+
+    public long getAckMessagesPastCheckpointCount() {
+      return _acked.size();
     }
 
     /**

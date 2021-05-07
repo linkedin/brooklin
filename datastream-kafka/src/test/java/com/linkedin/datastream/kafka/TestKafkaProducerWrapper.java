@@ -64,6 +64,57 @@ public class TestKafkaProducerWrapper {
     testFlushBehaviorOnException(IllegalStateException.class, "new-topic-42");
   }
 
+  @Test
+  public void testFlushBehaviorOnCloseInProgress() throws Exception {
+    DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
+    Properties transportProviderProperties = new Properties();
+    transportProviderProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1234");
+    transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
+    transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_CLOSE_TIMEOUT_MS, "1000");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_RATE_LIMITER_CFG, "1");
+    String topicName = "close-in-progress-topic";
+    MockKafkaProducerWrapper<byte[], byte[]> producerWrapper =
+        new MockKafkaProducerWrapper<>("log-suffix", transportProviderProperties, "metrics",
+            IllegalStateException.class);
+
+    String destinationUri = "localhost:1234/" + topicName;
+    Datastream ds = DatastreamTestUtils.createDatastream("test", "ds1", "source", destinationUri, 1);
+
+    DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
+    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(topicName, null, null);
+    producerWrapper.assignTask(task);
+
+    // Sending first event, send should pass, none of the other methods on the producer should have been called
+    producerWrapper.send(task, producerRecord, null);
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(0);
+    producerWrapper.verifyClose(0, 0, 0);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
+
+    producerWrapper.setCloseInProgress(true);
+
+    // Calling the first flush() on a separate thread because the InterruptException calls Thread interrupt() on the
+    // currently running thread. If not run on a separate thread, the test thread itself will be interrupted.
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
+    executorService.submit(() -> {
+      // Flush has been mocked to throw an InterruptException
+      Assert.assertThrows(IllegalStateException.class, producerWrapper::flush);
+    }).get();
+
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(1);
+    producerWrapper.verifyClose(0, 0, 0);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
+
+    producerWrapper.setCloseInProgress(false);
+    producerWrapper.close(task);
+    producerWrapper.verifySend(1);
+    producerWrapper.verifyFlush(1);
+    producerWrapper.verifyClose(1, 1, 0);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
+  }
+
   private void testFlushBehaviorOnException(Class<? extends Throwable> exceptionClass, String topicName)
       throws Exception {
     DynamicMetricsManager.createInstance(new MetricRegistry(), getClass().getSimpleName());
@@ -71,6 +122,7 @@ public class TestKafkaProducerWrapper {
     transportProviderProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:1234");
     transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
     transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_RATE_LIMITER_CFG, "1");
 
     MockKafkaProducerWrapper<byte[], byte[]> producerWrapper =
         new MockKafkaProducerWrapper<>("log-suffix", transportProviderProperties, "metrics",
@@ -87,7 +139,7 @@ public class TestKafkaProducerWrapper {
     producerWrapper.send(task, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(0, 0);
+    producerWrapper.verifyClose(0, 0, 0);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
 
     // Calling the first flush() on a separate thread because the InterruptException calls Thread interrupt() on the
@@ -100,34 +152,34 @@ public class TestKafkaProducerWrapper {
 
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(1, 1);
+    producerWrapper.verifyClose(1, 0, 1);
 
     // Second send should create a new producer, resetting flush() and close() invocation counts
     producerWrapper.send(task, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(0, 1);
+    producerWrapper.verifyClose(0, 0, 1);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
     // Second producer's flush() has not been mocked to throw exceptions, this should not throw
     producerWrapper.flush();
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(0, 1);
+    producerWrapper.verifyClose(0, 0, 1);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
     // Send should reuse the older producer and the counts should not be reset
     producerWrapper.send(task, producerRecord, null);
     producerWrapper.verifySend(2);
     producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(0, 1);
-    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
+    producerWrapper.verifyClose(0, 0, 1);
+    Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2, 1);
 
     // Closing the producer's task. Since this is the only task, the producer should be closed
     producerWrapper.close(task);
     producerWrapper.verifySend(2);
     producerWrapper.verifyFlush(1);
-    producerWrapper.verifyClose(1, 2);
+    producerWrapper.verifyClose(1, 1, 1);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
@@ -139,6 +191,8 @@ public class TestKafkaProducerWrapper {
     transportProviderProperties.put(ProducerConfig.CLIENT_ID_CONFIG, "testClient");
     transportProviderProperties.put(KafkaTransportProviderAdmin.ZK_CONNECT_STRING_CONFIG, "zk-connect-string");
     transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_FLUSH_TIMEOUT_MS, "1");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_PRODUCER_CLOSE_TIMEOUT_MS, "200");
+    transportProviderProperties.put(KafkaProducerWrapper.CFG_RATE_LIMITER_CFG, "1");
 
     String topicName = "topic-43";
 
@@ -164,31 +218,31 @@ public class TestKafkaProducerWrapper {
     producerWrapper.send(task1, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(0, 0);
+    producerWrapper.verifyClose(0, 0, 0);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 1);
 
     producerWrapper.unassignTask(task1);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 1);
+    producerWrapper.verifyClose(1, 1, 0);
 
     // Second send should fail as the task is unassigned
     Assert.assertThrows(DatastreamRuntimeException.class, () -> producerWrapper.send(task1, producerRecord, null));
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 1);
+    producerWrapper.verifyClose(1, 1, 0);
 
     producerWrapper.send(task2, producerRecord, null);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(0, 1);
+    producerWrapper.verifyClose(0, 1, 0);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
 
     // Closing the producer's task. Since this is the only task, the producer should be closed
     producerWrapper.close(task2);
     producerWrapper.verifySend(1);
     producerWrapper.verifyFlush(0);
-    producerWrapper.verifyClose(1, 2);
+    producerWrapper.verifyClose(1, 2, 0);
     Assert.assertEquals(producerWrapper.getNumCreateKafkaProducerCalls(), 2);
   }
 
@@ -197,6 +251,7 @@ public class TestKafkaProducerWrapper {
     private boolean _createKafkaProducerCalled;
     private int _numCreateKafkaProducerCalls;
     private int _numShutdownProducerCalls;
+    private int _numFastShutdownProducerCalls;
     private Producer<K, V> _mockProducer;
 
     MockKafkaProducerWrapper(String logSuffix, Properties props, String metricsNamesPrefix,
@@ -221,9 +276,13 @@ public class TestKafkaProducerWrapper {
     }
 
     @Override
-    void shutdownProducer() {
-      super.shutdownProducer();
-      ++_numShutdownProducerCalls;
+    void shutdownProducer(boolean fastClose) {
+      super.shutdownProducer(fastClose);
+      if (fastClose) {
+        ++_numFastShutdownProducerCalls;
+      } else {
+        ++_numShutdownProducerCalls;
+      }
     }
 
     void verifySend(int numExpected) {
@@ -234,7 +293,7 @@ public class TestKafkaProducerWrapper {
       verify(_mockProducer, times(numExpected)).flush(anyInt(), any(TimeUnit.class));
     }
 
-    void verifyClose(int numExpectedClose, int numExpectedShutdownProducerCalls) throws NoSuchMethodException {
+    void verifyClose(int numExpectedClose, int numExpectedShutdownProducerCalls, int numFastShutdownProducerCalls) throws NoSuchMethodException {
       // Producer close is invoked in a separate thread. Must wait for the thread to get scheduled and call close
       Method method = Producer.class.getMethod("close", long.class, TimeUnit.class);
       PollUtils.poll(() -> {
@@ -245,6 +304,7 @@ public class TestKafkaProducerWrapper {
       verify(_mockProducer, times(numExpectedClose)).close(anyLong(), any(TimeUnit.class));
 
       Assert.assertEquals(_numShutdownProducerCalls, numExpectedShutdownProducerCalls);
+      Assert.assertEquals(_numFastShutdownProducerCalls, numFastShutdownProducerCalls);
     }
 
     public int getNumCreateKafkaProducerCalls() {

@@ -5,6 +5,8 @@
  */
 package com.linkedin.datastream.server.assignment;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,21 +18,29 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -41,6 +51,33 @@ import static org.mockito.Mockito.when;
  * Tests for {@link StickyPartitionAssignmentStrategy}
  */
 public class TestStickyPartitionAssignment {
+  private EmbeddedZookeeper _embeddedZookeeper;
+  private String _clusterName;
+  private ZkClient _zkClient;
+
+  @BeforeMethod
+  public void setup() throws IOException {
+    _clusterName = "testcluster";
+    _embeddedZookeeper = new EmbeddedZookeeper();
+    String zkConnectionString = _embeddedZookeeper.getConnection();
+    _embeddedZookeeper.startup();
+    _zkClient = new ZkClient(zkConnectionString);
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
+  }
+
+  @AfterMethod
+  public void teardown() throws Exception {
+    _embeddedZookeeper.shutdown();
+    // A hack to force clean up DynamicMetricsManager
+    Field field = DynamicMetricsManager.class.getDeclaredField("_instance");
+    try {
+      field.setAccessible(true);
+      field.set(null, null);
+    } finally {
+      field.setAccessible(false);
+    }
+  }
+
   @Test
   public void testCreateAssignmentAcrossAllTasks() {
     Set<Boolean> elasticTaskAssignmentEnabledSet = new HashSet<>(Arrays.asList(true, false));
@@ -48,7 +85,7 @@ public class TestStickyPartitionAssignment {
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy =
           new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(),
-          elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+              elasticAssignmentEnabled, Optional.of(3), Optional.of(90), getZkClient(elasticAssignmentEnabled), _clusterName);
 
       Set<DatastreamTask> taskSet = new HashSet<>();
       List<DatastreamGroup> datastreams;
@@ -80,7 +117,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       Set<DatastreamTask> taskSet = new HashSet<>();
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
@@ -131,7 +169,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       Set<DatastreamTask> taskSet = new HashSet<>();
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
@@ -148,8 +187,13 @@ public class TestStickyPartitionAssignment {
       DatastreamGroupPartitionsMetadata partitionsMetadata =
           new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
 
+      Map<String, Set<DatastreamTask>> assignment2 = strategy.assignPartitions(assignment, partitionsMetadata);
+      assignment2.put("instance2", taskSet);
+      partitions = ImmutableList.of("t-0", "t-1", "t1-0", "t2-0");
+      DatastreamGroupPartitionsMetadata partitionsMetadata2 =
+          new DatastreamGroupPartitionsMetadata(datastreams.get(0), partitions);
       Assert.assertThrows(DatastreamRuntimeException.class,
-          () -> strategy.assignPartitions(assignment, partitionsMetadata));
+          () -> strategy.assignPartitions(assignment2, partitionsMetadata2));
     });
   }
 
@@ -159,7 +203,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
         datastreams = generateDatastreams("ds", 2, 1);
@@ -182,7 +227,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
         datastreams = generateDatastreams("ds", 2, 2);
@@ -206,7 +252,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
         datastreams = generateDatastreams("ds", 2, 2);
@@ -244,7 +291,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
         datastreams = generateDatastreams("ds", 2, 2);
@@ -274,7 +322,8 @@ public class TestStickyPartitionAssignment {
 
     elasticTaskAssignmentEnabledSet.forEach(elasticAssignmentEnabled -> {
       StickyPartitionAssignmentStrategy strategy = new StickyPartitionAssignmentStrategy(Optional.empty(),
-          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90));
+          Optional.empty(), Optional.empty(), elasticAssignmentEnabled, Optional.of(3), Optional.of(90),
+          getZkClient(elasticAssignmentEnabled), _clusterName);
       List<DatastreamGroup> datastreams;
       if (elasticAssignmentEnabled) {
         datastreams = generateDatastreams("ds", 1, 2);
@@ -316,9 +365,10 @@ public class TestStickyPartitionAssignment {
     // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
     StickyPartitionAssignmentStrategy strategy =
         new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
-            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -347,9 +397,10 @@ public class TestStickyPartitionAssignment {
     // Create a strategy with partitionsPerTask = 4 and fullnessFactorPct as 50%
     StickyPartitionAssignmentStrategy strategy =
         new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
-            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -382,6 +433,8 @@ public class TestStickyPartitionAssignment {
     // Partition assignment should go through
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -392,9 +445,10 @@ public class TestStickyPartitionAssignment {
     // Create a strategy with partitionsPerTask = 4 and fullnessFactorPct as 50%
     StickyPartitionAssignmentStrategy strategy =
         new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
-            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -451,6 +505,8 @@ public class TestStickyPartitionAssignment {
     // Pass an empty assignment to simulate a datastream restart which wipes out the tasks. The number of tasks needed
     // should be reassessed on the next assignment when we add the datastream back.
     assignment = Collections.emptyMap();
+    // Delete the ZK node for numTasks for this datastream to simulate deletion of this node on datastream stop.
+    _zkClient.delete(KeyBuilder.datastreamNumTasks(_clusterName, datastreams.get(0).getTaskPrefix()));
     // Pass an empty datastream list, since on datastream stop, we expect the stopped datastream to be filtered out
     // from the list of valid datastreams passed to the assign() call.
     assignment = strategy.assign(Collections.emptyList(), instances, assignment);
@@ -484,6 +540,8 @@ public class TestStickyPartitionAssignment {
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     Assert.assertEquals(assignment.get("instance1").size(), numTasksNeeded);
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -494,9 +552,10 @@ public class TestStickyPartitionAssignment {
     // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
     StickyPartitionAssignmentStrategy strategy =
         new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
-            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -516,6 +575,8 @@ public class TestStickyPartitionAssignment {
     Assert.assertEquals(assignment.get("instance1").size(), minTasks);
     int maxPartitionsPerTask = partitionsPerTask * fullnessFactorPct / 100;
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, minTasks);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -527,11 +588,14 @@ public class TestStickyPartitionAssignment {
     // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
     StickyPartitionAssignmentStrategy strategy =
         new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
-            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
-    datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
-        .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks)));
+    datastreams.forEach(datastreamGroup -> {
+      datastreamGroup.getDatastreams().get(0).getMetadata()
+          .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks));
+      _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, datastreamGroup.getTaskPrefix()));
+    });
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -568,6 +632,8 @@ public class TestStickyPartitionAssignment {
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     maxPartitionsPerTask = partitions.size() / maxTasks  + (partitions.size() % maxTasks == 0 ? 0 : 1);
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -579,11 +645,14 @@ public class TestStickyPartitionAssignment {
     // Create a strategy with partitionsPerTask = 2 and fullnessFactorPct as 50%
     StickyPartitionAssignmentStrategy strategy =
         new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), true,
-            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct));
+            Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct), Optional.of(_zkClient), _clusterName);
 
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
-    datastreams.forEach(datastreamGroup -> datastreamGroup.getDatastreams().get(0).getMetadata()
-        .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks)));
+    datastreams.forEach(datastreamGroup -> {
+      datastreamGroup.getDatastreams().get(0).getMetadata()
+          .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks));
+      _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, datastreamGroup.getTaskPrefix()));
+    });
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
     List<String> instances = new ArrayList<>();
@@ -604,6 +673,51 @@ public class TestStickyPartitionAssignment {
     // negative minTasks
     assignment = strategy.assignPartitions(assignment, partitionsMetadata);
     Assert.assertEquals(assignment.get("instance1").size(), maxTasks);
+
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+  }
+
+  @Test
+  public void testZkClientWithElasticTaskEnabledConfigMismatch() {
+    int partitionsPerTask = 2;
+    int fullnessFactorPct = 50;
+
+    // Enable elastic task assignment, and pass an empty ZkClient. This should throw.
+    Assert.assertThrows(IllegalArgumentException.class, () -> new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct),
+        Optional.empty(), _clusterName));
+
+    // Disable elastic task assignment, and pass valid ZkClient. This should not throw.
+    new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), false, Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct),
+        Optional.of(_zkClient), _clusterName);
+
+    // Disable elastic task assignment, and pass an empty ZkClient. This should not throw.
+    new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), false, Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct),
+        Optional.empty(), _clusterName);
+  }
+
+  @Test
+  public void testClusterNameWithElasticTaskEnabledConfigMismatch() {
+    int partitionsPerTask = 2;
+    int fullnessFactorPct = 50;
+
+    // Pass null or blank clusterName while elastic task assignment is enabled. This should throw.
+    Assert.assertThrows(IllegalArgumentException.class, () -> new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct),
+        Optional.of(_zkClient), null));
+
+    Assert.assertThrows(IllegalArgumentException.class, () -> new StickyPartitionAssignmentStrategy(Optional.empty(),
+        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask), Optional.of(fullnessFactorPct),
+        Optional.of(_zkClient), ""));
+
+    // If elastic task assignment is disabled, it should not matter whether clusterName is null or has a valid value.
+    new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), false,
+        Optional.empty(), Optional.empty(), Optional.empty(), null);
+
+    new StickyPartitionAssignmentStrategy(Optional.empty(), Optional.empty(), Optional.empty(), false,
+        Optional.empty(), Optional.empty(), Optional.empty(), _clusterName);
   }
 
   private void setupTaskLockForAssignment(Map<String, Set<DatastreamTask>> assignment) {
@@ -679,5 +793,9 @@ public class TestStickyPartitionAssignment {
       datastreams.add(new DatastreamGroup(Collections.singletonList(ds)));
     }
     return datastreams;
+  }
+
+  private Optional<ZkClient> getZkClient(boolean enableElasticTaskAssignment) {
+    return enableElasticTaskAssignment ? Optional.of(_zkClient) : Optional.empty();
   }
 }
