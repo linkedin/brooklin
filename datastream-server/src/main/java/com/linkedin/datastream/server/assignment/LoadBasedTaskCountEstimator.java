@@ -47,7 +47,7 @@ public class LoadBasedTaskCountEstimator {
 
     // total throughput in KB/sec
     int totalThroughput = throughputMap.entrySet().stream().
-        filter(e -> allPartitions.contains(e.getKey())).mapToInt(e -> e.getValue().getBytesInRate()).sum();
+        filter(e -> allPartitions.contains(e.getKey())).mapToInt(e -> e.getValue().getBytesInKBRate()).sum();
     LOG.debug("Total throughput in all partitions: {}KB/sec", totalThroughput);
 
     int taskCountEstimate = (int) Math.ceil((double) totalThroughput / (TASK_CAPACITY_MBPS_DEFAULT * 1024));

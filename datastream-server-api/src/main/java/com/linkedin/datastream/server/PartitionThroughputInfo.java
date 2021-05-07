@@ -27,13 +27,15 @@ public class PartitionThroughputInfo {
 
   /**
    * Gets the bytes in rate (in KB)
+   * @return Bytes in rate (in KB)
    */
-  public int getBytesInRate() {
+  public int getBytesInKBRate() {
     return _bytesInRate;
   }
 
   /**
    * Gets the messages in rate
+   * @return Messages in rate
    */
   public int getMessagesInRate() {
     return _messagesInRate;
@@ -41,6 +43,7 @@ public class PartitionThroughputInfo {
 
   /**
    * Gets the partition name
+   * @return Partition name
    */
   public String getPartitionName() {
     return _partitionName;
