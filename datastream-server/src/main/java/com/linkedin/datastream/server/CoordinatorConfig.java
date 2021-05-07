@@ -29,6 +29,7 @@ public final class CoordinatorConfig {
   public static final String CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK_LOCK = PREFIX + "zkCleanUpOrphanConnectorTaskLock";
   public static final String CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE = PREFIX + "maxDatastreamTasksPerInstance";
   public static final String CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP = PREFIX + "performPreAssignmentCleanup";
+  public static final String CONFIG_REINIT_ON_NEW_ZK_SESSION = PREFIX + "reinitOnNewZKSession";
 
   private final String _cluster;
   private final String _zkAddress;
@@ -44,6 +45,7 @@ public final class CoordinatorConfig {
   private final boolean _zkCleanUpOrphanConnectorTaskLock;
   private final int _maxDatastreamTasksPerInstance;
   private final boolean _performPreAssignmentCleanup;
+  private final boolean _reinitOnNewZkSession;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -65,6 +67,7 @@ public final class CoordinatorConfig {
     _zkCleanUpOrphanConnectorTaskLock = _properties.getBoolean(CONFIG_ZK_CLEANUP_ORPHAN_CONNECTOR_TASK_LOCK, false);
     _maxDatastreamTasksPerInstance = _properties.getInt(CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, 0);
     _performPreAssignmentCleanup = _properties.getBoolean(CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP, false);
+    _reinitOnNewZkSession = _properties.getBoolean(CONFIG_REINIT_ON_NEW_ZK_SESSION, false);
   }
 
   public Properties getConfigProperties() {
@@ -117,5 +120,9 @@ public final class CoordinatorConfig {
 
   public long getDebounceTimerMs() {
     return _debounceTimerMs;
+  }
+
+  public boolean getReinitOnNewZkSession() {
+    return _reinitOnNewZkSession;
   }
 }

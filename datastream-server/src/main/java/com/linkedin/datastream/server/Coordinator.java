@@ -249,7 +249,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void start() {
     _log.info("Starting coordinator");
     startEventThread();
-    _adapter.connect();
+    _adapter.connect(_config.getReinitOnNewZkSession());
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
@@ -535,9 +535,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void onNewSession() {
     createEventThread();
     startEventThread();
-    _adapter.connect();
-    // now that instance is started, make sure it doesn't miss any assignment created during
-    // the slow startup
+    _adapter.connect(true);
+    // ensure it doesn't miss any assignment created
     _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
 
     // Queue up one heartbeat per period with a initial delay of 3 periods

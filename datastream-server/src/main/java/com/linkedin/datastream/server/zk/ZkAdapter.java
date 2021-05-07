@@ -159,6 +159,8 @@ public class ZkAdapter {
   // object to synchronize zk session handling states
   private final Object _zkSessionLock = new Object();
 
+  private boolean _reinitOnNewSession = false;
+
   /**
    * Constructor
    * @param zkServers ZooKeeper server address to connect to
@@ -248,6 +250,17 @@ public class ZkAdapter {
    * the actions that need to be taken with them, which are implemented in the Coordinator class
    */
   public void connect() {
+    connect(false);
+  }
+
+  /**
+   * Connect the adapter so that it can connect and bridge events between ZooKeeper changes and
+   * the actions that need to be taken with them, which are implemented in the Coordinator class
+   *
+   * @param reinitOnNewSession re-initialize the object on new session after session expiry
+   */
+  public void connect(boolean reinitOnNewSession) {
+    _reinitOnNewSession = reinitOnNewSession;
     if (_zkclient == null) {
       _zkclient = createZkClient();
     }
@@ -1819,7 +1832,9 @@ public class ZkAdapter {
     public void handleNewSession() {
       synchronized (_zkSessionLock) {
         LOG.info("ZkStateChangeListener::A new session has been established.");
-        onNewSession();
+        if (_reinitOnNewSession) {
+          onNewSession();
+        }
       }
     }
 
@@ -1857,6 +1872,9 @@ public class ZkAdapter {
       onBecomeFollower();
       if (_listener != null) {
         _listener.onSessionExpired();
+      }
+      if (!_reinitOnNewSession) {
+        disconnect();
       }
     }
   }

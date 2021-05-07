@@ -2878,6 +2878,15 @@ public class TestCoordinator {
 
   @Test
   public void testOnSessionExpired() throws Exception {
+    testOnSessionExpired(false);
+  }
+
+  @Test
+  public void testOnSessionExpiredHandleNewSession() throws Exception {
+    testOnSessionExpired(true);
+  }
+
+  void testOnSessionExpired(boolean handleNewSession) throws DatastreamException, InterruptedException {
     String testCluster = "testCoordinationSmoke3";
     String testConnectorType = "testConnectorType";
     String datastreamName = "datastreamNameSessionExpired";
@@ -2887,6 +2896,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_REINIT_ON_NEW_ZK_SESSION, String.valueOf(handleNewSession));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -2915,12 +2925,14 @@ public class TestCoordinator {
     Assert.assertTrue(PollUtils.poll(instance1::isZkSessionExpired, 100, 30000));
     verify(mockStrategy, times(1)).cleanupStrategy();
 
-    instance1.onNewSession();
-    PollUtils.poll(() -> connector1._tasks.size() == 1, 1000, WAIT_TIMEOUT_MS);
-    Assert.assertEquals(instance1.getDatastreamTasks().size(), 1);
-    t = instance1.getEventThread();
-    Assert.assertTrue(t != null && t.isAlive());
-    Assert.assertTrue(PollUtils.poll(() -> instance1.getIsLeader().getAsBoolean(), 100, 30000));
+    if (handleNewSession) {
+      instance1.onNewSession();
+      PollUtils.poll(() -> connector1._tasks.size() == 1, 1000, WAIT_TIMEOUT_MS);
+      Assert.assertEquals(instance1.getDatastreamTasks().size(), 1);
+      t = instance1.getEventThread();
+      Assert.assertTrue(t != null && t.isAlive());
+      Assert.assertTrue(PollUtils.poll(() -> instance1.getIsLeader().getAsBoolean(), 100, 30000));
+    }
 
     instance1.stop();
     instance1.getDatastreamCache().getZkclient().close();

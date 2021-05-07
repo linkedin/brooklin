@@ -737,16 +737,24 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testZookeeperSessionExpiry() throws InterruptedException {
+  public void testZookeeperSessionExpiryDontReinitNewSession() throws InterruptedException {
+    testZookeeperSessionExpiry(false);
+  }
+  @Test
+  public void testZookeeperSessionExpiryReinitNewSession() throws InterruptedException {
+    testZookeeperSessionExpiry(true);
+  }
+
+  private void testZookeeperSessionExpiry(boolean reinitNewSession) throws InterruptedException {
     String testCluster = "testDeleteTaskWithPrefix";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
 
     ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster, 5000, ZK_DEBOUNCE_TIMER_MS);
-    adapter.connect();
+    adapter.connect(reinitNewSession);
 
     ZkClientInterceptingAdapter adapter2 = createInterceptingZkAdapter(testCluster, 5000, ZK_DEBOUNCE_TIMER_MS);
-    adapter2.connect();
+    adapter2.connect(reinitNewSession);
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
     task.setId("3");
@@ -768,27 +776,36 @@ public class TestZkAdapter {
 
     Thread.sleep(5000);
     verify(adapter, times(1)).onSessionExpired();
-    verifyZkListenersAfterExpiredSession(adapter);
+    if (!reinitNewSession) {
+      verifyZkListenersAfterDisconnect(adapter);
+    } else {
+      verifyZkListenersAfterExpiredSession(adapter);
+    }
     Assert.assertFalse(adapter.isLeader());
     Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
     verifyZkListenersOfLeader(adapter2);
 
     Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
-    verify(adapter, times(1)).onNewSession();
-    Assert.assertFalse(adapter.isLeader());
     Assert.assertTrue(adapter2.isLeader());
 
     //This connect is called from the coordinator code, calling it explicitly here for testing.
-    adapter.connect();
-    verifyZkListenersOfFollower(adapter);
+    if (reinitNewSession) {
+      verify(adapter, times(1)).onNewSession();
+      Assert.assertFalse(adapter.isLeader());
+      adapter.connect();
+      verifyZkListenersOfFollower(adapter);
+    }
 
     adapter2.disconnect();
     verifyZkListenersAfterDisconnect(adapter2);
-    Assert.assertTrue(PollUtils.poll(adapter::isLeader, 100, ZK_WAIT_IN_MS));
-    verifyZkListenersOfLeader(adapter);
 
-    adapter.disconnect();
-    verifyZkListenersAfterDisconnect(adapter);
+    if (reinitNewSession) {
+      Assert.assertTrue(PollUtils.poll(adapter::isLeader, 100, ZK_WAIT_IN_MS));
+      verifyZkListenersOfLeader(adapter);
+
+      adapter.disconnect();
+      verifyZkListenersAfterDisconnect(adapter);
+    }
   }
 
   private void verifyZkListenersAfterDisconnect(ZkClientInterceptingAdapter adapter) {
