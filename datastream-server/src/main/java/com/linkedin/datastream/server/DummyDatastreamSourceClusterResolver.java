@@ -9,8 +9,10 @@ package com.linkedin.datastream.server;
  * A dummy implementation for {@link DatastreamSourceClusterResolver}
  */
 public class DummyDatastreamSourceClusterResolver implements DatastreamSourceClusterResolver {
+  private static final String DUMMY_CLUSTER_NAME = "dummy";
+
   @Override
   public String getSourceCluster(DatastreamGroup datastreamGroup) {
-    return "";
+    return DUMMY_CLUSTER_NAME;
   }
 }

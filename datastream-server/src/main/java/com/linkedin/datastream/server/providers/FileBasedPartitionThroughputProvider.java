@@ -28,7 +28,7 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
 public class FileBasedPartitionThroughputProvider implements PartitionThroughputProvider {
   private static final String ROOT_NODE_NAME = "stats";
   private static final String MESSAGES_IN_RATE_TOKEN = "msgIn:";
-  private static final String BYTES_IN_RATE_TOKEN = "bytesInKb:";
+  private static final String BYTES_IN_RATE_TOKEN = "bytesInKB:";
 
   private final String _fileName;
 

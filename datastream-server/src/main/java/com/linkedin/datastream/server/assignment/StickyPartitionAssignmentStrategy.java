@@ -40,8 +40,8 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
-import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITIONS_PER_TASK;
-import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITION_FULLNESS_THRESHOLD_PCT;
+import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrategyConfig.CFG_PARTITIONS_PER_TASK;
+import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrategyConfig.CFG_PARTITION_FULLNESS_THRESHOLD_PCT;
 
 
 /**

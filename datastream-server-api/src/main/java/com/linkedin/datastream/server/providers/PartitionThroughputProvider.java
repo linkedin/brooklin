@@ -5,7 +5,7 @@
  */
 package com.linkedin.datastream.server.providers;
 
-import java.util.HashMap;
+import java.util.Map;
 
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 
@@ -27,5 +27,5 @@ public interface PartitionThroughputProvider {
    * Retrieves per-partition throughput information for all clusters.
    * @return A map, where keys are cluster names and values are throughput information for the cluster.
    */
-  HashMap<String, ClusterThroughputInfo> getThroughputInfo();
+  Map<String, ClusterThroughputInfo> getThroughputInfo();
 }

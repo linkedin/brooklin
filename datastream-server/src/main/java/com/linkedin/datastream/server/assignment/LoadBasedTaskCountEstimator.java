@@ -24,7 +24,7 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
 public class LoadBasedTaskCountEstimator {
 
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
-  private final static int TASK_CAPACITY_MBPS = 4;
+  private final static int TASK_CAPACITY_MBPS_DEFAULT = 4;
 
   /**
    * Gets the estimated number of tasks based on per-partition throughput information.
@@ -50,7 +50,7 @@ public class LoadBasedTaskCountEstimator {
         filter(e -> allPartitions.contains(e.getKey())).mapToInt(e -> e.getValue().getBytesInRate()).sum();
     LOG.debug("Total throughput in all partitions: {}KB/sec", totalThroughput);
 
-    int taskCountEstimate = (int) Math.ceil((double) totalThroughput / (TASK_CAPACITY_MBPS * 1024));
+    int taskCountEstimate = (int) Math.ceil((double) totalThroughput / (TASK_CAPACITY_MBPS_DEFAULT * 1024));
     LOG.debug("Estimated number of tasks required to handle the throughput: {}", taskCountEstimate);
     return taskCountEstimate;
   }

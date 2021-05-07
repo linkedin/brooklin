@@ -34,12 +34,13 @@ import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
  * {@link PartitionThroughputProvider}
  */
 public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignmentStrategy {
-  private final PartitionThroughputProvider _throughputProvider;
-  private final DatastreamSourceClusterResolver _sourceClusterResolver;
-
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
   private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(10).toMillis();
   private static final long THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT = Duration.ofSeconds(1).toMillis();
+
+  private final PartitionThroughputProvider _throughputProvider;
+  private final DatastreamSourceClusterResolver _sourceClusterResolver;
+
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
