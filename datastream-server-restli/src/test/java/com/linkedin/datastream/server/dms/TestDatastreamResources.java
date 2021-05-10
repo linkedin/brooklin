@@ -484,6 +484,10 @@ public class TestDatastreamResources {
     modifyStatus.setTransportProviderName("Random");
     checkBadRequest(() -> resource.update(modifyTransport.getName(), modifyTransport), HttpStatus.S_400_BAD_REQUEST);
 
+    Datastream modifyNumTasks = generateDatastream(1);
+    modifyNumTasks.getMetadata().put("numTasks", "10");
+    checkBadRequest(() -> resource.update(modifyNumTasks.getName(), modifyNumTasks), HttpStatus.S_400_BAD_REQUEST);
+
     // Create another datastream that gets deduped to datastream1.
     Datastream originalDatastream2 = generateDatastream(2);
     originalDatastream2.getDestination().setConnectionString("a different destination");
@@ -624,6 +628,11 @@ public class TestDatastreamResources {
       Assert.assertNotNull(e.getMessage());
       Assert.assertTrue(e.getMessage().contains(undefinedProviderName));
     }
+
+    // Test datastream creation with numTasks
+    Datastream badDatastream = generateDatastream(0);
+    badDatastream.getMetadata().put("numTasks", "100");
+    checkBadRequest(() -> resource.create(fullDatastream));
   }
 
   private Datastream createDatastream(DatastreamResources resource, String name, int seed) {

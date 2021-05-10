@@ -68,6 +68,8 @@ import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
+import static com.linkedin.datastream.server.zk.KeyBuilder.NUM_TASKS;
+
 
 /**
  * Resources classes are used by rest.li to process corresponding HTTP request.
@@ -193,6 +195,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
           throw new DatastreamValidationException(String.format("Failed to update %s. Can't update status in update request."
                   + " old: %s new: %s", key, oldDatastream, datastream));
+        }
+
+        if (datastream.getMetadata().containsKey(NUM_TASKS) &&
+            !datastream.getMetadata().get(NUM_TASKS).equals(oldDatastream.getMetadata().get(NUM_TASKS))) {
+          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update numTasks."
+              + " old: %s new: %s", key, oldDatastream, datastream));
         }
       } catch (DatastreamValidationException e) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
@@ -759,6 +767,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       StringMap metadataMap = datastream.getMetadata();
       Validate.isTrue(metadataMap.containsKey(DatastreamMetadataConstants.OWNER_KEY),
           "Must specify owner of Datastream");
+      Validate.isTrue(!metadataMap.containsKey(NUM_TASKS), "Cannot set numTasks in datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
         metadataMap.put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
