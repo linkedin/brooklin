@@ -7,7 +7,6 @@ package com.linkedin.datastream.server.assignment;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +62,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
     DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
     String datastreamGroupName = datastreamGroup.getName();
-    HashMap<String, ClusterThroughputInfo> partitionThroughputInfo;
+    Map<String, ClusterThroughputInfo> partitionThroughputInfo;
 
     // Attempting to retrieve partition throughput info with a fallback mechanism to StickyPartitionAssignmentStrategy
     try {
@@ -109,8 +108,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         maxTaskCount);
   }
 
-  private HashMap<String, ClusterThroughputInfo> fetchPartitionThroughputInfo() {
-    PollUtils.poll(() -> {
+  private Map<String, ClusterThroughputInfo> fetchPartitionThroughputInfo() {
+    return PollUtils.poll(() -> {
       try {
         return _throughputProvider.getThroughputInfo();
       } catch (Exception ex) {
@@ -119,7 +118,5 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       }
     }, Objects::nonNull, THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
         .orElseThrow(RetriesExhaustedException::new);
-
-    return null;
   }
 }
