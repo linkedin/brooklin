@@ -24,6 +24,8 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
 public class LoadBasedTaskCountEstimator {
 
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
+
+  // TODO Make this constant configurable
   private final static int TASK_CAPACITY_MBPS_DEFAULT = 4;
 
   /**

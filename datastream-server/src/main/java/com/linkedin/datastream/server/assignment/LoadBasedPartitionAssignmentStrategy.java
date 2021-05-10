@@ -35,6 +35,8 @@ import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
  */
 public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
+
+  // TODO Make these constants configurable
   private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(10).toMillis();
   private static final long THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT = Duration.ofSeconds(1).toMillis();
 
@@ -95,11 +97,11 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     String clusterName = _sourceClusterResolver.getSourceCluster(datastreamPartitions.getDatastreamGroup());
     LoadBasedTaskCountEstimator taskCountEstimator = new LoadBasedTaskCountEstimator();
     ClusterThroughputInfo clusterThroughputInfo = partitionThroughputInfo.get(clusterName);
-    int taskCount2 = taskCountEstimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
+    int throughputTaskCountEstimate = taskCountEstimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
         unassignedPartitions);
 
     // Picking the maximum task count between elastic task count and throughput based task count estimate
-    int maxTaskCount = Math.max(taskCount, taskCount2);
+    int maxTaskCount = Math.max(taskCount, throughputTaskCountEstimate);
 
     // Doing assignment
     LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
