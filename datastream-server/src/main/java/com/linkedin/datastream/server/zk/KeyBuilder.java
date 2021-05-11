@@ -5,6 +5,9 @@
  */
 package com.linkedin.datastream.server.zk;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.NUM_TASKS;
+
+
 /**
  * Helper class to build commonly accessed ZooKeeper znodes
  */
@@ -90,7 +93,6 @@ public final class KeyBuilder {
    */
   private static final String TARGET_ASSIGNMENTS = TARGET_ASSIGNMENT_BASE + "/%s";
 
-  public static final String NUM_TASKS = "numTasks";
   /**
    * numTasks information stored for each datastream that uses elastic task assignment
    */

@@ -68,7 +68,7 @@ import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
-import static com.linkedin.datastream.server.zk.KeyBuilder.NUM_TASKS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.NUM_TASKS;
 
 
 /**
