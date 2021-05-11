@@ -62,8 +62,14 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
     DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
     String datastreamGroupName = datastreamGroup.getName();
-    Map<String, ClusterThroughputInfo> partitionThroughputInfo;
+    List<String> assignedPartitions = getAssignedPartitionsForDatastreamGroup(currentAssignment, datastreamGroupName);
 
+    // Do throughput based assignment only initially, when no partitions have been assigned yet
+    if (!assignedPartitions.isEmpty()) {
+      return super.assignPartitions(currentAssignment, datastreamPartitions);
+    }
+
+    Map<String, ClusterThroughputInfo> partitionThroughputInfo;
     // Attempting to retrieve partition throughput info with a fallback mechanism to StickyPartitionAssignmentStrategy
     try {
       partitionThroughputInfo = fetchPartitionThroughputInfo();
@@ -78,13 +84,10 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
 
     // Calculating task count and assigned partitions
     int taskCount = getTaskCountForDatastreamGroup(currentAssignment, datastreamGroupName);
-    List<String> assignedPartitions = getAssignedPartitionsForDatastreamGroup(currentAssignment, datastreamGroupName);
 
     // Elastic task count validation
     if (getEnableElasticTaskAssignment(datastreamGroup)) {
-      if (assignedPartitions.isEmpty()) {
-        performElasticTaskCountValidation(datastreamPartitions, taskCount);
-      }
+      performElasticTaskCountValidation(datastreamPartitions, taskCount);
       updateOrRegisterElasticTaskAssignmentMetrics(datastreamPartitions, taskCount);
     }
 
