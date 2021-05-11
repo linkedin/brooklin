@@ -82,28 +82,17 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment.");
 
-    // Calculating task count and assigned partitions
-    int taskCount = getTaskCountForDatastreamGroup(currentAssignment, datastreamGroupName);
+    // TODO Get task count estimate and perform elastic task count validation
+    // TODO Get task count estimate based on throughput and pick a winner
+    int maxTaskCount = 0;
 
-    // Elastic task count validation
-    if (getEnableElasticTaskAssignment(datastreamGroup)) {
-      performElasticTaskCountValidation(datastreamPartitions, taskCount);
-      updateOrRegisterElasticTaskAssignmentMetrics(datastreamPartitions, taskCount);
-    }
-
+    // TODO Get unassigned partitions
     // Calculating unassigned partitions
-    List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
-    unassignedPartitions.removeAll(assignedPartitions);
+    List<String> unassignedPartitions = new ArrayList<>();
 
-    // Getting a task count estimate based on throughput
+    // Resolving cluster name from datastream group
     String clusterName = _sourceClusterResolver.getSourceCluster(datastreamPartitions.getDatastreamGroup());
-    LoadBasedTaskCountEstimator taskCountEstimator = new LoadBasedTaskCountEstimator();
     ClusterThroughputInfo clusterThroughputInfo = partitionThroughputInfo.get(clusterName);
-    int throughputTaskCountEstimate = taskCountEstimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
-        unassignedPartitions);
-
-    // Picking the maximum task count between elastic task count and throughput based task count estimate
-    int maxTaskCount = Math.max(taskCount, throughputTaskCountEstimate);
 
     // Doing assignment
     LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
