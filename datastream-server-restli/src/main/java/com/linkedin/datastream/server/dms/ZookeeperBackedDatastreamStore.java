@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,8 +62,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     return KeyBuilder.datastream(_cluster, key);
   }
 
-  @Override
-  public String getConnectorTaskPath(String connector, String task) {
+  private String getConnectorTaskPath(String connector, String task) {
     return KeyBuilder.connectorTask(_cluster, connector, task);
   }
 
@@ -71,11 +71,15 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   }
 
   @Override
-  public String getRawData(String path) {
-    if (path == null) {
+  public String getAssignedTaskInstance(String datastream, String task) {
+    if (StringUtils.isEmpty(task)) {
       return null;
     }
-    return _zkClient.readData(path, true);
+    Datastream stream = getDatastream(datastream);
+    if (stream == null) {
+      return null;
+    }
+    return _zkClient.readData(getConnectorTaskPath(stream.getConnectorName(), task), true);
   }
 
   @Override

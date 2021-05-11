@@ -22,14 +22,9 @@ public interface DatastreamStore {
   Datastream getDatastream(String key);
 
   /**
-   * Retrieves raw data in json from the given path.
+   * Retrieves the node on which the provided task is handled
    */
-  String getRawData(String path);
-
-  /**
-   * Retrieves connector task path specific to the store implementation.
-   */
-  String getConnectorTaskPath(String connector, String task);
+  String getAssignedTaskInstance(String datastream, String task);
 
   /**
    * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better

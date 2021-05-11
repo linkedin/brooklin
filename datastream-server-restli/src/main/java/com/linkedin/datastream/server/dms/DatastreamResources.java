@@ -695,11 +695,11 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   }
 
   /**
-   * Finds the task's assignment node which hosts the given task 
+   * Finds the task's assignment node which hosts the given task
    * @param pathKeys Datastream resource key
    * @param task Datastream task name
    */
-  @Action(name = "getTaskAssignment")
+  @Action(name = "getTaskAssignment", resourceLevel = ResourceLevel.ENTITY)
   public String getTaskAssignment(@PathKeysParam PathKeys pathKeys, @ActionParam("task") String task) {
     // Get datastream
     String datastreamName = pathKeys.getAsString(KEY_NAME);
@@ -707,17 +707,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     Datastream stream;
     String assignedInstance = null;
     try {
-      LOG.info("Get assigned instance for task: {}", task);
+      LOG.info("Get assignee instance for task: {}", task);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
-      stream = _store.getDatastream(datastreamName);
-      assignedInstance = _store.getRawData(_store.getConnectorTaskPath(stream.getConnectorName(), task));
+      assignedInstance = _store.getAssignedTaskInstance(datastreamName, task);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
           "Failed to get assigned instance hosting task: " + task, e);
     }
 
-    if (assignedInstance == null) {
+    if (StringUtils.isEmpty(assignedInstance)) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
           "Connector task not found: " + task);
     }
