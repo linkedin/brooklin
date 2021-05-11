@@ -254,7 +254,7 @@ public class TestZookeeperBackedDatastreamStore {
     Datastream ds3 = _store.getDatastream(ds.getName());
     Assert.assertNotNull(ds3);
     Assert.assertNotEquals(ds3, ds);
-    Assert.assertEquals(ds3.getMetadata().get("numTasks"), 10);
+    Assert.assertEquals(ds3.getMetadata().get("numTasks"), "10");
 
     // deleting the Datastream
     _store.deleteDatastream(ds.getName());
