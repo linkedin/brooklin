@@ -28,6 +28,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -332,6 +334,23 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       throws DatastreamValidationException {
     // validate for paused partitions
     validatePausedPartitions(datastreams, allDatastreams);
+    //validate connection string
+    for (Datastream datastream : datastreams) {
+      validateSourceConnectionString(datastream);
+    }
+  }
+
+  protected void validateSourceConnectionString(Datastream stream) throws DatastreamValidationException {
+    // verify that the source regular expression can be compiled
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf(stream.getSource().getConnectionString());
+    try {
+      Pattern pattern = Pattern.compile(connectionString.getTopicName());
+      _logger.info("Successfully compiled topic name pattern {}", pattern);
+    } catch (PatternSyntaxException e) {
+      throw new DatastreamValidationException(
+          String.format("Regular expression in Datastream source connection string (%s) is ill-formatted.",
+              stream.getSource().getConnectionString()), e);
+    }
   }
 
   private void validatePausedPartitions(List<Datastream> datastreams, List<Datastream> allDatastreams)
