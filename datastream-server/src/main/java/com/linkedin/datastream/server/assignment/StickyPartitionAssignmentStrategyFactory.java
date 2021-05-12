@@ -22,38 +22,38 @@ import com.linkedin.datastream.server.api.strategy.AssignmentStrategyFactory;
  */
 public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrategyFactory {
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategyFactory.class.getName());
+  protected PartitionAssignmentStrategyConfig _config;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
-    PartitionAssignmentStrategyConfig config = new PartitionAssignmentStrategyConfig(assignmentStrategyProperties);
+    _config = new PartitionAssignmentStrategyConfig(assignmentStrategyProperties);
 
-    boolean enableElasticTaskAssignment = config.isElasticTaskAssignmentEnabled();
+    boolean enableElasticTaskAssignment = _config.isElasticTaskAssignmentEnabled();
     // Create the zookeeper client
     Optional<ZkClient> zkClient = Optional.empty();
     try {
-      zkClient = constructZooKeeperClient(enableElasticTaskAssignment, config.getZkAddress(),
-          config.getZkSessionTimeout(), config.getZkConnectionTimeout());
+      zkClient = constructZooKeeperClient();
     } catch (IllegalStateException ex) {
-      LOG.warn("Disabling elastic task assignment as zkClient initialization failed");
+      LOG.warn("Disabling elastic task assignment as zkClient initialization failed", ex);
       enableElasticTaskAssignment = false;
     }
 
-    return new StickyPartitionAssignmentStrategy(config.getMaxTasks(), config.getImbalanceThreshold(),
-        config.getMaxPartitions(), enableElasticTaskAssignment, config.getPartitionsPerTask(),
-        config.getPartitionFullnessThresholdPct(), zkClient, config.getCluster());
+    return new StickyPartitionAssignmentStrategy(_config.getMaxTasks(), _config.getImbalanceThreshold(),
+        _config.getMaxPartitions(), enableElasticTaskAssignment, _config.getPartitionsPerTask(),
+        _config.getPartitionFullnessThresholdPct(), zkClient, _config.getCluster());
   }
 
-  protected Optional<ZkClient> constructZooKeeperClient(boolean enableElasticTaskAssignment, String zkAddress,
-      int zkSessionTimeout, int zkConnectionTimeout) {
-    if (!enableElasticTaskAssignment) {
+  protected Optional<ZkClient> constructZooKeeperClient() {
+    if (!_config.isElasticTaskAssignmentEnabled()) {
       return Optional.empty();
     }
 
-    if (StringUtils.isBlank(zkAddress)) {
+    if (StringUtils.isBlank(_config.getZkAddress())) {
       LOG.warn("ZkAddress is not present or empty");
       throw new IllegalStateException("ZkAddress is empty or not provided");
     }
 
-    return Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
+    return Optional.of(new ZkClient(_config.getZkAddress(), _config.getZkSessionTimeout(),
+        _config.getZkConnectionTimeout()));
   }
 }

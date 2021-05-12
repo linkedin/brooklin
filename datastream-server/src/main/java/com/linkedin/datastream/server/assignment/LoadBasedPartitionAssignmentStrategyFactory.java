@@ -27,14 +27,13 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
-    PartitionAssignmentStrategyConfig config = new PartitionAssignmentStrategyConfig(assignmentStrategyProperties);
+    _config = new PartitionAssignmentStrategyConfig(assignmentStrategyProperties);
 
-    boolean enableElasticTaskAssignment = config.isElasticTaskAssignmentEnabled();
+    boolean enableElasticTaskAssignment = _config.isElasticTaskAssignmentEnabled();
     // Create the zookeeper client
     Optional<ZkClient> zkClient = Optional.empty();
     try {
-      zkClient = constructZooKeeperClient(enableElasticTaskAssignment, config.getZkAddress(),
-          config.getZkSessionTimeout(), config.getZkConnectionTimeout());
+      zkClient = constructZooKeeperClient();
     } catch (IllegalStateException ex) {
       LOG.warn("Disabling elastic task assignment as zkClient initialization failed", ex);
       enableElasticTaskAssignment = false;
@@ -43,9 +42,9 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
     PartitionThroughputProvider provider = constructPartitionThroughputProvider();
     DatastreamSourceClusterResolver clusterResolver = constructDatastreamSourceClusterResolver();
 
-    return new LoadBasedPartitionAssignmentStrategy(provider, clusterResolver, config.getMaxTasks(),
-        config.getImbalanceThreshold(), config.getMaxPartitions(), enableElasticTaskAssignment,
-        config.getPartitionsPerTask(), config.getPartitionFullnessThresholdPct(), zkClient, config.getCluster());
+    return new LoadBasedPartitionAssignmentStrategy(provider, clusterResolver, _config.getMaxTasks(),
+        _config.getImbalanceThreshold(), _config.getMaxPartitions(), enableElasticTaskAssignment,
+        _config.getPartitionsPerTask(), _config.getPartitionFullnessThresholdPct(), zkClient, _config.getCluster());
   }
 
   protected PartitionThroughputProvider constructPartitionThroughputProvider() {
