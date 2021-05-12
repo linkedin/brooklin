@@ -10,17 +10,17 @@ package com.linkedin.datastream.server;
  * A structure for partition throughput information.
  */
 public class PartitionThroughputInfo {
-  private final int _bytesInRate;
+  private final int _bytesInKBRate;
   private final int _messagesInRate;
   private final String _partitionName;
 
   /**
    * Creates an instance of {@link PartitionThroughputInfo}
-   * @param bytesInRate Bytes in rate for the partition
+   * @param bytesInKBRate Bytes in rate for the partition
    * @param messagesInRate Messages in rate for the partition
    */
-  public PartitionThroughputInfo(int bytesInRate, int messagesInRate, String partitionName) {
-    _bytesInRate = bytesInRate;
+  public PartitionThroughputInfo(int bytesInKBRate, int messagesInRate, String partitionName) {
+    _bytesInKBRate = bytesInKBRate;
     _messagesInRate = messagesInRate;
     _partitionName = partitionName;
   }
@@ -30,7 +30,7 @@ public class PartitionThroughputInfo {
    * @return Bytes in rate (in KB)
    */
   public int getBytesInKBRate() {
-    return _bytesInRate;
+    return _bytesInKBRate;
   }
 
   /**

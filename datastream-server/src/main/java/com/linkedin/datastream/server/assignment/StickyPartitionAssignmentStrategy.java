@@ -37,6 +37,7 @@ import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
@@ -171,26 +172,17 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return super.assign(datastreams, instances, currentAssignment);
   }
 
-  protected List<String> getAssignedPartitionsForDatastreamGroup(Map<String, Set<DatastreamTask>> currentAssignment,
-      String datastreamGroupName) {
+  protected Pair<List<String>, Integer> getAssignedPartitionsAndTaskCountForDatastreamGroup(
+      Map<String, Set<DatastreamTask>> currentAssignment, String datastreamGroupName) {
     List<String> assignedPartitions = new ArrayList<>();
-    for (Set<DatastreamTask> tasks : currentAssignment.values()) {
-      Set<DatastreamTask> dgTask = tasks.stream().filter(t -> datastreamGroupName.equals(t.getTaskPrefix()))
-          .collect(Collectors.toSet());
-      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
-    }
-    return assignedPartitions;
-  }
-
-  protected int getTaskCountForDatastreamGroup(Map<String, Set<DatastreamTask>> currentAssignment,
-      String datastreamGroupName) {
     int taskCount = 0;
     for (Set<DatastreamTask> tasks : currentAssignment.values()) {
       Set<DatastreamTask> dgTask = tasks.stream().filter(t -> datastreamGroupName.equals(t.getTaskPrefix()))
           .collect(Collectors.toSet());
       taskCount += dgTask.size();
+      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
     }
-    return taskCount;
+    return new Pair<>(assignedPartitions, taskCount);
   }
 
   /**
@@ -213,8 +205,10 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     String dgName = datastreamGroup.getName();
 
     // Step 1: collect the # of tasks and figured out the unassigned partitions
-    List<String> assignedPartitions = getAssignedPartitionsForDatastreamGroup(currentAssignment, dgName);
-    int totalTaskCount = getTaskCountForDatastreamGroup(currentAssignment, dgName);
+    Pair<List<String>, Integer> assignedPartitionsAndTaskCount =
+        getAssignedPartitionsAndTaskCountForDatastreamGroup(currentAssignment, dgName);
+    List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
+    int totalTaskCount = assignedPartitionsAndTaskCount.getValue();
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
     if (getEnableElasticTaskAssignment(datastreamGroup)) {

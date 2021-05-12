@@ -25,6 +25,7 @@ import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamSourceClusterResolver;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
 
@@ -62,7 +63,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
     DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
     String datastreamGroupName = datastreamGroup.getName();
-    List<String> assignedPartitions = getAssignedPartitionsForDatastreamGroup(currentAssignment, datastreamGroupName);
+    Pair<List<String>, Integer> assignedPartitionsAndTaskCount = getAssignedPartitionsAndTaskCountForDatastreamGroup(
+        currentAssignment, datastreamGroupName);
+    List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
 
     // Do throughput based assignment only initially, when no partitions have been assigned yet
     if (!assignedPartitions.isEmpty()) {
@@ -105,6 +108,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       try {
         return _throughputProvider.getThroughputInfo();
       } catch (Exception ex) {
+        // TODO print exception and retry count
         LOG.warn("Failed to fetch partition throughput info.");
         return null;
       }

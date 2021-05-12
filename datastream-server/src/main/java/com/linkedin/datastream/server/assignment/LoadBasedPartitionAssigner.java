@@ -24,6 +24,7 @@ public class LoadBasedPartitionAssigner {
    * @param throughputInfo Per-partition throughput information
    * @param assignedPartitions List of assigned partitions
    * @param unassignedPartitions List of unassigned partitions
+   * @param taskCount Task count
    * @return Partition assignment
    */
   public Map<String, Set<DatastreamTask>> assignPartitions(ClusterThroughputInfo throughputInfo,

@@ -32,7 +32,7 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
     Optional<ZkClient> zkClient = Optional.empty();
     try {
       zkClient = constructZooKeeperClient(enableElasticTaskAssignment, config.getZkAddress(),
-          config.getZkSessionTimeout(), config.getZkSessionTimeout());
+          config.getZkSessionTimeout(), config.getZkConnectionTimeout());
     } catch (IllegalStateException ex) {
       LOG.warn("Disabling elastic task assignment as zkClient initialization failed");
       enableElasticTaskAssignment = false;
@@ -45,16 +45,15 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
 
   protected Optional<ZkClient> constructZooKeeperClient(boolean enableElasticTaskAssignment, String zkAddress,
       int zkSessionTimeout, int zkConnectionTimeout) {
-    Optional<ZkClient> zkClient = Optional.empty();
-    if (enableElasticTaskAssignment && StringUtils.isBlank(zkAddress)) {
+    if (!enableElasticTaskAssignment) {
+      return Optional.empty();
+    }
+
+    if (StringUtils.isBlank(zkAddress)) {
       LOG.warn("ZkAddress is not present or empty");
       throw new IllegalStateException("ZkAddress is empty or not provided");
     }
 
-    if (enableElasticTaskAssignment) {
-      zkClient = Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
-    }
-
-    return zkClient;
+    return Optional.of(new ZkClient(zkAddress, zkSessionTimeout, zkConnectionTimeout));
   }
 }

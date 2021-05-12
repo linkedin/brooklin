@@ -14,7 +14,6 @@ import java.util.Map;
 public class ClusterThroughputInfo {
 
   private final String _clusterName;
-
   private final Map<String, PartitionThroughputInfo> _partitionInfoMap;
 
   /**

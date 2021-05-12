@@ -37,10 +37,10 @@ public class TestFileBasedPartitionThroughputProvider {
     Assert.assertNotNull(clusterInfoMap);
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class)
+  @Test
   public void getPartitionThroughputThrowsWhenFileNotFound() {
     String dummyFileName = "dummy.json";
     PartitionThroughputProvider provider = new FileBasedPartitionThroughputProvider(dummyFileName);
-    Map<String, ClusterThroughputInfo> clusterInfoMap = provider.getThroughputInfo();
+    Assert.assertThrows(IllegalArgumentException.class, provider::getThroughputInfo);
   }
 }

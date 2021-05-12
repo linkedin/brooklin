@@ -34,9 +34,9 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
     Optional<ZkClient> zkClient = Optional.empty();
     try {
       zkClient = constructZooKeeperClient(enableElasticTaskAssignment, config.getZkAddress(),
-          config.getZkSessionTimeout(), config.getZkSessionTimeout());
+          config.getZkSessionTimeout(), config.getZkConnectionTimeout());
     } catch (IllegalStateException ex) {
-      LOG.warn("Disabling elastic task assignment as zkClient initialization failed");
+      LOG.warn("Disabling elastic task assignment as zkClient initialization failed", ex);
       enableElasticTaskAssignment = false;
     }
 
