@@ -26,6 +26,7 @@ import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.NUM_TASKS;
 import static com.linkedin.datastream.server.Coordinator.PAUSED_INSTANCE;
 
 
@@ -74,7 +75,18 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     if (json == null) {
       return null;
     }
-    return DatastreamUtils.fromJSON(json);
+
+    Datastream datastream = DatastreamUtils.fromJSON(json);
+    if (datastream == null) {
+      return null;
+    }
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, key);
+    String numTasks = _zkClient.readData(numTasksPath, true /* returnNullIfPathNotExists */);
+    if (numTasks != null) {
+      Objects.requireNonNull(datastream.getMetadata()).put(NUM_TASKS, numTasks);
+    }
+
+    return datastream;
   }
 
   /**
@@ -97,6 +109,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       throw new DatastreamException("Datastream does not exists, can not be updated: " + key);
     }
 
+    Objects.requireNonNull(datastream.getMetadata()).remove("numTasks");
     String json = DatastreamUtils.toJSON(datastream);
     _zkClient.writeData(getZnodePath(key), json);
     if (notifyLeader) {
