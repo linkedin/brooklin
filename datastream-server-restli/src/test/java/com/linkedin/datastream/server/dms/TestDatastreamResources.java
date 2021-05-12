@@ -632,7 +632,7 @@ public class TestDatastreamResources {
     // Test datastream creation with numTasks
     Datastream badDatastream = generateDatastream(0);
     badDatastream.getMetadata().put("numTasks", "100");
-    checkBadRequest(() -> resource.create(fullDatastream));
+    checkBadRequest(() -> resource.create(badDatastream));
   }
 
   private Datastream createDatastream(DatastreamResources resource, String name, int seed) {
