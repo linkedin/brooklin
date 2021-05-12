@@ -125,4 +125,9 @@ public class DatastreamMetadataConstants {
    * Datastream override for custom checkpointing. This overrides the connector level flag if present.
    */
   public static final String CUSTOM_CHECKPOINT = "system.customCheckpoint";
+
+  /**
+   * Datastream metadata that represents number of tasks
+   */
+  public static final String NUM_TASKS = "numTasks";
 }
