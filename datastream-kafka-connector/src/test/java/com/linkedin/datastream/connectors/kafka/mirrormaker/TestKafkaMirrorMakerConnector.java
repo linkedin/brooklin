@@ -255,6 +255,20 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testValidateDatastreamUpdateWithBadSource() throws DatastreamValidationException {
+    String sourceRegex = "*Event*";
+    StringMap metadata = new StringMap();
+    metadata.put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, Boolean.FALSE.toString());
+    Datastream ds =
+        KafkaMirrorMakerConnectorTestUtils.createDatastream("testInitializeDatastreamWithBadSource", _broker,
+            sourceRegex, metadata);
+    KafkaMirrorMakerConnector connector =
+        new KafkaMirrorMakerConnector("testInitializeDatastreamWithBadSource", getDefaultConfig(Optional.empty()),
+            "testCluster");
+    Assert.assertThrows(DatastreamValidationException.class, () -> connector.validateUpdateDatastreams(Collections.singletonList(ds), Collections.emptyList()));
+  }
+
+  @Test
   public void testMirrorMakerConnectorBasics() {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
