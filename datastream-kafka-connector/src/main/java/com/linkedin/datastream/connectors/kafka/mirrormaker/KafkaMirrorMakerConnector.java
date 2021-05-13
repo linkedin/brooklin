@@ -17,6 +17,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections.ListUtils;
@@ -238,6 +239,29 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
     });
 
     LOG.info("handleDatastream: new datastream groups: {}", _partitionDiscoveryThreadMap.keySet());
+  }
+
+  @Override
+  public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
+      throws DatastreamValidationException {
+    super.validateUpdateDatastreams(datastreams, allDatastreams);
+    //validate connection string
+    for (Datastream datastream : datastreams) {
+      validateSourceConnectionString(datastream);
+    }
+  }
+
+  private void validateSourceConnectionString(Datastream stream) throws DatastreamValidationException {
+    // verify that the source regular expression can be compiled
+    KafkaConnectionString connectionString = KafkaConnectionString.valueOf(stream.getSource().getConnectionString());
+    try {
+      Pattern pattern = Pattern.compile(connectionString.getTopicName());
+      LOG.info("Successfully compiled topic name pattern {}", pattern);
+    } catch (PatternSyntaxException e) {
+      throw new DatastreamValidationException(
+          String.format("Regular expression in Datastream source connection string (%s) is ill-formatted.",
+              stream.getSource().getConnectionString()), e);
+    }
   }
 
   /**
