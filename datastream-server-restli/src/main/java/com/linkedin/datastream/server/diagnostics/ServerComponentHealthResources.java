@@ -73,11 +73,15 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
       @QueryParam("scope") String componentScope,  // Espresso, EspressoBootstrap and etc.
       @QueryParam("content") @Optional String componentInputs) {
 
+    long startTime = System.currentTimeMillis();
     LOG.info("Restli getAllStatus request with name: {}, type: {} and content: {}.", componentType, componentScope,
         componentInputs);
     DiagnosticsAware component = getComponent(componentType, componentScope);
     if (component != null) {
-      return _aggregator.getResponses(componentType, componentScope, componentInputs, component);
+      List<ServerComponentHealth> result = _aggregator.getResponses(componentType, componentScope, componentInputs, component);
+      long endTime = System.currentTimeMillis();
+      LOG.info("Processing request for getting status of server instances took {}ms", endTime - startTime);
+      return result;
     } else {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Unknown component name and type");
       return Collections.emptyList();
@@ -94,6 +98,7 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
       @QueryParam("scope") String componentScope,
       @QueryParam("content") @Optional String componentInputs) {
 
+    long startTime = System.currentTimeMillis();
     LOG.info("Restli getStatus request with name: {}, type: {} and content: {}.", componentType, componentScope,
         componentInputs);
 
@@ -119,7 +124,10 @@ public class ServerComponentHealthResources extends CollectionResourceTemplate<S
         LOG.error("Could not get localhost Name {}", uhe.getMessage());
       }
       serverComponentHealth.setInstanceName(localhostName);
-      return Collections.singletonList(serverComponentHealth);
+      long endTime = System.currentTimeMillis();
+      List<ServerComponentHealth> result = Collections.singletonList(serverComponentHealth);
+      LOG.info("Processing request for getting status of server instance took {}ms", endTime - startTime);
+      return result;
     } else {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, "Unknown component name and type");
       return Collections.emptyList();
