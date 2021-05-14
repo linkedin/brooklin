@@ -99,6 +99,9 @@ public class ServerComponentHealthAggregator {
       }
     });
 
+    LOG.info("Received successful responses from {} hosts. Received responses with errors from {} hosts",
+        responses.size(), errorResponses.size());
+
     ServerComponentHealth serverComponentHealth = new ServerComponentHealth();
     serverComponentHealth.setSucceeded(true);
     if (!errorResponses.isEmpty()) {
