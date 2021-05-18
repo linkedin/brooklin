@@ -381,8 +381,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
     KafkaConnectionString parsed = KafkaConnectionString.valueOf(connectionString);
 
-    try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
-        _config.getConsumerProps(), "KafkaConnectorPartitionFinder", parsed)) {
+    Consumer<?, ?> consumer = null;
+    try {
+      consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
+          _config.getConsumerProps(), "KafkaConnectorPartitionFinder", parsed);
       partitionInfos = consumer.partitionsFor(topic);
       if (partitionInfos == null) {
         throw new DatastreamValidationException("Can't get partition info from kafka for topic: " + topic);
@@ -390,6 +392,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     } catch (Exception e) {
       throw new DatastreamValidationException(
           "Exception received while retrieving info on kafka topic partitions: " + e);
+    } finally {
+      if (consumer != null) {
+        consumer.close();
+      }
     }
 
     return partitionInfos;

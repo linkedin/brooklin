@@ -223,11 +223,13 @@ project(':datastream-kafka-factory-impl') {
 project(':datastream-kafka-connector') {
   dependencies {
     compile project(':datastream-server-api')
+    compile project(':datastream-common')
     compile project(":datastream-kafka_$scalaSuffix")
     compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
     compile "org.apache.commons:commons-lang3:$commonslang3Version"
+    compile "javax.xml.bind:jaxb-api:2.3.1"
 
     testCompile project(":datastream-kafka_$scalaSuffix")
     testCompile project(":datastream-testcommon_$scalaSuffix")
