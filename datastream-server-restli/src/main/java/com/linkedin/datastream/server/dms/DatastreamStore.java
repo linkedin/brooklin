@@ -22,6 +22,11 @@ public interface DatastreamStore {
   Datastream getDatastream(String key);
 
   /**
+   * Retrieves the node on which the provided task is handled
+   */
+  String getAssignedTaskInstance(String datastream, String task);
+
+  /**
    * Retrieves all the datastreams in the store. Since there may be many datastreams, it is better
    * to return a Stream and enable further filtering and transformation rather that just a List.
    * The result should be sorted so that consumers can implement paging correctly.
