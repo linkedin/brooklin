@@ -121,6 +121,15 @@
       "entity" : {
         "path" : "/datastream/{datastreamId}",
         "actions" : [ {
+          "name" : "getTaskAssignment",
+          "doc" : "Finds the task's assignment node which hosts the given task",
+          "parameters" : [ {
+            "name" : "task",
+            "type" : "string",
+            "doc" : "Datastream task name"
+          } ],
+          "returns" : "string"
+        }, {
           "name" : "movePartitions",
           "doc" : "Move partitions to a particular host\nService Returns: Result HTTP status",
           "parameters" : [ {

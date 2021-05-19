@@ -6,6 +6,8 @@
 package com.linkedin.datastream.server.dms;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,6 +29,7 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
+import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
@@ -62,6 +65,7 @@ public class TestZookeeperBackedDatastreamStore {
     String connectorType = seed % 2 == 0 ? "Oracle-Change" : "Oracle-Bootstrap";
     String source = "db_" + seed;
     String dest = "topic_" + seed;
+    String transportProvider = "dummyTransportProvider";
     StringMap metadata = new StringMap();
     metadata.put("owner", "person_" + seed);
     DatastreamSource datastreamSource = new DatastreamSource();
@@ -72,7 +76,15 @@ public class TestZookeeperBackedDatastreamStore {
         .setConnectorName(connectorType)
         .setSource(datastreamSource)
         .setDestination(datastreamDestination)
-        .setMetadata(metadata);
+        .setMetadata(metadata)
+        .setTransportProviderName(transportProvider);
+  }
+
+  // adds task node in zk
+  private void addTaskNode(String instance, DatastreamTaskImpl task) {
+    String taskPath = KeyBuilder.connectorTask(_clusterName, task.getConnectorType(), task.getDatastreamTaskName());
+    _zkClient.ensurePath(taskPath);
+    _zkClient.writeData(taskPath, instance);
   }
 
   /**
@@ -261,5 +273,45 @@ public class TestZookeeperBackedDatastreamStore {
     Assert.assertEquals(_store.getDatastream(ds.getName()).getStatus(), DatastreamStatus.DELETING);
 
     Assert.assertNull(_store.getDatastream(null));
+  }
+
+  @Test
+  public void testGetAssigneeNodeHappyPath() {
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    _store.createDatastream(datastreamName, datastreamToCreate);
+
+    String dummyInstance = "DUMMY_INSTANCE";
+
+    DatastreamTaskImpl dummyTask = new DatastreamTaskImpl(new ArrayList<>(Collections.singletonList(datastreamToCreate)));
+    addTaskNode(dummyInstance, dummyTask);
+
+    Assert.assertEquals(dummyInstance, _store.getAssignedTaskInstance(datastreamName, dummyTask.getDatastreamTaskName()));
+  }
+
+  @Test
+  public void testGetAssigneeNodeMissingDatastream() {
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+
+    String dummyInstance = "DUMMY_INSTANCE";
+
+    DatastreamTaskImpl dummyTask = new DatastreamTaskImpl(new ArrayList<>(Collections.singletonList(datastreamToCreate)));
+    addTaskNode(dummyInstance, dummyTask);
+
+    Assert.assertNull(_store.getAssignedTaskInstance(datastreamName, dummyTask.getDatastreamTaskName()));
+  }
+
+  @Test
+  public void testGetAssigneeNodeMissingTask() {
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+
+    String dummyInstance = "DUMMY_INSTANCE";
+
+    DatastreamTaskImpl dummyTask = new DatastreamTaskImpl(new ArrayList<>(Collections.singletonList(datastreamToCreate)));
+    addTaskNode(dummyInstance, dummyTask);
+
+    Assert.assertNull(_store.getAssignedTaskInstance(datastreamName, null));
   }
 }

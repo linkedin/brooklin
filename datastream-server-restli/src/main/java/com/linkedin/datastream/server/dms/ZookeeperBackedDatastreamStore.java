@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,8 +62,24 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     return KeyBuilder.datastream(_cluster, key);
   }
 
+  private String getConnectorTaskPath(String connector, String task) {
+    return KeyBuilder.connectorTask(_cluster, connector, task);
+  }
+
   private List<String> getInstances() {
     return _zkClient.getChildren(KeyBuilder.liveInstances(_cluster));
+  }
+
+  @Override
+  public String getAssignedTaskInstance(String datastream, String task) {
+    if (StringUtils.isEmpty(task)) {
+      return null;
+    }
+    Datastream stream = getDatastream(datastream);
+    if (stream == null) {
+      return null;
+    }
+    return _zkClient.readData(getConnectorTaskPath(stream.getConnectorName(), task), true);
   }
 
   @Override
