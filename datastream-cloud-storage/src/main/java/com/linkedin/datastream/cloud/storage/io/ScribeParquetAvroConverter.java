@@ -236,7 +236,7 @@ public class ScribeParquetAvroConverter {
     GenericRecord record = new GenericData.Record(schema);
     Map<String, String> avroScribeHeaderFieldNamingMap = null;
     GenericRecord scribeHeaderRecord = null;
-    if (avroRecord.get(SCRIBE_HEADER) != null) {
+    if (avroRecord.hasField((SCRIBE_HEADER)) && ((GenericRecord) avroRecord.get(SCRIBE_HEADER) != null)) {
       avroScribeHeaderFieldNamingMap = avroRecord.getSchema().getField(SCRIBE_HEADER).schema().getFields().stream()
           .collect(Collectors.toMap(
               avroScribeHeaderField -> avroScribeHeaderField.name().toLowerCase(), avroScribeHeaderField -> avroScribeHeaderField.name()));
