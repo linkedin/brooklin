@@ -255,16 +255,19 @@ public class ScribeParquetAvroConverter {
     for (Schema.Field field : fields) {
       String fieldName = avroFieldNamingMap.containsKey(field.name()) ? avroFieldNamingMap.get(field.name()) : field.name();
       try {
-        if (fieldName != null) {
-          if (avroRecord.get(fieldName) != null) {
-            avroFieldSchemaTypes = getSchemaTypes(fieldName, avroRecord);
-          } else if (avroRecord.get(fieldName) == null && ((GenericData.Record) avroRecord).getSchema().getField(fieldName) != null) {
-            continue;
-          } else if (avroScribeHeaderFieldNamingMap.containsKey(field.name()) && avroRecord.get(SCRIBE_HEADER) != null
-              && avroRecord.get(SCRIBE_HEADER).getClass().getSimpleName().equalsIgnoreCase("Record")) {
-            avroFieldSchemaTypes = getSchemaTypes(SCRIBE_HEADER, avroRecord);
+          if (fieldName != null) {
+            if (avroRecord.hasField(fieldName) && avroRecord.get(fieldName) != null) {
+              avroFieldSchemaTypes = getSchemaTypes(fieldName, avroRecord);
+            } else if (!avroRecord.hasField(fieldName) && avroScribeHeaderFieldNamingMap.containsKey(field.name())
+                && (avroRecord.hasField((SCRIBE_HEADER)) && (avroRecord.get(SCRIBE_HEADER) != null))
+                && avroRecord.get(SCRIBE_HEADER).getClass().getSimpleName().equalsIgnoreCase("Record")) {
+              // if field in schema doesn't exists in avroRecord directly but present inside the scribe Header which will be flattened out to top level
+              avroFieldSchemaTypes = getSchemaTypes(SCRIBE_HEADER, avroRecord);
+            } else if (avroRecord.get(fieldName) == null && ((GenericData.Record) avroRecord).getSchema().getField(fieldName) != null) {
+              // if the field doesn't exists in avroRecord, continue to next field
+              continue;
+            }
           }
-        }
       } catch (Exception e) {
         LOG.error(String.format("Exception in getting avro field schema types in ScribeParquetAvroConverter: Schema: %s, field: %s, typeName: %s," +
             " exception: %s", schema, schema.getName(), fieldName, e));
@@ -337,6 +340,7 @@ public class ScribeParquetAvroConverter {
             " field: %s", schema.getName(), fieldName));
       }
     }
+    LOG.debug(String.format("Parquet record generated for committing: %s", record.toString()));
     return record;
   }
 
@@ -346,11 +350,26 @@ public class ScribeParquetAvroConverter {
    * @return Parquet-format record
    */
   public static GenericRecord getScribeHeaderParquetData(GenericRecord avroRecord, Schema parquetSchema) {
-    Schema scribeHeaderSchema = avroRecord.getSchema().getField(SCRIBE_HEADER).schema();
-    Schema scribeHeaderTypeSchema = scribeHeaderSchema.isUnion() ? scribeHeaderSchema.getTypes().get(1) :
-        scribeHeaderSchema;
-    return generateParquetStructuredAvroData(generateParquetStructuredAvroSchema(scribeHeaderTypeSchema),
-        (GenericRecord) avroRecord.get(SCRIBE_HEADER));
+    GenericRecord res = null;
+    Schema resSchema = null;
+    LOG.debug(String.format("Scribe Header Record received for conversion: %s", avroRecord.toString()));
+    try {
+      Schema scribeHeaderSchema = avroRecord.getSchema().getField(SCRIBE_HEADER).schema();
+      Schema scribeHeaderTypeSchema = scribeHeaderSchema.isUnion() ? scribeHeaderSchema.getTypes().get(1) :
+          scribeHeaderSchema;
+
+      try {
+        resSchema = generateParquetStructuredAvroSchema(scribeHeaderTypeSchema);
+      } catch (Exception e) {
+        LOG.error(String.format("Error generating parquet schema for scribe header field: %s", e));
+      }
+      res = generateParquetStructuredAvroData(resSchema, (GenericRecord) avroRecord.get(SCRIBE_HEADER));
+    } catch (Exception e){
+      LOG.error(String.format("Error generating parquet record data for scribe header field: %s", e));
+      LOG.error(avroRecord.toString());
+    }
+
+    return res;
   }
 
   /**

@@ -16,6 +16,7 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -112,16 +113,21 @@ public class ScribeAvroParquetEventFile implements File {
 
     @Override
     public void write(Package aPackage) throws IOException {
+      Configuration conf = new Configuration();
+      conf.setBoolean("parquet.avro.write-parquet-uuid", true);
+
       try {
         if (_parquetWriter == null) {
           _parquetWriter = AvroParquetWriter.<GenericRecord>builder(_path)
               .withSchema(getSchemaByTopic(aPackage.getTopic()))
               .withCompressionCodec(COMPRESSION_TYPE)
+              .withConf(conf)
               .withPageSize(_pageSize)
               .build();
         }
         GenericRecord deserializedAvroGenericRecord = (GenericRecord) _deserializer.deserialize(
             aPackage.getTopic(), (byte[]) aPackage.getRecord().getValue());
+        LOG.debug(String.format("Deserialized Record from kafka: %s", deserializedAvroGenericRecord.toString()));
         // Transform the data into Scribe 2.0 expected format.
         GenericRecord avroParquetRecord = ScribeParquetAvroConverter.generateParquetStructuredAvroData(
             scribeParquetSchema, deserializedAvroGenericRecord);
@@ -129,7 +135,6 @@ public class ScribeAvroParquetEventFile implements File {
       } catch (Exception e) {
         LOG.error(String.format("Exception in converting avro record to parquet record in ScribeAvroParquetEventFile: topic: %s, exception: %s",
             aPackage.getTopic(), e));
-          LOG.error(aPackage.getRecord().getValue().toString());
       }
     }
 
