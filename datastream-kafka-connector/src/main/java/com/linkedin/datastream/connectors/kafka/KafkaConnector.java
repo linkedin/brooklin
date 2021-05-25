@@ -89,8 +89,11 @@ public class KafkaConnector extends AbstractKafkaConnector {
         LOG.error(msg);
         throw new DatastreamValidationException(msg);
       }
-      try (Consumer<?, ?> consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
-          _config.getConsumerProps(), "partitionFinder", parsed)) {
+
+      Consumer<?, ?> consumer = null;
+      try {
+        consumer = KafkaConnectorTask.createConsumer(_config.getConsumerFactory(),
+            _config.getConsumerProps(), "partitionFinder", parsed);
         List<PartitionInfo> partitionInfos = consumer.partitionsFor(parsed.getTopicName());
         if (partitionInfos == null) {
           throw new DatastreamValidationException(
@@ -125,7 +128,12 @@ public class KafkaConnector extends AbstractKafkaConnector {
             throw new DatastreamValidationException(msg);
           }
         }
+      } finally {
+        if (consumer != null) {
+          consumer.close();
+        }
       }
+
     } catch (DatastreamValidationException e) {
       throw e;
     } catch (Exception e) {

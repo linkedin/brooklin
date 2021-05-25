@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import com.linkedin.datastream.server.HostTargetAssignment;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.NUM_TASKS;
 import static com.linkedin.datastream.server.Coordinator.PAUSED_INSTANCE;
 
 
@@ -60,8 +62,24 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     return KeyBuilder.datastream(_cluster, key);
   }
 
+  private String getConnectorTaskPath(String connector, String task) {
+    return KeyBuilder.connectorTask(_cluster, connector, task);
+  }
+
   private List<String> getInstances() {
     return _zkClient.getChildren(KeyBuilder.liveInstances(_cluster));
+  }
+
+  @Override
+  public String getAssignedTaskInstance(String datastream, String task) {
+    if (StringUtils.isEmpty(task)) {
+      return null;
+    }
+    Datastream stream = getDatastream(datastream);
+    if (stream == null) {
+      return null;
+    }
+    return _zkClient.readData(getConnectorTaskPath(stream.getConnectorName(), task), true);
   }
 
   @Override
@@ -74,7 +92,18 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     if (json == null) {
       return null;
     }
-    return DatastreamUtils.fromJSON(json);
+
+    Datastream datastream = DatastreamUtils.fromJSON(json);
+    if (datastream == null) {
+      return null;
+    }
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_cluster, key);
+    String numTasks = _zkClient.readData(numTasksPath, true /* returnNullIfPathNotExists */);
+    if (numTasks != null) {
+      Objects.requireNonNull(datastream.getMetadata()).put(NUM_TASKS, numTasks);
+    }
+
+    return datastream;
   }
 
   /**
@@ -97,6 +126,7 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       throw new DatastreamException("Datastream does not exists, can not be updated: " + key);
     }
 
+    Objects.requireNonNull(datastream.getMetadata()).remove("numTasks");
     String json = DatastreamUtils.toJSON(datastream);
     _zkClient.writeData(getZnodePath(key), json);
     if (notifyLeader) {

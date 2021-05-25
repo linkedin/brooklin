@@ -37,11 +37,12 @@ import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
+import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
-import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITIONS_PER_TASK;
-import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategyFactory.CFG_PARTITION_FULLNESS_THRESHOLD_PCT;
+import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrategyConfig.CFG_PARTITIONS_PER_TASK;
+import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrategyConfig.CFG_PARTITION_FULLNESS_THRESHOLD_PCT;
 
 
 /**
@@ -171,6 +172,19 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return super.assign(datastreams, instances, currentAssignment);
   }
 
+  protected Pair<List<String>, Integer> getAssignedPartitionsAndTaskCountForDatastreamGroup(
+      Map<String, Set<DatastreamTask>> currentAssignment, String datastreamGroupName) {
+    List<String> assignedPartitions = new ArrayList<>();
+    int taskCount = 0;
+    for (Set<DatastreamTask> tasks : currentAssignment.values()) {
+      Set<DatastreamTask> dgTask = tasks.stream().filter(t -> datastreamGroupName.equals(t.getTaskPrefix()))
+          .collect(Collectors.toSet());
+      taskCount += dgTask.size();
+      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
+    }
+    return new Pair<>(assignedPartitions, taskCount);
+  }
+
   /**
    * Assign partitions to a particular datastream group
    *
@@ -187,20 +201,17 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment.");
 
-    String dgName = datastreamPartitions.getDatastreamGroup().getName();
+    DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
+    String dgName = datastreamGroup.getName();
 
     // Step 1: collect the # of tasks and figured out the unassigned partitions
-    List<String> assignedPartitions = new ArrayList<>();
-    int totalTaskCount = 0;
-    for (Set<DatastreamTask> tasks : currentAssignment.values()) {
-      Set<DatastreamTask> dgTask = tasks.stream().filter(t -> dgName.equals(t.getTaskPrefix())).collect(Collectors.toSet());
-      dgTask.forEach(t -> assignedPartitions.addAll(t.getPartitionsV2()));
-      totalTaskCount += dgTask.size();
-    }
-
+    Pair<List<String>, Integer> assignedPartitionsAndTaskCount =
+        getAssignedPartitionsAndTaskCountForDatastreamGroup(currentAssignment, dgName);
+    List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
+    int totalTaskCount = assignedPartitionsAndTaskCount.getValue();
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    if (getEnableElasticTaskAssignment(datastreamPartitions.getDatastreamGroup())) {
+    if (getEnableElasticTaskAssignment(datastreamGroup)) {
       if (assignedPartitions.isEmpty()) {
         performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
       }
@@ -536,7 +547,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return expectedNumberOfTasks;
   }
 
-  private void updateOrRegisterElasticTaskAssignmentMetrics(DatastreamGroupPartitionsMetadata datastreamPartitions,
+  protected void updateOrRegisterElasticTaskAssignmentMetrics(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     int totalPartitions = datastreamPartitions.getPartitions().size();
     int actualPartitionsPerTask = (totalPartitions / totalTaskCount)
@@ -554,7 +565,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     _elasticTaskAssignmentInfoHashMap.put(taskPrefix, elasticTaskAssignmentInfo);
   }
 
-  private void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+  protected void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
     // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
@@ -590,7 +601,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
   }
 
-  private boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
+  protected boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
     // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
     // and is greater than 0
     int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);

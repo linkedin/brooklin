@@ -68,6 +68,8 @@ import com.linkedin.restli.server.annotations.QueryParam;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.CollectionResourceTemplate;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.NUM_TASKS;
+
 
 /**
  * Resources classes are used by rest.li to process corresponding HTTP request.
@@ -193,6 +195,12 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
           throw new DatastreamValidationException(String.format("Failed to update %s. Can't update status in update request."
                   + " old: %s new: %s", key, oldDatastream, datastream));
+        }
+
+        if (datastream.getMetadata().containsKey(NUM_TASKS) &&
+            !datastream.getMetadata().get(NUM_TASKS).equals(oldDatastream.getMetadata().get(NUM_TASKS))) {
+          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update numTasks."
+              + " old: %s new: %s", key, oldDatastream, datastream));
         }
       } catch (DatastreamValidationException e) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
@@ -686,6 +694,36 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return stream;
   }
 
+  /**
+   * Finds the task's assignment node which hosts the given task
+   * @param pathKeys Datastream resource key
+   * @param task Datastream task name
+   */
+  @Action(name = "getTaskAssignment", resourceLevel = ResourceLevel.ENTITY)
+  public String getTaskAssignment(@PathKeysParam PathKeys pathKeys, @ActionParam("task") String task) {
+    // Get datastream
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+
+    Datastream stream;
+    String assignedInstance = null;
+    try {
+      LOG.info("Get assignee instance for task: {}", task);
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
+      assignedInstance = _store.getAssignedTaskInstance(datastreamName, task);
+    } catch (Exception e) {
+      _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Failed to get assigned instance hosting task: " + task, e);
+    }
+
+    if (StringUtils.isEmpty(assignedInstance)) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
+          "Connector task not found: " + task);
+    }
+
+    return assignedInstance;
+  }
+
   @SuppressWarnings("deprecated")
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
@@ -759,6 +797,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       StringMap metadataMap = datastream.getMetadata();
       Validate.isTrue(metadataMap.containsKey(DatastreamMetadataConstants.OWNER_KEY),
           "Must specify owner of Datastream");
+      Validate.isTrue(!metadataMap.containsKey(NUM_TASKS), "Cannot set numTasks in datastream");
 
       if (datastream.hasDestination() && datastream.getDestination().hasConnectionString()) {
         metadataMap.put(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY, "true");
