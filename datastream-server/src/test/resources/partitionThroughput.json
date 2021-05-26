@@ -223,6 +223,10 @@
       "Vanilla-6" : "bytesInKB: 1024, msgIn:100",
       "Vanilla-7" : "bytesInKB: 1024, msgIn:100",
       "Vanilla-8" : "bytesInKB: 1024, msgIn:100"
+    },
+    "donut" : {
+      "BostonCreme-1" : "bytesInKB: 5000, msgIn:200",
+      "BostonCreme-2" : "bytesInKB: 5000, msgIn:200"
     }
   }
 }
