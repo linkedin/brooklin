@@ -51,17 +51,17 @@ public final class PartitionAssignmentStrategyConfig {
     VerifiableProperties props = new VerifiableProperties(config);
     int cfgMaxTasks = props.getInt(CFG_MAX_TASKS, 0);
     int cfgImbalanceThreshold = props.getInt(CFG_IMBALANCE_THRESHOLD, 0);
-    int cfgMaxParitionsPerTask = props.getInt(CFG_MAX_PARTITION_PER_TASK, 0);
+    int cfgMaxPartitionsPerTask = props.getInt(CFG_MAX_PARTITION_PER_TASK, 0);
     int cfgPartitionsPerTask = props.getInt(CFG_PARTITIONS_PER_TASK, 0);
     int cfgPartitionFullnessThresholdPct = props.getIntInRange(CFG_PARTITION_FULLNESS_THRESHOLD_PCT, 0, 0, 100);
 
     // Set to Optional.empty() if the value is 0
     _maxTasks = cfgMaxTasks > 0 ? Optional.of(cfgMaxTasks) : Optional.empty();
     _imbalanceThreshold = cfgImbalanceThreshold > 0 ? Optional.of(cfgImbalanceThreshold) : Optional.empty();
-    _maxPartitions = cfgMaxParitionsPerTask > 0 ? Optional.of(cfgMaxParitionsPerTask) : Optional.empty();
+    _maxPartitions = cfgMaxPartitionsPerTask > 0 ? Optional.of(cfgMaxPartitionsPerTask) : Optional.empty();
     _enableElasticTaskAssignment = props.getBoolean(CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT,
         DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT);
-    _partitionsPerTask = cfgPartitionsPerTask > 0 ? Optional.of(cfgMaxParitionsPerTask) :
+    _partitionsPerTask = cfgPartitionsPerTask > 0 ? Optional.of(cfgPartitionsPerTask) :
         Optional.empty();
     _partitionFullnessThresholdPct = cfgPartitionFullnessThresholdPct > 0 ?
         Optional.of(cfgPartitionFullnessThresholdPct) : Optional.empty();
