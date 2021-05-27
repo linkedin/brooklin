@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.assignment;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -13,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
@@ -61,8 +64,9 @@ public class LoadBasedPartitionAssigner {
           mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate()).sum();
       taskThroughputMap.put(task, totalThroughput);
     });
-    List<String> sortedTasks = newPartitions.keySet().stream().sorted(Comparator.comparing(taskThroughputMap::get)).
-        collect(Collectors.toList());
+    ArrayList<String> sortedTasks =
+        (ArrayList<String>) newPartitions.keySet().stream().sorted(Comparator.comparing(taskThroughputMap::get)).
+             collect(Collectors.toList());
 
     // sort unassigned partitions on throughput
     unassignedPartitions.sort((p1, p2) -> {
@@ -72,8 +76,9 @@ public class LoadBasedPartitionAssigner {
     });
 
     // assign the new partitions one by one
-    while (unassignedPartitions.size() > 0) {
-       String heaviestPartition = unassignedPartitions.remove(unassignedPartitions.size() - 1);
+    ArrayList<String> unassignedPartitionsList = new ArrayList<>(unassignedPartitions);
+    while (unassignedPartitionsList.size() > 0) {
+       String heaviestPartition = unassignedPartitionsList.remove(unassignedPartitionsList.size() - 1);
        int heaviestPartitionThroughput = partitionInfoMap.getOrDefault(heaviestPartition, defaultPartitionInfo)
            .getBytesInKBRate();
        String lightestTask = sortedTasks.remove(0);
@@ -98,7 +103,8 @@ public class LoadBasedPartitionAssigner {
     return newAssignments;
   }
 
-  private void insertTaskIntoSortedList(String task, List<String> sortedTasks, Map<String, Integer> taskThroughputMap) {
+  @VisibleForTesting
+  void insertTaskIntoSortedList(String task, ArrayList<String> sortedTasks, Map<String, Integer> taskThroughputMap) {
     int index = Collections.binarySearch(sortedTasks, task, Comparator.comparing(taskThroughputMap::get));
     if (index < 0) {
       index = -index - 1;
