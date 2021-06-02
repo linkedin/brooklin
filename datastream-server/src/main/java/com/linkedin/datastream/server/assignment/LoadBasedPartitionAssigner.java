@@ -56,7 +56,7 @@ public class LoadBasedPartitionAssigner {
       }
     }));
 
-    // sort the current tasks on total throughput
+    // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
     PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(DEFAULT_KB_RATE, DEFAULT_MESSAGE_RATE, "");
     newPartitions.forEach((task, partitions) -> {
@@ -68,23 +68,41 @@ public class LoadBasedPartitionAssigner {
         (ArrayList<String>) newPartitions.keySet().stream().sorted(Comparator.comparing(taskThroughputMap::get)).
              collect(Collectors.toList());
 
-    // sort unassigned partitions on throughput
-    unassignedPartitions.sort((p1, p2) -> {
-      Integer p1KBRate = partitionInfoMap.getOrDefault(p1, defaultPartitionInfo).getBytesInKBRate();
-      Integer p2KBRate = partitionInfoMap.getOrDefault(p2, defaultPartitionInfo).getBytesInKBRate();
+    ArrayList<String> recognizedPartitions = new ArrayList<>(); // partitions with throughput info
+    ArrayList<String> unrecognizedPartitions = new ArrayList<>(); // partitions without throughput info
+    for (String partition : unassignedPartitions) {
+      if (partitionInfoMap.containsKey(partition)) {
+        recognizedPartitions.add(partition);
+      } else {
+        unrecognizedPartitions.add(partition);
+      }
+    }
+
+    // sort unassigned partitions with throughput info on throughput
+    recognizedPartitions.sort((p1, p2) -> {
+      Integer p1KBRate = partitionInfoMap.get(p1).getBytesInKBRate();
+      Integer p2KBRate = partitionInfoMap.get(p2).getBytesInKBRate();
       return p1KBRate.compareTo(p2KBRate);
     });
 
-    // assign the new partitions one by one
-    ArrayList<String> unassignedPartitionsList = new ArrayList<>(unassignedPartitions);
-    while (unassignedPartitionsList.size() > 0) {
-       String heaviestPartition = unassignedPartitionsList.remove(unassignedPartitionsList.size() - 1);
+    // assign partitions with throughput info one by one, by putting the heaviest partition in the lightest task
+    while (recognizedPartitions.size() > 0) {
+       String heaviestPartition = recognizedPartitions.remove(recognizedPartitions.size() - 1);
        int heaviestPartitionThroughput = partitionInfoMap.getOrDefault(heaviestPartition, defaultPartitionInfo)
            .getBytesInKBRate();
        String lightestTask = sortedTasks.remove(0);
        newPartitions.get(lightestTask).add(heaviestPartition);
        taskThroughputMap.put(lightestTask, taskThroughputMap.get(lightestTask) + heaviestPartitionThroughput);
        this.insertTaskIntoSortedList(lightestTask, sortedTasks, taskThroughputMap);
+    }
+
+    // TODO implement a mechanism to prevent tasks from having more than partitionsPerTask partitions
+    // assign unrecognized partitions with round-robin
+    int index = 0;
+    for (String partition : unrecognizedPartitions) {
+      String currentTask = sortedTasks.get(index);
+      newPartitions.get(currentTask).add(partition);
+      index = (index + 1) % sortedTasks.size();
     }
 
     // build the new assignment using the new partitions for the affected datastream's tasks

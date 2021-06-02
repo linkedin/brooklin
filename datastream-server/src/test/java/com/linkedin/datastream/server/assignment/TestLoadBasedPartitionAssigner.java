@@ -125,6 +125,7 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void assignmentDistributesPartitionsWhenThroughputInfoIsMissingTest() {
+    // this tests the round-robin assignment of partitions that don't have throughput info
     List<String> unassignedPartitions = Arrays.asList("P1", "P2", "P3", "P4");
     ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", new HashMap<>());
 
