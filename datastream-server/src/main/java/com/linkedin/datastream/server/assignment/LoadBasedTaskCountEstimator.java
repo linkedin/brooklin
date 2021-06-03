@@ -22,8 +22,9 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  * Estimates the minimum number of tasks for a datastream based on per-partition throughput information
  */
 public class LoadBasedTaskCountEstimator {
-  private final static int BYTES_IN_KB_RATE_DEFAULT = 5;
-  private final static int MESSAGES_IN_RATE_DEFAULT = 5;
+  private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
+  private static final int BYTES_IN_KB_RATE_DEFAULT = 5;
+  private static final int MESSAGES_IN_RATE_DEFAULT = 5;
 
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
@@ -37,8 +38,6 @@ public class LoadBasedTaskCountEstimator {
     _taskCapacityMBps = taskCapacityMBps;
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
   }
-
-  private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
 
   /**
    * Gets the estimated number of tasks based on per-partition throughput information.
@@ -59,10 +58,12 @@ public class LoadBasedTaskCountEstimator {
     Set<String> allPartitions = new HashSet<>(assignedPartitions);
     allPartitions.addAll(unassignedPartitions);
 
+    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(BYTES_IN_KB_RATE_DEFAULT,
+        MESSAGES_IN_RATE_DEFAULT, "");
     // total throughput in KB/sec
-    int totalThroughput = allPartitions.stream().map(p ->
-        throughputMap.getOrDefault(p, new PartitionThroughputInfo(BYTES_IN_KB_RATE_DEFAULT, MESSAGES_IN_RATE_DEFAULT, p))).
-        mapToInt(PartitionThroughputInfo::getBytesInKBRate).sum();
+    int totalThroughput = allPartitions.stream()
+        .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))
+        .mapToInt(PartitionThroughputInfo::getBytesInKBRate).sum();
     LOG.info("Total throughput in all {} partitions: {}KB/sec", allPartitions.size(), totalThroughput);
 
     double taskCapacityUtilizationCoefficient = _taskCapacityUtilizationPct / 100.0;
