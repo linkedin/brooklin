@@ -33,7 +33,11 @@ public class LoadBasedPartitionAssigner {
   private static final Integer DEFAULT_MESSAGE_RATE = 5;
 
   /**
-   * Performs partition assignment based on partition throughput information
+   * Performs partition assignment based on partition throughput information.
+   * <p>
+   * Unlike other assignment algorithms, this one can result in uneven distribution of partitions in tasks. Partitions
+   * with no throughput information (such as newly discovered partitions) will be assigned to tasks using round-robin.
+   * </p>
    * @param throughputInfo Per partition throughput information
    * @param currentAssignment Current assignment
    * @param unassignedPartitions Unassigned partitions

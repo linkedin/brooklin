@@ -212,37 +212,56 @@ public class TestLoadBasedPartitionAssigner {
   public void insertionTests() {
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
 
-    ArrayList<String> list1 = new ArrayList<>(Arrays.asList("P1", "P2", "P3"));
-    String partitionToInsert1 = "P4";
+    ArrayList<String> list1 = new ArrayList<>(Arrays.asList("T1", "T2", "T3"));
+    String taskToInsert1 = "T4";
     Map<String, Integer> throughputMap1 = new HashMap<>();
-    throughputMap1.put("P1", 0);
-    throughputMap1.put("P2", 0);
-    throughputMap1.put("P3", 0);
-    throughputMap1.put("P4", 0);
-    assigner.insertTaskIntoSortedList(partitionToInsert1, list1, throughputMap1);
+    throughputMap1.put("T1", 0);
+    throughputMap1.put("T2", 0);
+    throughputMap1.put("T3", 0);
+    throughputMap1.put("T4", 0);
+    assigner.insertTaskIntoSortedList(taskToInsert1, list1, throughputMap1);
     Assert.assertEquals(list1.size(), 4);
-    Assert.assertTrue(list1.contains(partitionToInsert1));
+    Assert.assertTrue(list1.contains(taskToInsert1));
 
-    ArrayList<String> list2 = new ArrayList<>(Arrays.asList("P1", "P2"));
-    String partitionToInsert2 = "P3";
+    ArrayList<String> list2 = new ArrayList<>(Arrays.asList("T1", "T2"));
+    String taskToInsert2 = "T3";
     Map<String, Integer> throughputMap2 = new HashMap<>();
-    throughputMap2.put("P1", 0);
-    throughputMap2.put("P2", 1);
-    throughputMap2.put("P3", 2);
-    assigner.insertTaskIntoSortedList(partitionToInsert2, list2, throughputMap2);
+    throughputMap2.put("T1", 0);
+    throughputMap2.put("T2", 1);
+    throughputMap2.put("T3", 2);
+    assigner.insertTaskIntoSortedList(taskToInsert2, list2, throughputMap2);
     Assert.assertEquals(list2.size(), 3);
-    Assert.assertTrue(list2.contains(partitionToInsert2));
-    Assert.assertTrue(list2.get(list2.size() - 1).equals(partitionToInsert2));
+    Assert.assertTrue(list2.contains(taskToInsert2));
+    Assert.assertEquals(taskToInsert2, list2.get(list2.size() - 1));
 
-    ArrayList<String> list3 = new ArrayList<>(Arrays.asList("P1", "P2"));
-    String partitionToInsert3 = "P3";
+    ArrayList<String> list3 = new ArrayList<>(Arrays.asList("T1", "T2"));
+    String taskToInsert3 = "T3";
     Map<String, Integer> throughputMap3 = new HashMap<>();
-    throughputMap3.put("P1", 2);
-    throughputMap3.put("P2", 3);
-    throughputMap3.put("P3", 1);
-    assigner.insertTaskIntoSortedList(partitionToInsert3, list3, throughputMap3);
+    throughputMap3.put("T1", 2);
+    throughputMap3.put("T2", 3);
+    throughputMap3.put("T3", 1);
+    assigner.insertTaskIntoSortedList(taskToInsert3, list3, throughputMap3);
     Assert.assertEquals(list3.size(), 3);
-    Assert.assertTrue(list3.contains(partitionToInsert3));
-    Assert.assertTrue(list3.get(0).equals(partitionToInsert3));
+    Assert.assertTrue(list3.contains(taskToInsert3));
+    Assert.assertEquals(taskToInsert3, list3.get(0));
+
+    ArrayList<String> list4 = new ArrayList<>(Collections.singletonList("T1"));
+    String taskToInsert4 = "T2";
+    Map<String, Integer> throughputMap4 = new HashMap<>();
+    throughputMap4.put("T1", 1);
+    throughputMap4.put("T2", 2);
+    assigner.insertTaskIntoSortedList(taskToInsert4, list4, throughputMap4);
+    Assert.assertEquals(list4.size(), 2);
+    Assert.assertTrue(list4.contains(taskToInsert4));
+    Assert.assertEquals(taskToInsert4, list4.get(1));
+
+    ArrayList<String> list5 = new ArrayList<>();
+    String taskToInsert5 = "T1";
+    Map<String, Integer> throughputMap5 = new HashMap<>();
+    throughputMap5.put("T1", 5);
+    assigner.insertTaskIntoSortedList(taskToInsert5, list5, throughputMap5);
+    Assert.assertEquals(list5.size(), 1);
+    Assert.assertTrue(list5.contains(taskToInsert5));
+    Assert.assertEquals(taskToInsert5, list5.get(0));
   }
 }
