@@ -28,7 +28,7 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  * Performs partition assignment based on partition throughput information
  */
 public class LoadBasedPartitionAssigner {
-
+  // TODO: move these to config class
   private static final Integer DEFAULT_KB_RATE = 5;
   private static final Integer DEFAULT_MESSAGE_RATE = 5;
 
@@ -52,25 +52,28 @@ public class LoadBasedPartitionAssigner {
 
     // filter out all the tasks for the current datastream group, and retain assignments in a map
     Map<String, Set<String>> newPartitions = new HashMap<>();
-    currentAssignment.values().forEach(tasks -> tasks.forEach(task -> {
-      if (task.getTaskPrefix().equals(datastreamGroupName)) {
-        Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
-        retainedPartitions.retainAll(partitionMetadata.getPartitions());
-        newPartitions.put(task.getId(), retainedPartitions);
-      }
+    currentAssignment.values().forEach(tasks ->
+        tasks.forEach(task -> {
+          if (task.getTaskPrefix().equals(datastreamGroupName)) {
+            Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
+            retainedPartitions.retainAll(partitionMetadata.getPartitions());
+            newPartitions.put(task.getId(), retainedPartitions);
+          }
     }));
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
     PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(DEFAULT_KB_RATE, DEFAULT_MESSAGE_RATE, "");
     newPartitions.forEach((task, partitions) -> {
-      int totalThroughput = partitions.stream().
-          mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate()).sum();
+      int totalThroughput = partitions.stream()
+          .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())
+          .sum();
       taskThroughputMap.put(task, totalThroughput);
     });
     ArrayList<String> sortedTasks =
-        (ArrayList<String>) newPartitions.keySet().stream().sorted(Comparator.comparing(taskThroughputMap::get)).
-             collect(Collectors.toList());
+        (ArrayList<String>) newPartitions.keySet().stream()
+            .sorted(Comparator.comparing(taskThroughputMap::get))
+            .collect(Collectors.toList());
 
     ArrayList<String> recognizedPartitions = new ArrayList<>(); // partitions with throughput info
     ArrayList<String> unrecognizedPartitions = new ArrayList<>(); // partitions without throughput info
@@ -113,10 +116,11 @@ public class LoadBasedPartitionAssigner {
     Map<String, Set<DatastreamTask>> newAssignments = new HashMap<>();
     currentAssignment.keySet().forEach(instance -> {
       Set<DatastreamTask> oldTasks = currentAssignment.get(instance);
-      Set<DatastreamTask> newTasks = oldTasks.stream().map(task -> {
-        if (task.getTaskPrefix().equals(datastreamGroupName)) {
-          return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
-        }
+      Set<DatastreamTask> newTasks = oldTasks.stream()
+          .map(task -> {
+            if (task.getTaskPrefix().equals(datastreamGroupName)) {
+              return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
+            }
         return task;
       }).collect(Collectors.toSet());
       newAssignments.put(instance, newTasks);
