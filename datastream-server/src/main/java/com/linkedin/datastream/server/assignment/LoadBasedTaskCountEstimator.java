@@ -14,8 +14,6 @@ import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.PartitionThroughputInfo;
 
@@ -24,12 +22,23 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  * Estimates the minimum number of tasks for a datastream based on per-partition throughput information
  */
 public class LoadBasedTaskCountEstimator {
+  private final static int BYTES_IN_KB_RATE_DEFAULT = 5;
+  private final static int MESSAGES_IN_RATE_DEFAULT = 5;
+
+  private final int _taskCapacityMBps;
+  private final int _taskCapacityUtilizationPct;
+
+  /**
+   * Creates an instance of {@link LoadBasedTaskCountEstimator}
+   * @param taskCapacityMBps Task capacity in MB/sec
+   * @param taskCapacityUtilizationPct Task capacity utilization percentage
+   */
+  public LoadBasedTaskCountEstimator(int taskCapacityMBps, int taskCapacityUtilizationPct) {
+    _taskCapacityMBps = taskCapacityMBps;
+    _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
+  }
 
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
-
-  // TODO Make this constant configurable
-  @VisibleForTesting
-  public final static int TASK_CAPACITY_MBPS_DEFAULT = 4;
 
   /**
    * Gets the estimated number of tasks based on per-partition throughput information.
@@ -51,13 +60,16 @@ public class LoadBasedTaskCountEstimator {
     allPartitions.addAll(unassignedPartitions);
 
     // total throughput in KB/sec
-    int totalThroughput = throughputMap.entrySet().stream().
-        filter(e -> allPartitions.contains(e.getKey())).mapToInt(e -> e.getValue().getBytesInKBRate()).sum();
-    LOG.info("Total throughput in all partitions: {}KB/sec", totalThroughput);
+    int totalThroughput = allPartitions.stream().map(p ->
+        throughputMap.getOrDefault(p, new PartitionThroughputInfo(BYTES_IN_KB_RATE_DEFAULT, MESSAGES_IN_RATE_DEFAULT, p))).
+        mapToInt(PartitionThroughputInfo::getBytesInKBRate).sum();
+    LOG.info("Total throughput in all {} partitions: {}KB/sec", allPartitions.size(), totalThroughput);
 
-    int taskCountEstimate = (int) Math.ceil((double) totalThroughput / (TASK_CAPACITY_MBPS_DEFAULT * 1024));
+    double taskCapacityUtilizationCoefficient = _taskCapacityUtilizationPct / 100.0;
+    int taskCountEstimate = (int) Math.ceil((double) totalThroughput /
+        (_taskCapacityMBps * 1024 * taskCapacityUtilizationCoefficient));
     taskCountEstimate = Math.min(allPartitions.size(), taskCountEstimate);
-    LOG.debug("Estimated number of tasks required to handle the throughput: {}", taskCountEstimate);
+    LOG.info("Estimated number of tasks required to handle the throughput: {}", taskCountEstimate);
     return taskCountEstimate;
   }
 }

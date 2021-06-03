@@ -22,6 +22,8 @@ public final class PartitionAssignmentStrategyConfig {
   public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
   public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
   public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
+  public static final String CFG_TASK_CAPACITY_MBPS = "taskCapacityMBps";
+  public static final String CFG_TASK_CAPACITY_UTILIZATION_PCT = "taskCapacityUtilizationPct";
   public static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT = "enableElasticTaskAssignment";
   public static final String CFG_CLUSTER_NAME = "cluster";
   public static final String CFG_ZK_ADDRESS = "zkAddress";
@@ -36,6 +38,8 @@ public final class PartitionAssignmentStrategyConfig {
   private final Optional<Integer> _maxPartitions;
   private final Optional<Integer> _partitionsPerTask;
   private final Optional<Integer> _partitionFullnessThresholdPct;
+  private final Optional<Integer> _taskCapacityMBps;
+  private final Optional<Integer> _taskCapacityUtilizationPct;
   private final String _cluster;
   private final String _zkAddress;
   private final int _zkSessionTimeout;
@@ -54,6 +58,8 @@ public final class PartitionAssignmentStrategyConfig {
     int cfgMaxParitionsPerTask = props.getInt(CFG_MAX_PARTITION_PER_TASK, 0);
     int cfgPartitionsPerTask = props.getInt(CFG_PARTITIONS_PER_TASK, 0);
     int cfgPartitionFullnessThresholdPct = props.getIntInRange(CFG_PARTITION_FULLNESS_THRESHOLD_PCT, 0, 0, 100);
+    int cfgTaskCapacityMBps = props.getInt(CFG_TASK_CAPACITY_MBPS, 0);
+    int cfgTaskCapacityUtilizationPct = props.getIntInRange(CFG_TASK_CAPACITY_UTILIZATION_PCT, 0, 0, 100);
 
     // Set to Optional.empty() if the value is 0
     _maxTasks = cfgMaxTasks > 0 ? Optional.of(cfgMaxTasks) : Optional.empty();
@@ -65,6 +71,9 @@ public final class PartitionAssignmentStrategyConfig {
         Optional.empty();
     _partitionFullnessThresholdPct = cfgPartitionFullnessThresholdPct > 0 ?
         Optional.of(cfgPartitionFullnessThresholdPct) : Optional.empty();
+    _taskCapacityMBps = cfgTaskCapacityMBps > 0 ? Optional.of(cfgTaskCapacityMBps) : Optional.empty();
+    _taskCapacityUtilizationPct = cfgTaskCapacityUtilizationPct > 0 ? Optional.of(cfgTaskCapacityUtilizationPct) :
+        Optional.empty();
     _cluster = props.getString(CFG_CLUSTER_NAME, null);
     _zkAddress = props.getString(CFG_ZK_ADDRESS, null);
     _zkSessionTimeout = props.getInt(CFG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
@@ -109,6 +118,22 @@ public final class PartitionAssignmentStrategyConfig {
    */
   public Optional<Integer> getPartitionFullnessThresholdPct() {
     return _partitionFullnessThresholdPct;
+  }
+
+  /**
+   * Gets task capacity measured in MB/sec
+   * @return Task capacity in MB/sec
+   */
+  public Optional<Integer> getTaskCapacityMBps() {
+    return _taskCapacityMBps;
+  }
+
+  /**
+   * Gets task capacity utilization percentage
+   * @return Task capacity utilization percentage
+   */
+  public Optional<Integer> getTaskCapacityUtilizationPct() {
+    return _taskCapacityUtilizationPct;
   }
 
   /**

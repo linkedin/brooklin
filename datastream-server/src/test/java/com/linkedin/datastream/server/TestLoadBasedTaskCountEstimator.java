@@ -6,7 +6,9 @@
 package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 import org.testng.Assert;
@@ -22,7 +24,10 @@ import com.linkedin.datastream.server.providers.FileBasedPartitionThroughputProv
  */
 public class TestLoadBasedTaskCountEstimator {
   private static final String THROUGHPUT_FILE_NAME = "partitionThroughput.json";
-  FileBasedPartitionThroughputProvider _provider;
+  private static final int TASK_CAPACITY_MBPS = 4;
+  private static final int TASK_CAPACITY_UTILIZATION_PCT = 90;
+
+  private FileBasedPartitionThroughputProvider _provider;
 
   /**
    * Test class initialization code
@@ -37,7 +42,8 @@ public class TestLoadBasedTaskCountEstimator {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("pizza");
     List<String> assignedPartitions = Collections.emptyList();
     List<String> unassignedPartitions = Collections.emptyList();
-    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator();
+    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
+        TASK_CAPACITY_UTILIZATION_PCT);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions);
     Assert.assertEquals(taskCount, 0);
   }
@@ -48,7 +54,8 @@ public class TestLoadBasedTaskCountEstimator {
     List<String> assignedPartitions = new ArrayList<>();
     assignedPartitions.add("Pepperoni-1");
     List<String> unassignedPartitions = Collections.emptyList();
-    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator();
+    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
+        TASK_CAPACITY_UTILIZATION_PCT);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions);
     Assert.assertEquals(taskCount, 1);
   }
@@ -58,13 +65,15 @@ public class TestLoadBasedTaskCountEstimator {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("ice-cream");
     List<String> assignedPartitions = Collections.emptyList();
     List<String> unassignedPartitions = new ArrayList<>(throughputInfo.getPartitionInfoMap().keySet());
-    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator();
+    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
+        TASK_CAPACITY_UTILIZATION_PCT);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions);
 
     int throughputSum = throughputInfo.getPartitionInfoMap().values().stream().mapToInt(
         PartitionThroughputInfo::getBytesInKBRate).sum();
+    double taskCapacityCoefficient = TASK_CAPACITY_UTILIZATION_PCT / 100.0;
     Assert.assertTrue(taskCount >=
-        throughputSum / (LoadBasedTaskCountEstimator.TASK_CAPACITY_MBPS_DEFAULT * 1024));
+        throughputSum / (TASK_CAPACITY_MBPS * taskCapacityCoefficient * 1024));
   }
 
   @Test
@@ -72,14 +81,20 @@ public class TestLoadBasedTaskCountEstimator {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("donut");
     List<String> assignedPartitions = Collections.emptyList();
     List<String> unassignedPartitions = new ArrayList<>(throughputInfo.getPartitionInfoMap().keySet());
-    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator();
+    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
+        TASK_CAPACITY_UTILIZATION_PCT);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions);
+    Assert.assertEquals(taskCount, unassignedPartitions.size());
+  }
 
-    int throughputSum = throughputInfo.getPartitionInfoMap().values().stream().mapToInt(
-        PartitionThroughputInfo::getBytesInKBRate).sum();
-    Assert.assertTrue(taskCount >=
-        throughputSum / (LoadBasedTaskCountEstimator.TASK_CAPACITY_MBPS_DEFAULT * 1024));
-    int totalNumPartitions = assignedPartitions.size() + unassignedPartitions.size();
-    Assert.assertTrue(taskCount <= totalNumPartitions);
+  @Test
+  public void partitionsHaveDefaultWeightTest() {
+    ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", new HashMap<>());
+    List<String> assignedPartitions = Collections.emptyList();
+    List<String> unassignedPartitions = Arrays.asList("P1", "P2");
+    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
+        TASK_CAPACITY_UTILIZATION_PCT);
+    int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions);
+    Assert.assertTrue(taskCount > 0);
   }
 }
