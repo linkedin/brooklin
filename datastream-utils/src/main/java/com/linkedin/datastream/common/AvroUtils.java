@@ -78,11 +78,14 @@ public class AvroUtils {
   private static byte[] encodeAvroIndexedRecord(Schema schema, IndexedRecord record,
       ByteArrayOutputStream outputStream, Encoder encoder) throws IOException {
     DatumWriter<IndexedRecord> datumWriter;
-    if (record instanceof GenericRecord) {
-      datumWriter = new GenericDatumWriter<>(schema);
-    } else {
+    // IndexedRecord like SpecificRecordBase can extend both SpecificRecord and GenericRecord and
+    // needs to be encoded using SpecificDatumWriter instead of GenericDatumWriter.
+    if (record instanceof SpecificRecord) {
       datumWriter = new SpecificDatumWriter<>(schema);
+    } else {
+      datumWriter = new GenericDatumWriter<>(schema);
     }
+
     datumWriter.write(record, encoder);
     encoder.flush();
     outputStream.close();
