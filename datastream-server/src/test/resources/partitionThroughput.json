@@ -213,6 +213,20 @@
       "PeanutButter-7" : "bytesInKB: 8, msgIn:24",
       "PeanutButter-8" : "bytesInKB: 8, msgIn:26",
       "PeanutButter-9" : "bytesInKB: 8, msgIn:26"
+    },
+    "ice-cream" : {
+      "Vanilla-1" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-2" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-3" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-4" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-5" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-6" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-7" : "bytesInKB: 1024, msgIn:100",
+      "Vanilla-8" : "bytesInKB: 1024, msgIn:100"
+    },
+    "donut" : {
+      "BostonCreme-1" : "bytesInKB: 5000, msgIn:200",
+      "BostonCreme-2" : "bytesInKB: 5000, msgIn:200"
     }
   }
 }
