@@ -7,6 +7,7 @@ package com.linkedin.datastream.server.assignment;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,8 +41,13 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(10).toMillis();
   private static final long THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT = Duration.ofSeconds(1).toMillis();
 
+  private static final int TASK_CAPACITY_MBPS_DEFAULT = 4;
+  private static final int TASK_CAPACITY_UTILIZATION_PCT_DEFAULT = 90;
+
   private final PartitionThroughputProvider _throughputProvider;
   private final DatastreamSourceClusterResolver _sourceClusterResolver;
+  private final int _taskCapacityMBps;
+  private final int _taskCapacityUtilizationPct;
 
 
   /**
@@ -50,12 +56,15 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   public LoadBasedPartitionAssignmentStrategy(PartitionThroughputProvider throughputProvider,
       DatastreamSourceClusterResolver sourceClusterResolver, Optional<Integer> maxTasks,
       Optional<Integer> imbalanceThreshold, Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment,
-      Optional<Integer> partitionsPerTask, Optional<Integer> partitionFullnessFactorPct, Optional<ZkClient> zkClient,
+      Optional<Integer> partitionsPerTask, Optional<Integer> partitionFullnessFactorPct,
+      Optional<Integer> taskCapacityMBps, Optional<Integer> taskCapacityUtilizationPct, Optional<ZkClient> zkClient,
       String clusterName) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
     _throughputProvider = throughputProvider;
     _sourceClusterResolver = sourceClusterResolver;
+    _taskCapacityMBps = taskCapacityMBps.orElse(TASK_CAPACITY_MBPS_DEFAULT);
+    _taskCapacityUtilizationPct = taskCapacityUtilizationPct.orElse(TASK_CAPACITY_UTILIZATION_PCT_DEFAULT);
   }
 
   @Override
@@ -85,17 +94,18 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment.");
 
+    // Resolving cluster name from datastream group
+    String clusterName = _sourceClusterResolver.getSourceCluster(datastreamPartitions.getDatastreamGroup());
+    ClusterThroughputInfo clusterThroughputInfo = partitionThroughputInfo.get(clusterName);
+
     // TODO Get task count estimate and perform elastic task count validation
     // TODO Get task count estimate based on throughput and pick a winner
-    int maxTaskCount = 0;
+    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
+    int maxTaskCount = estimator.getTaskCount(clusterThroughputInfo, Collections.emptyList(), Collections.emptyList());
 
     // TODO Get unassigned partitions
     // Calculating unassigned partitions
     List<String> unassignedPartitions = new ArrayList<>();
-
-    // Resolving cluster name from datastream group
-    String clusterName = _sourceClusterResolver.getSourceCluster(datastreamPartitions.getDatastreamGroup());
-    ClusterThroughputInfo clusterThroughputInfo = partitionThroughputInfo.get(clusterName);
 
     // Doing assignment
     LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
