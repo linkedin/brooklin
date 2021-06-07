@@ -102,6 +102,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     // TODO Get task count estimate based on throughput and pick a winner
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
     int maxTaskCount = estimator.getTaskCount(clusterThroughputInfo, Collections.emptyList(), Collections.emptyList());
+    LOG.info("Max task count obtained from estimator: {}", maxTaskCount);
 
     // TODO Get unassigned partitions
     // Calculating unassigned partitions
