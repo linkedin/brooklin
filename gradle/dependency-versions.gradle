@@ -1,5 +1,5 @@
 ext {
-    LIKafkaVersion = "1.0.61"
+    LIKafkaVersion = "1.0.65"
     apacheHttpClientVersion = "4.5.3"
     avroVersion = "1.7.7"
     commonsCliVersion = "1.2"
