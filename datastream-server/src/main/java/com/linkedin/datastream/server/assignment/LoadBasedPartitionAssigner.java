@@ -26,10 +26,6 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  * Performs partition assignment based on partition throughput information
  */
 public class LoadBasedPartitionAssigner {
-  // TODO: move these to config class
-  private static final Integer DEFAULT_KB_RATE = 5;
-  private static final Integer DEFAULT_MESSAGE_RATE = 5;
-
   /**
    * Performs partition assignment based on partition throughput information.
    * <p>
@@ -61,7 +57,9 @@ public class LoadBasedPartitionAssigner {
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
-    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(DEFAULT_KB_RATE, DEFAULT_MESSAGE_RATE, "");
+    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(
+        PartitionAssignmentStrategyConfig.PARTITION_BYTES_IN_KB_RATE_DEFAULT,
+        PartitionAssignmentStrategyConfig.PARTITION_MESSAGES_IN_RATE_DEFAULT, "");
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
           .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())

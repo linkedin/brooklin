@@ -27,10 +27,6 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  */
 public class LoadBasedTaskCountEstimator {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
-  // TODO Move these to config class
-  private static final int BYTES_IN_KB_RATE_DEFAULT = 5;
-  private static final int MESSAGES_IN_RATE_DEFAULT = 5;
-
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
 
@@ -64,8 +60,9 @@ public class LoadBasedTaskCountEstimator {
     Set<String> allPartitions = new HashSet<>(assignedPartitions);
     allPartitions.addAll(unassignedPartitions);
 
-    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(BYTES_IN_KB_RATE_DEFAULT,
-        MESSAGES_IN_RATE_DEFAULT, "");
+    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(
+        PartitionAssignmentStrategyConfig.PARTITION_BYTES_IN_KB_RATE_DEFAULT,
+        PartitionAssignmentStrategyConfig.PARTITION_MESSAGES_IN_RATE_DEFAULT, "");
     // total throughput in KB/sec
     int totalThroughput = allPartitions.stream()
         .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))
