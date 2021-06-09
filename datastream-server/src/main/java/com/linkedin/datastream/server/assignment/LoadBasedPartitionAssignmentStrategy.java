@@ -7,7 +7,6 @@ package com.linkedin.datastream.server.assignment;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,6 +46,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
 
+  // TODO Make this a config
+  private final boolean _enableThroughputBasedTaskCountEstimation = true;
+
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
@@ -67,41 +69,57 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   public Map<String, Set<DatastreamTask>> assignPartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
     DatastreamGroup datastreamGroup = datastreamPartitions.getDatastreamGroup();
+    if (getEnableElasticTaskAssignment(datastreamGroup)) {
+      return super.assignPartitions(currentAssignment, datastreamPartitions);
+    }
+
     String datastreamGroupName = datastreamGroup.getName();
     Pair<List<String>, Integer> assignedPartitionsAndTaskCount = getAssignedPartitionsAndTaskCountForDatastreamGroup(
         currentAssignment, datastreamGroupName);
     List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
+    int taskCount = assignedPartitionsAndTaskCount.getValue();
 
-    // Do throughput based assignment only initially, when no partitions have been assigned yet
-    if (!assignedPartitions.isEmpty()) {
-      return super.assignPartitions(currentAssignment, datastreamPartitions);
-    }
-
-    Map<String, ClusterThroughputInfo> partitionThroughputInfo;
+    ClusterThroughputInfo clusterThroughputInfo = null;
     // Attempting to retrieve partition throughput info with a fallback mechanism to StickyPartitionAssignmentStrategy
     try {
-      partitionThroughputInfo = fetchPartitionThroughputInfo();
+      clusterThroughputInfo = fetchPartitionThroughputInfo(datastreamGroup);
     } catch (RetriesExhaustedException ex) {
-      LOG.warn("Attempts to fetch partition throughput timed out. Falling back to regular partition assignment strategy");
-      return super.assignPartitions(currentAssignment, datastreamPartitions);
+      LOG.warn("Attempts to fetch partition throughput timed out.");
+      if (assignedPartitions.isEmpty()) {
+        LOG.info("Throughput information unavailable during initial assignment. Falling back to StickyPartitionAssignmentStrategy.");
+        return super.assignPartitions(currentAssignment, datastreamPartitions);
+      }
     }
 
     LOG.info("Old partition assignment info, assignment: {}", currentAssignment);
+    Validate.notNull(clusterThroughputInfo, "Cluster throughput info must not be null");
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment.");
 
-    // Resolving cluster name from datastream group
-    ClusterThroughputInfo clusterThroughputInfo = partitionThroughputInfo.get(null);
+    int numTasksNeeded = taskCount;
 
-    // TODO Get task count estimate and perform elastic task count validation
-    // TODO Get task count estimate based on throughput and pick a winner
-    LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
-    int maxTaskCount = estimator.getTaskCount(clusterThroughputInfo, Collections.emptyList(), Collections.emptyList());
-    LOG.info("Max task count obtained from estimator: {}", maxTaskCount);
-
-    // TODO Get unassigned partitions
     // Calculating unassigned partitions
-    List<String> unassignedPartitions = new ArrayList<>();
+    List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
+    unassignedPartitions.removeAll(assignedPartitions);
+
+    // TODO Figure out if validation is needed to prevent double assignment
+    // TODO Figure out how to integrate with existing metrics
+    // TODO Figure out if new metrics are needed
+
+    // Estimating number of tasks needed
+    if (isPartitionNumBasedTaskCountEstimationEnabled(datastreamGroup)) {
+      numTasksNeeded = getTaskCountEstimateBasedOnNumPartitions(datastreamPartitions, taskCount);
+    }
+
+    if (isThroughputBasedTaskCountEstimationEnabled()) {
+      LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
+      numTasksNeeded = Math.max(numTasksNeeded, estimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
+          unassignedPartitions));
+    }
+
+    if (numTasksNeeded > taskCount) {
+      updateNumTasksAndForceTaskCreation(datastreamPartitions, numTasksNeeded, taskCount);
+    }
 
     // Doing assignment
     LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
@@ -109,10 +127,10 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         unassignedPartitions, datastreamPartitions);
   }
 
-  private Map<String, ClusterThroughputInfo> fetchPartitionThroughputInfo() {
+  private ClusterThroughputInfo fetchPartitionThroughputInfo(DatastreamGroup datastreamGroup) {
     return PollUtils.poll(() -> {
       try {
-        return _throughputProvider.getThroughputInfo();
+        return _throughputProvider.getThroughputInfo(datastreamGroup);
       } catch (Exception ex) {
         // TODO print exception and retry count
         LOG.warn("Failed to fetch partition throughput info.");
@@ -120,5 +138,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       }
     }, Objects::nonNull, THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
         .orElseThrow(RetriesExhaustedException::new);
+  }
+
+  private boolean isThroughputBasedTaskCountEstimationEnabled() {
+    return _enableThroughputBasedTaskCountEstimation;
   }
 }

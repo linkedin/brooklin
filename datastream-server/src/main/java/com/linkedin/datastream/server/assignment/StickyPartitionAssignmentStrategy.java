@@ -77,7 +77,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
-  private final boolean _enableElasticTaskAssignment;
+  protected final boolean _enableElasticTaskAssignment;
+  protected final boolean _enablePartitionNumBasedTaskCountEstimation = true;
+
   private final Integer _maxPartitionPerTask;
   private final Integer _partitionsPerTask;
   private final Integer _partitionFullnessFactorPct;
@@ -211,9 +213,12 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int totalTaskCount = assignedPartitionsAndTaskCount.getValue();
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    if (getEnableElasticTaskAssignment(datastreamGroup)) {
+    if (isPartitionNumBasedTaskCountEstimationEnabled(datastreamGroup)) {
       if (assignedPartitions.isEmpty()) {
-        performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
+        int numTasksNeeded = getTaskCountEstimateBasedOnNumPartitions(datastreamPartitions, totalTaskCount);
+        if (numTasksNeeded > totalTaskCount) {
+          updateNumTasksAndForceTaskCreation(datastreamPartitions, numTasksNeeded, totalTaskCount);
+        }
       }
       updateOrRegisterElasticTaskAssignmentMetrics(datastreamPartitions, totalTaskCount);
     }
@@ -565,7 +570,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     _elasticTaskAssignmentInfoHashMap.put(taskPrefix, elasticTaskAssignmentInfo);
   }
 
-  protected void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+  protected int getTaskCountEstimateBasedOnNumPartitions(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
     // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
@@ -591,14 +596,25 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
           partitionFullnessFactorPct, maxTasks);
       numTasksNeeded = maxTasks;
     }
-    if (numTasksNeeded > totalTaskCount) {
-      createOrUpdateNumTasksForDatastreamInZK(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
-      setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
-      throw new DatastreamRuntimeException(
-          String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
-              totalTaskCount, numTasksNeeded, totalPartitions));
-    }
     LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
+    return numTasksNeeded;
+  }
+
+  protected void updateNumTasksAndForceTaskCreation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+      int numTasksNeeded, int actualNumTasks) {
+    createOrUpdateNumTasksForDatastreamInZK(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+    setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+    int totalPartitions = datastreamPartitions.getPartitions().size();
+    throw new DatastreamRuntimeException(
+        String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
+            actualNumTasks, numTasksNeeded, totalPartitions));
+  }
+
+  protected boolean isPartitionNumBasedTaskCountEstimationEnabled(DatastreamGroup datastreamGroup) {
+    // Enable task count estimation based on the number of partition only if the config enables
+    // it and the datastream metadata for minTasks is present and is greater than 0
+    int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);
+    return _enablePartitionNumBasedTaskCountEstimation && (minTasks > 0);
   }
 
   protected boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
