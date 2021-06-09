@@ -22,6 +22,8 @@ public final class PartitionAssignmentStrategyConfig {
   public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
   public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
   public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
+  public static final String CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = "throughputInfoFetchTimeoutMs";
+  public static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = "throughputInfoFetchRetryPeriodMs";
   public static final String CFG_TASK_CAPACITY_MBPS = "taskCapacityMBps";
   public static final String CFG_TASK_CAPACITY_UTILIZATION_PCT = "taskCapacityUtilizationPct";
   public static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT = "enableElasticTaskAssignment";
@@ -29,6 +31,9 @@ public final class PartitionAssignmentStrategyConfig {
   public static final String CFG_ZK_ADDRESS = "zkAddress";
   public static final String CFG_ZK_SESSION_TIMEOUT = "zkSessionTimeout";
   public static final String CFG_ZK_CONNECTION_TIMEOUT = "zkConnectionTimeout";
+
+  public static final int PARTITION_BYTES_IN_KB_RATE_DEFAULT = 5;
+  public static final int PARTITION_MESSAGES_IN_RATE_DEFAULT = 5;
 
   public static final boolean DEFAULT_ENABLE_ELASTIC_TASK_ASSIGNMENT = false;
 
@@ -40,6 +45,8 @@ public final class PartitionAssignmentStrategyConfig {
   private final Optional<Integer> _partitionFullnessThresholdPct;
   private final Optional<Integer> _taskCapacityMBps;
   private final Optional<Integer> _taskCapacityUtilizationPct;
+  private final Optional<Integer> _throughputInfoFetchTimeoutMs;
+  private final Optional<Integer> _throughputInfoFetchRetryPeriodMs;
   private final String _cluster;
   private final String _zkAddress;
   private final int _zkSessionTimeout;
@@ -60,6 +67,8 @@ public final class PartitionAssignmentStrategyConfig {
     int cfgPartitionFullnessThresholdPct = props.getIntInRange(CFG_PARTITION_FULLNESS_THRESHOLD_PCT, 0, 0, 100);
     int cfgTaskCapacityMBps = props.getInt(CFG_TASK_CAPACITY_MBPS, 0);
     int cfgTaskCapacityUtilizationPct = props.getIntInRange(CFG_TASK_CAPACITY_UTILIZATION_PCT, 0, 0, 100);
+    int cfgThroughputInfoFetchTimeoutMs = props.getInt(CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS, 0);
+    int cfgThroughputInfoFetchRetryPeriodMs = props.getInt(CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS, 0);
 
     // Set to Optional.empty() if the value is 0
     _maxTasks = cfgMaxTasks > 0 ? Optional.of(cfgMaxTasks) : Optional.empty();
@@ -74,6 +83,10 @@ public final class PartitionAssignmentStrategyConfig {
     _taskCapacityMBps = cfgTaskCapacityMBps > 0 ? Optional.of(cfgTaskCapacityMBps) : Optional.empty();
     _taskCapacityUtilizationPct = cfgTaskCapacityUtilizationPct > 0 ? Optional.of(cfgTaskCapacityUtilizationPct) :
         Optional.empty();
+    _throughputInfoFetchTimeoutMs = cfgThroughputInfoFetchTimeoutMs > 0 ?
+        Optional.of(cfgThroughputInfoFetchTimeoutMs) : Optional.empty();
+    _throughputInfoFetchRetryPeriodMs = cfgThroughputInfoFetchRetryPeriodMs > 0 ?
+        Optional.of(cfgThroughputInfoFetchRetryPeriodMs) : Optional.empty();
     _cluster = props.getString(CFG_CLUSTER_NAME, null);
     _zkAddress = props.getString(CFG_ZK_ADDRESS, null);
     _zkSessionTimeout = props.getInt(CFG_ZK_SESSION_TIMEOUT, ZkClient.DEFAULT_SESSION_TIMEOUT);
@@ -134,6 +147,22 @@ public final class PartitionAssignmentStrategyConfig {
    */
   public Optional<Integer> getTaskCapacityUtilizationPct() {
     return _taskCapacityUtilizationPct;
+  }
+
+  /**
+   * Gets throughput info fetch timeout in milliseconds
+   * @return Throughput info fetch timeout in milliseconds
+   */
+  public Optional<Integer> getThroughputInfoFetchTimeoutMs() {
+    return _throughputInfoFetchTimeoutMs;
+  }
+
+  /**
+   * Gets the throughput info fetch retry period in milliseconds
+   * @return Throughput info fetch retry period in milliseconds
+   */
+  public Optional<Integer> getThroughputInfoFetchRetryPeriodMs() {
+    return _throughputInfoFetchRetryPeriodMs;
   }
 
   /**
