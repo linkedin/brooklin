@@ -636,7 +636,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   /**
    * check if the computed assignment contains all the partitions
    */
-  private void partitionSanityChecks(Map<String, Set<DatastreamTask>> assignedTasks,
+  protected void partitionSanityChecks(Map<String, Set<DatastreamTask>> assignedTasks,
       DatastreamGroupPartitionsMetadata allPartitions) {
     int total = 0;
 
