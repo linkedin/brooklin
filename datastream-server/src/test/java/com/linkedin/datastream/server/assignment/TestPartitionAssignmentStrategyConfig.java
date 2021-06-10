@@ -25,6 +25,10 @@ public class TestPartitionAssignmentStrategyConfig {
   private static final String CFG_MAX_TASKS_VALUE = "20";
   private static final String CFG_PARTITIONS_PER_TASK_VALUE = "15";
   private static final String CFG_PARTITIONS_FULLNESS_THRESHOLD_PCT_VALUE = "75";
+  private static final String CFG_TASK_CAPACITY_MBPS_VALUE = "5";
+  private static final String CFG_TASK_CAPACITY_UTILIZATION_PCT_VALUE = "82";
+  private static final String CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS_VALUE = "1100";
+  private static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE = "1200";
   private static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT_VALUE = "true";
   private static final String CFG_ZK_ADDRESS_VALUE = "dummyZk";
   private static final String CFG_ZK_SESSION_TIMEOUT_VALUE = "1000";
@@ -42,6 +46,13 @@ public class TestPartitionAssignmentStrategyConfig {
     props.setProperty(PartitionAssignmentStrategyConfig.CFG_PARTITIONS_PER_TASK, CFG_PARTITIONS_PER_TASK_VALUE);
     props.setProperty(PartitionAssignmentStrategyConfig.CFG_PARTITION_FULLNESS_THRESHOLD_PCT,
         CFG_PARTITIONS_FULLNESS_THRESHOLD_PCT_VALUE);
+    props.setProperty(PartitionAssignmentStrategyConfig.CFG_TASK_CAPACITY_MBPS, CFG_TASK_CAPACITY_MBPS_VALUE);
+    props.setProperty(PartitionAssignmentStrategyConfig.CFG_TASK_CAPACITY_UTILIZATION_PCT,
+        CFG_TASK_CAPACITY_UTILIZATION_PCT_VALUE);
+    props.setProperty(PartitionAssignmentStrategyConfig.CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS,
+        CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS_VALUE);
+    props.setProperty(PartitionAssignmentStrategyConfig.CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS,
+        CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE);
     props.setProperty(PartitionAssignmentStrategyConfig.CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT,
         CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT_VALUE);
     props.setProperty(PartitionAssignmentStrategyConfig.CFG_ZK_ADDRESS, CFG_ZK_ADDRESS_VALUE);
@@ -56,6 +67,13 @@ public class TestPartitionAssignmentStrategyConfig {
     Assert.assertEquals(config.getMaxPartitions(), Optional.of(Integer.parseInt(CFG_MAX_PARTITION_PER_TASK_VALUE)));
     Assert.assertEquals(config.getPartitionFullnessThresholdPct(),
         Optional.of(Integer.parseInt(CFG_PARTITIONS_FULLNESS_THRESHOLD_PCT_VALUE)));
+    Assert.assertEquals(config.getTaskCapacityMBps(), Optional.of(Integer.parseInt(CFG_TASK_CAPACITY_MBPS_VALUE)));
+    Assert.assertEquals(config.getTaskCapacityUtilizationPct(),
+        Optional.of(Integer.parseInt(CFG_TASK_CAPACITY_UTILIZATION_PCT_VALUE)));
+    Assert.assertEquals(config.getThroughputInfoFetchTimeoutMs(),
+        Optional.of(Integer.parseInt(CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS_VALUE)));
+    Assert.assertEquals(config.getThroughputInfoFetchRetryPeriodMs(),
+        Optional.of(Integer.parseInt(CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE)));
     Assert.assertEquals(config.isElasticTaskAssignmentEnabled(),
         Boolean.parseBoolean(CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT_VALUE));
     Assert.assertEquals(config.getZkAddress(), CFG_ZK_ADDRESS_VALUE);
