@@ -213,7 +213,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int totalTaskCount = assignedPartitionsAndTaskCount.getValue();
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    if (isPartitionNumBasedTaskCountEstimationEnabled(datastreamGroup)) {
+    if (isElasticTaskAssignmentEnabled(datastreamGroup) &&
+        isPartitionNumBasedTaskCountEstimationEnabled(datastreamGroup)) {
       if (assignedPartitions.isEmpty()) {
         int numTasksNeeded = getTaskCountEstimateBasedOnNumPartitions(datastreamPartitions, totalTaskCount);
         if (numTasksNeeded > totalTaskCount) {
@@ -519,7 +520,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
 
   @Override
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances) {
-    boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
+    boolean enableElasticTaskAssignment = isElasticTaskAssignmentEnabled(dg);
     int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix()) :
         getNumTasks(dg, instances.size());
 
@@ -617,7 +618,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return _enablePartitionNumBasedTaskCountEstimation && (minTasks > 0);
   }
 
-  protected boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
+  protected boolean isElasticTaskAssignmentEnabled(DatastreamGroup datastreamGroup) {
     // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
     // and is greater than 0
     int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);
