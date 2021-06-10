@@ -37,9 +37,8 @@ import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
 
-  // TODO Make these constants configurable
-  private static final long THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = Duration.ofSeconds(10).toMillis();
-  private static final long THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT = Duration.ofSeconds(1).toMillis();
+  private static final int THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT = (int) Duration.ofSeconds(10).toMillis();
+  private static final int THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT = (int) Duration.ofSeconds(1).toMillis();
 
   private static final int TASK_CAPACITY_MBPS_DEFAULT = 4;
   private static final int TASK_CAPACITY_UTILIZATION_PCT_DEFAULT = 90;
@@ -48,6 +47,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private final DatastreamSourceClusterResolver _sourceClusterResolver;
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
+  private final int _throughputInfoFetchTimeoutMs;
+  private final int _throughputInfoFetchRetryPeriodMs;
 
 
   /**
@@ -57,7 +58,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       DatastreamSourceClusterResolver sourceClusterResolver, Optional<Integer> maxTasks,
       Optional<Integer> imbalanceThreshold, Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment,
       Optional<Integer> partitionsPerTask, Optional<Integer> partitionFullnessFactorPct,
-      Optional<Integer> taskCapacityMBps, Optional<Integer> taskCapacityUtilizationPct, Optional<ZkClient> zkClient,
+      Optional<Integer> taskCapacityMBps, Optional<Integer> taskCapacityUtilizationPct,
+      Optional<Integer> throughputInfoFetchTimeoutMs, Optional<Integer> throughputInfoFetchRetryPeriodMs,
+      Optional<ZkClient> zkClient,
       String clusterName) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
@@ -65,6 +68,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     _sourceClusterResolver = sourceClusterResolver;
     _taskCapacityMBps = taskCapacityMBps.orElse(TASK_CAPACITY_MBPS_DEFAULT);
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct.orElse(TASK_CAPACITY_UTILIZATION_PCT_DEFAULT);
+    _throughputInfoFetchTimeoutMs = throughputInfoFetchTimeoutMs.orElse(THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT);
+    _throughputInfoFetchRetryPeriodMs = throughputInfoFetchRetryPeriodMs.
+        orElse(THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT);
   }
 
   @Override
@@ -102,6 +108,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     // TODO Get task count estimate based on throughput and pick a winner
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
     int maxTaskCount = estimator.getTaskCount(clusterThroughputInfo, Collections.emptyList(), Collections.emptyList());
+    LOG.info("Max task count obtained from estimator: {}", maxTaskCount);
 
     // TODO Get unassigned partitions
     // Calculating unassigned partitions
@@ -122,7 +129,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         LOG.warn("Failed to fetch partition throughput info.");
         return null;
       }
-    }, Objects::nonNull, THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_DEFAULT, THROUGHPUT_INFO_FETCH_TIMEOUT_MS_DEFAULT)
+    }, Objects::nonNull, _throughputInfoFetchRetryPeriodMs, _throughputInfoFetchTimeoutMs)
         .orElseThrow(RetriesExhaustedException::new);
   }
 }
