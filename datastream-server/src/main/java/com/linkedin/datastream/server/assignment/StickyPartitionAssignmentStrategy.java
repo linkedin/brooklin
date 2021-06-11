@@ -27,6 +27,8 @@ import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -73,8 +75,6 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private static final String PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT = "partitionsPerTaskNeedsAdjustment";
 
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
-  private static final Integer DEFAULT_PARTITIONS_PER_TASK = 50;
-  private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
   private final boolean _enableElasticTaskAssignment;
@@ -112,21 +112,20 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
    * @param clusterName The name of the Brooklin cluster
    *
    */
-  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      Optional<Integer> maxPartitionPerTask, boolean enableElasticTaskAssignment, Optional<Integer> partitionsPerTask,
-      Optional<Integer> partitionFullnessFactorPct, Optional<ZkClient> zkClient, String clusterName) {
+  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, int imbalanceThreshold,
+      int maxPartitionPerTask, boolean enableElasticTaskAssignment, int partitionsPerTask,
+      int partitionFullnessFactorPct, ZkClient zkClient, String clusterName) {
     super(maxTasks, imbalanceThreshold);
-    Validate.notNull(zkClient);
     Validate.isTrue(!enableElasticTaskAssignment || !StringUtils.isBlank(clusterName),
         "Cluster name should not be null/blank if elastic task assignment is enabled");
-    Validate.isTrue(!enableElasticTaskAssignment || zkClient.isPresent(),
+    Validate.isTrue(!enableElasticTaskAssignment || (zkClient != null),
         "ZkClient should not be null/empty if elastic task assignment is enabled");
 
     _enableElasticTaskAssignment = enableElasticTaskAssignment;
-    _maxPartitionPerTask = maxPartitionPerTask.orElse(Integer.MAX_VALUE);
-    _partitionsPerTask = partitionsPerTask.orElse(DEFAULT_PARTITIONS_PER_TASK);
-    _partitionFullnessFactorPct = partitionFullnessFactorPct.orElse(DEFAULT_PARTITION_FULLNESS_FACTOR_PCT);
-    _zkClient = zkClient.orElse(null);
+    _maxPartitionPerTask = maxPartitionPerTask;
+    _partitionsPerTask = partitionsPerTask;
+    _partitionFullnessFactorPct = partitionFullnessFactorPct;
+    _zkClient = zkClient;
     _clusterName = clusterName;
 
     LOG.info("Elastic task assignment is {}, partitionsPerTask: {}, partitionFullnessFactorPct: {}, "
@@ -149,10 +148,10 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
    * @param clusterName The name of the Brooklin cluster
    *
    */
-  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold,
-      Optional<Integer> maxPartitionPerTask, String clusterName) {
-    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, Optional.empty(), Optional.empty(), Optional.empty(),
-        clusterName);
+  @VisibleForTesting
+  public StickyPartitionAssignmentStrategy(Optional<Integer> maxTasks, int imbalanceThreshold, int maxPartitionPerTask,
+      String clusterName) {
+    this(maxTasks, imbalanceThreshold, maxPartitionPerTask, false, 0, 0, null, clusterName);
   }
 
   @Override

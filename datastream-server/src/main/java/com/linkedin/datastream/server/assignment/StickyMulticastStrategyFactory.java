@@ -20,15 +20,14 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
  */
 public class StickyMulticastStrategyFactory implements AssignmentStrategyFactory {
   public static final String CFG_IMBALANCE_THRESHOLD = "imbalanceThreshold";
+  public static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
     VerifiableProperties props = new VerifiableProperties(assignmentStrategyProperties);
     int cfgMaxTasks = props.getInt(CFG_MAX_TASKS, Integer.MIN_VALUE);
     Optional<Integer> maxTasks = cfgMaxTasks > 0 ? Optional.of(cfgMaxTasks) : Optional.empty();
-    int cfgImbalanceThreshold = props.getInt(CFG_IMBALANCE_THRESHOLD, Integer.MIN_VALUE);
-    Optional<Integer> imbalanceThreshold = cfgImbalanceThreshold > 0 ? Optional.of(cfgImbalanceThreshold)
-        : Optional.empty();
-    return new StickyMulticastStrategy(maxTasks, imbalanceThreshold);
+    int cfgImbalanceThreshold = props.getInt(CFG_IMBALANCE_THRESHOLD, DEFAULT_IMBALANCE_THRESHOLD);
+    return new StickyMulticastStrategy(maxTasks, cfgImbalanceThreshold);
   }
 }

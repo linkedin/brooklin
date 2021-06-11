@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.assignment;
 
-import java.util.Optional;
 import java.util.Properties;
 
 import org.slf4j.Logger;
@@ -27,11 +26,11 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {
-    _config = new PartitionAssignmentStrategyConfig(assignmentStrategyProperties);
-
+    _config = new LoadBasedPartitionAssignmentStrategyConfig(assignmentStrategyProperties);
+    LoadBasedPartitionAssignmentStrategyConfig config = (LoadBasedPartitionAssignmentStrategyConfig) _config;
     boolean enableElasticTaskAssignment = _config.isElasticTaskAssignmentEnabled();
     // Create the zookeeper client
-    Optional<ZkClient> zkClient = Optional.empty();
+    ZkClient zkClient = null;
     try {
       zkClient = constructZooKeeperClient();
     } catch (IllegalStateException ex) {
@@ -44,9 +43,9 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
 
     return new LoadBasedPartitionAssignmentStrategy(provider, clusterResolver, _config.getMaxTasks(),
         _config.getImbalanceThreshold(), _config.getMaxPartitions(), enableElasticTaskAssignment,
-        _config.getPartitionsPerTask(), _config.getPartitionFullnessThresholdPct(), _config.getTaskCapacityMBps(),
-        _config.getTaskCapacityUtilizationPct(), _config.getThroughputInfoFetchTimeoutMs(),
-        _config.getThroughputInfoFetchRetryPeriodMs(), zkClient, _config.getCluster());
+        _config.getPartitionsPerTask(), _config.getPartitionFullnessThresholdPct(), config.getTaskCapacityMBps(),
+        config.getTaskCapacityUtilizationPct(), config.getThroughputInfoFetchTimeoutMs(),
+        config.getThroughputInfoFetchRetryPeriodMs(), zkClient, _config.getCluster());
   }
 
   protected PartitionThroughputProvider constructPartitionThroughputProvider() {
