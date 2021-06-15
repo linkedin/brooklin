@@ -77,7 +77,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
-  protected final boolean _enableElasticTaskAssignment;
+  private final boolean _enableElasticTaskAssignment;
 
   private final Integer _maxPartitionPerTask;
   private final Integer _partitionsPerTask;
@@ -588,7 +588,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int totalPartitions = datastreamPartitions.getPartitions().size();
     int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
         + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
-    LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
+    String dgName = datastreamPartitions.getDatastreamGroup().getName();
+    LOG.info("Datastream group: {}, Number of tasks needed: {}, total task count: {}", dgName, numTasksNeeded,
+        totalTaskCount);
     return numTasksNeeded;
   }
 

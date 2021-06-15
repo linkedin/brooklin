@@ -7,7 +7,7 @@ package com.linkedin.datastream.server.assignment;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,8 +82,11 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     // For throughput based partition-assignment to kick in, the following conditions must be met:
     //   (1) Elastic task assignment must be enabled through configuration
     //   (2) Throughput-based task assignment must be enabled through configuration
-    if (!isElasticTaskAssignmentEnabled(datastreamGroup) || !_enableThroughputBasedPartitionAssignment) {
+    boolean enableElasticTaskAssignment = isElasticTaskAssignmentEnabled(datastreamGroup);
+    if (!enableElasticTaskAssignment || !_enableThroughputBasedPartitionAssignment) {
       LOG.info("Throughput based elastic task assignment not enabled. Falling back to sticky partition assignment.");
+      LOG.info("enableElasticTaskAssignment: {}, enableThroughputBasedPartitionAssignment {}",
+          enableElasticTaskAssignment, _enableThroughputBasedPartitionAssignment);
       return super.assignPartitions(currentAssignment, datastreamPartitions);
     }
 
@@ -101,7 +104,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
     unassignedPartitions.removeAll(assignedPartitions);
 
-    ClusterThroughputInfo clusterThroughputInfo = new ClusterThroughputInfo(StringUtils.EMPTY, new HashMap<>());
+    ClusterThroughputInfo clusterThroughputInfo = new ClusterThroughputInfo(StringUtils.EMPTY, Collections.emptyMap());
     if (assignedPartitions.isEmpty()) {
       try {
         // Attempting to retrieve partition throughput info on initial assignment
@@ -150,7 +153,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         return _throughputProvider.getThroughputInfo(datastreamGroup);
       } catch (Exception ex) {
         attemptNum.set(attemptNum.get() + 1);
-        LOG.warn("Failed to fetch partition throughput info on attempt {}.", attemptNum.get(), ex);
+        LOG.warn(String.format("Failed to fetch partition throughput info on attempt %d", attemptNum.get()), ex);
         return null;
       }
     }, Objects::nonNull, _throughputInfoFetchRetryPeriodMs, _throughputInfoFetchTimeoutMs)

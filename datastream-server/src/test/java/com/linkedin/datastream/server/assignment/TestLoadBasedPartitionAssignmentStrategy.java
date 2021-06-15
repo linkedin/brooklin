@@ -52,7 +52,6 @@ import static org.mockito.Mockito.times;
  */
 @Test
 public class TestLoadBasedPartitionAssignmentStrategy {
-  private EmbeddedZookeeper _embeddedZookeeper;
   private ZkClient _zkClient;
   private String _clusterName;
 
@@ -60,9 +59,9 @@ public class TestLoadBasedPartitionAssignmentStrategy {
   public void setup() throws IOException {
     DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
     _clusterName = "testCluster";
-    _embeddedZookeeper = new EmbeddedZookeeper();
-    String zkConnectionString = _embeddedZookeeper.getConnection();
-    _embeddedZookeeper.startup();
+    EmbeddedZookeeper embeddedZookeeper = new EmbeddedZookeeper();
+    String zkConnectionString = embeddedZookeeper.getConnection();
+    embeddedZookeeper.startup();
     _zkClient = new ZkClient(zkConnectionString);
   }
 
