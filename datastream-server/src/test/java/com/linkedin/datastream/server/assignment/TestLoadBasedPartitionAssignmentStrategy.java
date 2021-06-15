@@ -41,10 +41,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -91,9 +88,11 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Map<String, Set<DatastreamTask>> currentAssignment = new HashMap<>();
     currentAssignment.put("instance1", new HashSet<>(Collections.singletonList(createTaskForDatastream(ds1))));
 
-    DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(new DatastreamGroup(
-        Collections.singletonList(ds1)), Collections.singletonList("P1"));
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(ds1));
+    DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(datastreamGroup,
+        Collections.singletonList("P1"));
     strategy.assignPartitions(currentAssignment, metadata);
+    Assert.assertFalse(strategy.isElasticTaskAssignmentEnabled(datastreamGroup));
 
     // Verify that partition throughput provider is not used when elastic task assignment is disabled
     Mockito.verify(mockProvider, times(0)).getThroughputInfo();
@@ -179,6 +178,9 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Assert.expectThrows(DatastreamRuntimeException.class, () -> strategy.assignPartitions(currentAssignment, metadata));
     int numTasks = getNumTasksForDatastreamFromZK(taskPrefix);
     Assert.assertEquals(numTasks, 2);
+
+    // make sure throughput info is fetched
+    Mockito.verify(mockProvider, atLeastOnce()).getThroughputInfo(any(DatastreamGroup.class));
 
     // test that strategy honors maxTasks config
     Datastream ds2 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds2")[0];

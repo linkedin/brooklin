@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.assignment;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -78,7 +79,6 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
   private final boolean _enableElasticTaskAssignment;
-
   private final Integer _maxPartitionPerTask;
   private final Integer _partitionsPerTask;
   private final Integer _partitionFullnessFactorPct;
@@ -615,7 +615,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
             actualNumTasks, numTasksNeeded, totalPartitions));
   }
 
-  protected boolean isElasticTaskAssignmentEnabled(DatastreamGroup datastreamGroup) {
+  @VisibleForTesting
+  boolean isElasticTaskAssignmentEnabled(DatastreamGroup datastreamGroup) {
     // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
     // and is greater than 0
     int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);
