@@ -100,7 +100,7 @@
           "name" : "force",
           "type" : "boolean",
           "default" : "false",
-          "doc" : "whether or not to resume all datastreams within the given datastream's group"
+          "doc" : "whether or not to stop all datastreams within the given datastream's group"
         } ]
       } ]
     }
