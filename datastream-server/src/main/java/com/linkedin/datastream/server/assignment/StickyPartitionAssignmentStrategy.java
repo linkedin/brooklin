@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.assignment;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,6 +26,8 @@ import org.apache.commons.lang3.Validate;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.zk.ZkClient;
