@@ -20,6 +20,8 @@ import org.apache.commons.lang3.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -138,12 +140,21 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
 
     // TODO Implement metrics
     // Doing assignment
-    LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
-    Map<String, Set<DatastreamTask>> newAssignment = partitionAssigner.assignPartitions(clusterThroughputInfo,
-        currentAssignment, unassignedPartitions, datastreamPartitions);
-    LOG.info("new assignment info, assignment: {}", newAssignment);
+    Map<String, Set<DatastreamTask>> newAssignment = doAssignment(clusterThroughputInfo, currentAssignment,
+        unassignedPartitions, datastreamPartitions);
     partitionSanityChecks(newAssignment, datastreamPartitions);
     return newAssignment;
+  }
+
+  @VisibleForTesting
+  Map<String, Set<DatastreamTask>> doAssignment(ClusterThroughputInfo clusterThroughputInfo, Map<String,
+      Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
+      DatastreamGroupPartitionsMetadata datastreamPartitions) {
+    LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
+    Map<String, Set<DatastreamTask>> assignment = partitionAssigner.assignPartitions(clusterThroughputInfo,
+        currentAssignment, unassignedPartitions, datastreamPartitions);
+    LOG.info("new assignment info, assignment: {}", assignment);
+    return assignment;
   }
 
   private ClusterThroughputInfo fetchPartitionThroughputInfo(DatastreamGroup datastreamGroup) {

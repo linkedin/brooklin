@@ -41,7 +41,13 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 
 /**
@@ -98,6 +104,45 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Mockito.verify(mockProvider, times(0)).getThroughputInfo();
     Mockito.verify(mockProvider, times(0)).getThroughputInfo(any(DatastreamGroup.class));
     Mockito.verify(mockProvider, times(0)).getThroughputInfo(any(String.class));
+  }
+
+  @Test
+  public void fallbackToBaseClassWhenThroughputFetchFailsTest() {
+    PartitionThroughputProvider mockProvider = mock(PartitionThroughputProvider.class);
+    Mockito.when(mockProvider.getThroughputInfo(any(DatastreamGroup.class))).thenThrow(new RuntimeException());
+    boolean enableElasticTaskAssignment = true;
+    Optional<Integer> maxTasks = Optional.of(100);
+    Optional<Integer> imbalanceThreshold = Optional.of(50);
+    Optional<Integer> maxPartitionPerTask = Optional.of(100);
+    Optional<Integer> partitionsPerTask = Optional.of(50);
+    Optional<Integer> partitionFullnessFactorPct = Optional.of(80);
+    Optional<Integer> taskCapacityMBps = Optional.of(5);
+    Optional<Integer> taskCapacityUtilizationPct = Optional.of(90);
+    Optional<Integer> throughputInfoFetchTimeoutMs = Optional.of(1000);
+    Optional<Integer> throughputInfoFetchRetryPeriodMs = Optional.of(200);
+    Optional<ZkClient> zkClient = Optional.of(_zkClient);
+
+    LoadBasedPartitionAssignmentStrategy strategy = Mockito.spy(new LoadBasedPartitionAssignmentStrategy(mockProvider,
+        maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
+        partitionFullnessFactorPct, taskCapacityMBps, taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs,
+        throughputInfoFetchRetryPeriodMs, zkClient, _clusterName));
+
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(0);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    ds1.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(10));
+    Map<String, Set<DatastreamTask>> currentAssignment = new HashMap<>();
+    currentAssignment.put("instance1", new HashSet<>(Collections.singletonList(createTaskForDatastream(ds1))));
+
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(ds1));
+    DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(datastreamGroup,
+        Collections.singletonList("P1"));
+    Assert.assertTrue(strategy.isElasticTaskAssignmentEnabled(datastreamGroup));
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(currentAssignment, metadata);
+
+    Mockito.verify(mockProvider, atLeastOnce()).getThroughputInfo(any(DatastreamGroup.class));
+    Mockito.verify(strategy, never()).doAssignment(anyObject(), anyObject(), anyObject(), anyObject());
+    Assert.assertNotNull(newAssignment);
   }
 
   @Test
