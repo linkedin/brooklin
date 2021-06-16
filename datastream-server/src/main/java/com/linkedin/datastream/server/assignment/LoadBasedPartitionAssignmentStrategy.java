@@ -147,8 +147,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   }
 
   @VisibleForTesting
-  Map<String, Set<DatastreamTask>> doAssignment(ClusterThroughputInfo clusterThroughputInfo, Map<String,
-      Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
+  Map<String, Set<DatastreamTask>> doAssignment(ClusterThroughputInfo clusterThroughputInfo,
+      Map<String, Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
     LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
     Map<String, Set<DatastreamTask>> assignment = partitionAssigner.assignPartitions(clusterThroughputInfo,
