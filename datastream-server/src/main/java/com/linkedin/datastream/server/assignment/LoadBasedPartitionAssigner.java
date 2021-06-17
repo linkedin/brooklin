@@ -152,14 +152,11 @@ public class LoadBasedPartitionAssigner {
   @VisibleForTesting
   int findTaskWithRoomForAPartition(List<String> tasks, Map<String, Set<String>> partitionMap, int startIndex,
       int maxPartitionsPerTask) {
-    for (int i = startIndex; i < tasks.size(); i++) {
-      if (partitionMap.get(tasks.get(i)).size() < maxPartitionsPerTask) {
-        return i;
-      }
-    }
-    for(int j = 0; j < startIndex; j++) {
-      if (partitionMap.get(tasks.get(j)).size() < maxPartitionsPerTask) {
-        return j;
+    for (int i = 0; i < tasks.size(); i++) {
+      int currentIndex = (startIndex + i) % tasks.size();
+      String currentTask = tasks.get(currentIndex);
+      if (partitionMap.get(currentTask).size() < maxPartitionsPerTask) {
+        return currentIndex;
       }
     }
     return -1;
