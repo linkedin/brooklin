@@ -77,9 +77,10 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private static final Integer DEFAULT_PARTITION_FULLNESS_FACTOR_PCT = 75;
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
+  protected final Integer _partitionsPerTask;
+
   private final boolean _enableElasticTaskAssignment;
   private final Integer _maxPartitionPerTask;
-  private final Integer _partitionsPerTask;
   private final Integer _partitionFullnessFactorPct;
   private final ZkClient _zkClient;
   private final String _clusterName;

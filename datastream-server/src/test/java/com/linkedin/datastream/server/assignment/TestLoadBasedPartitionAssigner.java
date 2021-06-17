@@ -20,6 +20,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
@@ -55,7 +56,7 @@ public class TestLoadBasedPartitionAssigner {
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
     Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata);
+        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     DatastreamTask task1 = (DatastreamTask) newAssignment.get("instance1").toArray()[0];
     DatastreamTask task2 = (DatastreamTask) newAssignment.get("instance2").toArray()[0];
@@ -104,7 +105,7 @@ public class TestLoadBasedPartitionAssigner {
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
     Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata);
+        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     Set<DatastreamTask> allTasks = new HashSet<>();
     allTasks.add((DatastreamTask) newAssignment.get("instance1").toArray()[0]);
@@ -141,7 +142,7 @@ public class TestLoadBasedPartitionAssigner {
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
     Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata);
+        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     DatastreamTask task1 = (DatastreamTask) newAssignment.get("instance1").toArray()[0];
     DatastreamTask task2 = (DatastreamTask) newAssignment.get("instance2").toArray()[0];
@@ -175,13 +176,102 @@ public class TestLoadBasedPartitionAssigner {
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
     Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata);
+        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     DatastreamTask task3 = (DatastreamTask) newAssignment.get("instance1").toArray()[0];
 
     // verify that task in instance1 got the new partition
     Assert.assertEquals(task3.getPartitionsV2().size(), 3);
     Assert.assertTrue(task3.getPartitionsV2().contains("P4"));
+  }
+
+  @Test
+  public void throwsExceptionWhenNotEnoughRoomForAllPartitionsTest() {
+    List<String> unassignedPartitions = Arrays.asList("P4", "P5");
+    Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
+    ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", throughputInfoMap);
+
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(0);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    Map<String, Set<DatastreamTask>> currentAssignment = new HashMap<>();
+    DatastreamTask task1 = createTaskForDatastream(ds1, Arrays.asList("P1", "P2"));
+    DatastreamTask task2 = createTaskForDatastream(ds1, Collections.singletonList("P3"));
+    currentAssignment.put("instance1", new HashSet<>(Collections.singletonList(task1)));
+    currentAssignment.put("instance2", new HashSet<>(Collections.singletonList(task2)));
+
+    DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(new DatastreamGroup(
+        Collections.singletonList(ds1)), Arrays.asList("P1", "P2", "P3", "P4", "P5"));
+
+    LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
+    int maxPartitionsPerTask = 2;
+    Assert.assertThrows(DatastreamRuntimeException.class, () -> assigner.assignPartitions(throughputInfo,
+        currentAssignment, unassignedPartitions, metadata, maxPartitionsPerTask));
+  }
+
+  @Test
+  public void taskWithRoomGetsNewPartitionTest() {
+    List<String> unassignedPartitions = Arrays.asList("P4");
+    Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
+    throughputInfoMap.put("P1", new PartitionThroughputInfo(5, 5, "P1"));
+    throughputInfoMap.put("P2", new PartitionThroughputInfo(5, 5, "P2"));
+    throughputInfoMap.put("P3", new PartitionThroughputInfo(50, 5, "P3"));
+    throughputInfoMap.put("P4", new PartitionThroughputInfo(20, 5, "P4"));
+    ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", throughputInfoMap);
+
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(0);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    Map<String, Set<DatastreamTask>> currentAssignment = new HashMap<>();
+    DatastreamTask task1 = createTaskForDatastream(ds1, Arrays.asList("P1", "P2"));
+    DatastreamTask task2 = createTaskForDatastream(ds1, Collections.singletonList("P3"));
+    currentAssignment.put("instance1", new HashSet<>(Collections.singletonList(task1)));
+    currentAssignment.put("instance2", new HashSet<>(Collections.singletonList(task2)));
+
+    DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(new DatastreamGroup(
+        Collections.singletonList(ds1)), Arrays.asList("P1", "P2", "P3", "P4"));
+
+    LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
+    int maxPartitionsPerTask = 2;
+    Map<String, Set<DatastreamTask>> newAssignment =
+        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata,
+            maxPartitionsPerTask);
+
+    DatastreamTask task3 = (DatastreamTask) newAssignment.get("instance2").toArray()[0];
+
+    // verify that task in instance2 got the new partition
+    Assert.assertEquals(task3.getPartitionsV2().size(), 2);
+    Assert.assertTrue(task3.getPartitionsV2().contains("P4"));
+  }
+
+  @Test
+  public void findTaskWithRoomForAPartitionTests() {
+    LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
+    List<String> tasks = Arrays.asList("T1", "T2");
+    Map<String, Set<String>> partitionsMap = new HashMap<>();
+    partitionsMap.put("T1", new HashSet<>(Collections.emptySet()));
+    partitionsMap.put("T2", new HashSet<>(Collections.emptySet()));
+    int index = assigner.findTaskWithRoomForAPartition(tasks, partitionsMap, 0, 1);
+    Assert.assertEquals(index, 0);
+    partitionsMap.get("T1").add("P1");
+    index = assigner.findTaskWithRoomForAPartition(tasks, partitionsMap, 0, 1);
+    // no more room in T1, expecting 1 as index
+    Assert.assertEquals(index, 1);
+    partitionsMap.get("T2").add("P2");
+    index = assigner.findTaskWithRoomForAPartition(tasks, partitionsMap, 0, 1);
+    // room in all tasks exhausted
+    Assert.assertEquals(index, -1);
+
+    List<String> tasks2 = Arrays.asList("T1", "T2", "T3");
+    Map<String, Set<String>> partitionsMap2 = new HashMap<>();
+    partitionsMap2.put("T1", new HashSet<>(Collections.emptySet()));
+    partitionsMap2.put("T2", new HashSet<>(Collections.singletonList("P1")));
+    partitionsMap2.put("T3", new HashSet<>(Collections.emptySet()));
+    int index2 = assigner.findTaskWithRoomForAPartition(tasks2, partitionsMap2, 1, 1);
+    Assert.assertEquals(index2, 2);
+    partitionsMap2.get("T3").add("P2");
+    index2 = assigner.findTaskWithRoomForAPartition(tasks2, partitionsMap2, 1, 1);
+    Assert.assertEquals(index2, 0);
   }
 
   private DatastreamTask createTaskForDatastream(Datastream datastream) {
