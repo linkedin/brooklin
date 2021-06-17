@@ -17,9 +17,9 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
-import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.PartitionThroughputInfo;
@@ -61,7 +61,7 @@ public class LoadBasedPartitionAssigner {
     int numPartitions = newPartitions.values().stream().mapToInt(Set::size).sum();
     numPartitions += unassignedPartitions.size();
     int numTasks = newPartitions.size();
-    validatePartitionCountAndThrow(numTasks,numPartitions, maxPartitionsPerTask);
+    validatePartitionCountAndThrow(numTasks, numPartitions, maxPartitionsPerTask);
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
