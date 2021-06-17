@@ -8,6 +8,7 @@ package com.linkedin.datastream.server.providers;
 import java.util.HashMap;
 
 import com.linkedin.datastream.server.ClusterThroughputInfo;
+import com.linkedin.datastream.server.DatastreamGroup;
 
 
 /**
@@ -16,6 +17,11 @@ import com.linkedin.datastream.server.ClusterThroughputInfo;
 public class NoOpPartitionThroughputProvider implements PartitionThroughputProvider {
   @Override
   public ClusterThroughputInfo getThroughputInfo(String clusterName) {
+    return null;
+  }
+
+  @Override
+  public ClusterThroughputInfo getThroughputInfo(DatastreamGroup datastreamGroup) {
     return null;
   }
 
