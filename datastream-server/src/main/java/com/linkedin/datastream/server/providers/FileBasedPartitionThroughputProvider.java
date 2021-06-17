@@ -12,12 +12,14 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Iterator;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
 
 import com.linkedin.datastream.server.ClusterThroughputInfo;
+import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.PartitionThroughputInfo;
 
 
@@ -47,6 +49,11 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
   public ClusterThroughputInfo getThroughputInfo(String clusterName) {
     File partitionThroughputFile = getThroughputFileFromResources();
     return readThroughputInfoFromFile(partitionThroughputFile, clusterName);
+  }
+
+  @Override
+  public ClusterThroughputInfo getThroughputInfo(DatastreamGroup datastreamGroup) {
+    throw new NotImplementedException();
   }
 
   /**
