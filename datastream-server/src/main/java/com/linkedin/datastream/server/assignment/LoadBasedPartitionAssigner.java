@@ -61,7 +61,7 @@ public class LoadBasedPartitionAssigner {
     int numPartitions = newPartitions.values().stream().mapToInt(Set::size).sum();
     numPartitions += unassignedPartitions.size();
     int numTasks = newPartitions.size();
-    validatePartitionCountAndThrow(numTasks, numPartitions, maxPartitionsPerTask);
+    validatePartitionCountAndThrow(datastreamGroupName, numTasks, numPartitions, maxPartitionsPerTask);
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
@@ -140,11 +140,13 @@ public class LoadBasedPartitionAssigner {
     return newAssignments;
   }
 
-  private void validatePartitionCountAndThrow(int numTasks, int numPartitions, int maxPartitionsPerTask) {
+  private void validatePartitionCountAndThrow(String datastream, int numTasks, int numPartitions,
+      int maxPartitionsPerTask) {
     // conversion to long to avoid integer overflow
     if (numTasks * (long) maxPartitionsPerTask < numPartitions) {
-      String message = String.format("Not enough tasks to fit partitions. Number of tasks: %d, " +
-          "number of partitions: %d, max partitions per task: %d", numTasks, numPartitions, maxPartitionsPerTask);
+      String message = String.format("Not enough tasks to fit partitions. Datastream: %s, Number of tasks: %d, " +
+          "number of partitions: %d, max partitions per task: %d", datastream, numTasks, numPartitions,
+          maxPartitionsPerTask);
       throw new DatastreamRuntimeException(message);
     }
   }
