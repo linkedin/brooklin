@@ -11,8 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.zk.ZkClient;
-import com.linkedin.datastream.server.DatastreamSourceClusterResolver;
-import com.linkedin.datastream.server.DummyDatastreamSourceClusterResolver;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.providers.NoOpPartitionThroughputProvider;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
@@ -39,9 +37,8 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
     }
 
     PartitionThroughputProvider provider = constructPartitionThroughputProvider();
-    DatastreamSourceClusterResolver clusterResolver = constructDatastreamSourceClusterResolver();
 
-    return new LoadBasedPartitionAssignmentStrategy(provider, clusterResolver, _config.getMaxTasks(),
+    return new LoadBasedPartitionAssignmentStrategy(provider, _config.getMaxTasks(),
         _config.getImbalanceThreshold(), _config.getMaxPartitions(), enableElasticTaskAssignment,
         _config.getPartitionsPerTask(), _config.getPartitionFullnessThresholdPct(), config.getTaskCapacityMBps(),
         config.getTaskCapacityUtilizationPct(), config.getThroughputInfoFetchTimeoutMs(),
@@ -50,9 +47,5 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
 
   protected PartitionThroughputProvider constructPartitionThroughputProvider() {
     return new NoOpPartitionThroughputProvider();
-  }
-
-  protected DatastreamSourceClusterResolver constructDatastreamSourceClusterResolver() {
-    return new DummyDatastreamSourceClusterResolver();
   }
 }
