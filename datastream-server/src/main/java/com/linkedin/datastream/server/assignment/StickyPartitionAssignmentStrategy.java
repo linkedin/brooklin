@@ -27,6 +27,8 @@ import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -212,9 +214,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int totalTaskCount = assignedPartitionsAndTaskCount.getValue();
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
-    if (getEnableElasticTaskAssignment(datastreamGroup)) {
+    if (isElasticTaskAssignmentEnabled(datastreamGroup)) {
       if (assignedPartitions.isEmpty()) {
-        performElasticTaskCountValidation(datastreamPartitions, totalTaskCount);
+        int numTasksNeeded = getTaskCountEstimateBasedOnNumPartitions(datastreamPartitions, totalTaskCount);
+        numTasksNeeded = validateNumTasksAgainstMaxTasks(datastreamPartitions, numTasksNeeded);
+        if (numTasksNeeded > totalTaskCount) {
+          updateNumTasksAndForceTaskCreation(datastreamPartitions, numTasksNeeded, totalTaskCount);
+        }
       }
       updateOrRegisterElasticTaskAssignmentMetrics(datastreamPartitions, totalTaskCount);
     }
@@ -515,7 +521,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
 
   @Override
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances) {
-    boolean enableElasticTaskAssignment = getEnableElasticTaskAssignment(dg);
+    boolean enableElasticTaskAssignment = isElasticTaskAssignmentEnabled(dg);
     int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix()) :
         getNumTasks(dg, instances.size());
 
@@ -566,7 +572,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     _elasticTaskAssignmentInfoHashMap.put(taskPrefix, elasticTaskAssignmentInfo);
   }
 
-  protected void performElasticTaskCountValidation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+  protected int getTaskCountEstimateBasedOnNumPartitions(DatastreamGroupPartitionsMetadata datastreamPartitions,
       int totalTaskCount) {
     // The partitions have not been assigned to any tasks yet and elastic task assignment has been enabled for this
     // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
@@ -584,25 +590,35 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int totalPartitions = datastreamPartitions.getPartitions().size();
     int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
         + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);
-    int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
-    if ((maxTasks > 0) && (numTasksNeeded > maxTasks)) {
-      // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
-      LOG.warn("The number of tasks {} needed to support {} partitions per task with fullness threshold {} "
-              + "is higher than maxTasks {}, setting numTasks to maxTasks", numTasksNeeded, partitionsPerTask,
-          partitionFullnessFactorPct, maxTasks);
-      numTasksNeeded = maxTasks;
-    }
-    if (numTasksNeeded > totalTaskCount) {
-      createOrUpdateNumTasksForDatastreamInZK(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
-      setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
-      throw new DatastreamRuntimeException(
-          String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
-              totalTaskCount, numTasksNeeded, totalPartitions));
-    }
-    LOG.info("Number of tasks needed: {}, total task count: {}", numTasksNeeded, totalTaskCount);
+    String dgName = datastreamPartitions.getDatastreamGroup().getName();
+    LOG.info("Datastream group: {}, Number of tasks needed: {}, total task count: {}", dgName, numTasksNeeded,
+        totalTaskCount);
+    return numTasksNeeded;
   }
 
-  protected boolean getEnableElasticTaskAssignment(DatastreamGroup datastreamGroup) {
+  protected int validateNumTasksAgainstMaxTasks(DatastreamGroupPartitionsMetadata datastreamPartitions, int numTasks) {
+    int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
+    if (maxTasks > 0 && numTasks > maxTasks) {
+      // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
+      LOG.warn("The number of tasks needed {} is higher than maxTasks {}. Setting numTasks to maxTasks",
+          numTasks, maxTasks);
+      return maxTasks;
+    }
+    return numTasks;
+  }
+
+  protected void updateNumTasksAndForceTaskCreation(DatastreamGroupPartitionsMetadata datastreamPartitions,
+      int numTasksNeeded, int actualNumTasks) {
+    createOrUpdateNumTasksForDatastreamInZK(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+    setTaskCountForDatastreamGroup(datastreamPartitions.getDatastreamGroup().getTaskPrefix(), numTasksNeeded);
+    int totalPartitions = datastreamPartitions.getPartitions().size();
+    throw new DatastreamRuntimeException(
+        String.format("Not enough tasks. Existing tasks: %d, tasks needed: %d, total partitions: %d",
+            actualNumTasks, numTasksNeeded, totalPartitions));
+  }
+
+  @VisibleForTesting
+  boolean isElasticTaskAssignmentEnabled(DatastreamGroup datastreamGroup) {
     // Enable elastic assignment only if the config enables it and the datastream metadata for minTasks is present
     // and is greater than 0
     int minTasks = resolveConfigWithMetadata(datastreamGroup, CFG_MIN_TASKS, 0);
@@ -620,7 +636,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   /**
    * check if the computed assignment contains all the partitions
    */
-  private void partitionSanityChecks(Map<String, Set<DatastreamTask>> assignedTasks,
+  protected void partitionSanityChecks(Map<String, Set<DatastreamTask>> assignedTasks,
       DatastreamGroupPartitionsMetadata allPartitions) {
     int total = 0;
 
