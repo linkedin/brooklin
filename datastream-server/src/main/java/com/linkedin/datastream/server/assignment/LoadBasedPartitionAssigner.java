@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,7 +59,7 @@ public class LoadBasedPartitionAssigner {
           }
     }));
 
-    int numPartitions = newPartitions.values().stream().mapToInt(Set::size).sum();
+    int numPartitions = partitionMetadata.getPartitions().size();
     numPartitions += unassignedPartitions.size();
     int numTasks = newPartitions.size();
     validatePartitionCountAndThrow(datastreamGroupName, numTasks, numPartitions, maxPartitionsPerTask);
@@ -115,6 +116,7 @@ public class LoadBasedPartitionAssigner {
     }
 
     // assign unrecognized partitions with round-robin
+    Collections.shuffle(unrecognizedPartitions);
     int index = 0;
     for (String partition : unrecognizedPartitions) {
       index = findTaskWithRoomForAPartition(tasks, newPartitions, index, maxPartitionsPerTask);
