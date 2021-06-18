@@ -20,7 +20,7 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
  */
 public class StickyMulticastStrategyFactory implements AssignmentStrategyFactory {
   public static final String CFG_IMBALANCE_THRESHOLD = "imbalanceThreshold";
-  public static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
+  public static final int DEFAULT_IMBALANCE_THRESHOLD = 1;
 
   @Override
   public AssignmentStrategy createStrategy(Properties assignmentStrategyProperties) {

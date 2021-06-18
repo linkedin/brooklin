@@ -120,7 +120,7 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     int taskCapacityUtilizationPct = 90;
     int throughputInfoFetchTimeoutMs = 1000;
     int throughputInfoFetchRetryPeriodMs = 200;
-    ZkClient zkClient = null;
+    ZkClient zkClient = _zkClient;
 
     LoadBasedPartitionAssignmentStrategy strategy = Mockito.spy(new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
@@ -158,7 +158,7 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     int taskCapacityUtilizationPct = 90;
     int throughputInfoFetchTimeoutMs = 1000;
     int throughputInfoFetchRetryPeriodMs = 200;
-    ZkClient zkClient = null;
+    ZkClient zkClient = _zkClient;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
@@ -201,7 +201,7 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     int taskCapacityUtilizationPct = 90;
     int throughputInfoFetchTimeoutMs = 1000;
     int throughputInfoFetchRetryPeriodMs = 200;
-    ZkClient zkClient = null;
+    ZkClient zkClient = _zkClient;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,

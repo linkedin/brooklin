@@ -34,7 +34,6 @@ public class TestPartitionAssignmentStrategyConfig {
   private static final String CFG_CLUSTER_NAME_VALUE = "dummyCluster";
   private static final String INVALID_INTEGER_VALUE = "-1";
 
-
   @Test
   public void configValuesCorrectlyAssignedTest() {
     Properties props = new Properties();
@@ -75,7 +74,7 @@ public class TestPartitionAssignmentStrategyConfig {
 
     PartitionAssignmentStrategyConfig config = new PartitionAssignmentStrategyConfig(props);
     Assert.assertEquals(config.getMaxTasks(), Optional.empty());
-    Assert.assertEquals(config.getImbalanceThreshold(), (int) DEFAULT_IMBALANCE_THRESHOLD);
+    Assert.assertEquals(config.getImbalanceThreshold(), DEFAULT_IMBALANCE_THRESHOLD);
     Assert.assertEquals(config.getMaxPartitions(), Integer.MAX_VALUE);
     Assert.assertEquals(config.getPartitionsPerTask(), DEFAULT_PARTITIONS_PER_TASK);
   }
@@ -84,7 +83,7 @@ public class TestPartitionAssignmentStrategyConfig {
   public void configValuesSetToDefaultWhenNotProvidedTest() {
     PartitionAssignmentStrategyConfig config = new PartitionAssignmentStrategyConfig(new Properties());
     Assert.assertEquals(config.getMaxTasks(), Optional.empty());
-    Assert.assertEquals(config.getImbalanceThreshold(), (int) DEFAULT_IMBALANCE_THRESHOLD);
+    Assert.assertEquals(config.getImbalanceThreshold(), DEFAULT_IMBALANCE_THRESHOLD);
     Assert.assertEquals(config.getMaxPartitions(), Integer.MAX_VALUE);
     Assert.assertEquals(config.getPartitionsPerTask(), DEFAULT_PARTITIONS_PER_TASK);
   }
