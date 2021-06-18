@@ -131,6 +131,7 @@ public class LoadBasedPartitionAssigner {
       Set<DatastreamTask> newTasks = oldTasks.stream()
           .map(task -> {
             if (task.getTaskPrefix().equals(datastreamGroupName)) {
+              // TODO Only initialize new tasks when there's an actual change in its assignment
               return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
             }
         return task;
