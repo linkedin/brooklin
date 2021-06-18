@@ -258,9 +258,8 @@ public class TestLoadBasedPartitionAssigner {
     // no more room in T1, expecting 1 as index
     Assert.assertEquals(index, 1);
     partitionsMap.get("T2").add("P2");
-    index = assigner.findTaskWithRoomForAPartition(tasks, partitionsMap, 0, 1);
-    // room in all tasks exhausted
-    Assert.assertEquals(index, -1);
+    Assert.assertThrows(DatastreamRuntimeException.class, () ->
+        assigner.findTaskWithRoomForAPartition(tasks, partitionsMap, 0, 1));
 
     List<String> tasks2 = Arrays.asList("T1", "T2", "T3");
     Map<String, Set<String>> partitionsMap2 = new HashMap<>();

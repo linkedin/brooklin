@@ -47,6 +47,7 @@ public class LoadBasedPartitionAssigner {
       DatastreamGroupPartitionsMetadata partitionMetadata, int maxPartitionsPerTask) {
     String datastreamGroupName = partitionMetadata.getDatastreamGroup().getName();
     Map<String, PartitionThroughputInfo> partitionInfoMap = throughputInfo.getPartitionInfoMap();
+    Set<String> tasksWithChangedPartition = new HashSet<>();
 
     // filter out all the tasks for the current datastream group, and retain assignments in a map
     Map<String, Set<String>> newPartitions = new HashMap<>();
@@ -56,6 +57,9 @@ public class LoadBasedPartitionAssigner {
             Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
             retainedPartitions.retainAll(partitionMetadata.getPartitions());
             newPartitions.put(task.getId(), retainedPartitions);
+            if (retainedPartitions.size() != task.getPartitionsV2().size()) {
+              tasksWithChangedPartition.add(task.getId());
+            }
           }
     }));
 
@@ -107,6 +111,7 @@ public class LoadBasedPartitionAssigner {
        String lightestTask = taskQueue.poll();
        newPartitions.get(lightestTask).add(heaviestPartition);
        taskThroughputMap.put(lightestTask, taskThroughputMap.get(lightestTask) + heaviestPartitionThroughput);
+       tasksWithChangedPartition.add(lightestTask);
        int currentNumPartitions = newPartitions.get(lightestTask).size();
        // don't put the task back in the queue if the number of its partitions is maxed out
        if (currentNumPartitions < maxPartitionsPerTask) {
@@ -121,6 +126,7 @@ public class LoadBasedPartitionAssigner {
       index = findTaskWithRoomForAPartition(tasks, newPartitions, index, maxPartitionsPerTask);
       String currentTask = tasks.get(index);
       newPartitions.get(currentTask).add(partition);
+      tasksWithChangedPartition.add(currentTask);
       index = (index + 1) % tasks.size();
     }
 
@@ -130,8 +136,7 @@ public class LoadBasedPartitionAssigner {
       Set<DatastreamTask> oldTasks = currentAssignment.get(instance);
       Set<DatastreamTask> newTasks = oldTasks.stream()
           .map(task -> {
-            if (task.getTaskPrefix().equals(datastreamGroupName)) {
-              // TODO Only initialize new tasks when there's an actual change in its assignment
+            if (tasksWithChangedPartition.contains(task.getId())) {
               return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
             }
         return task;
@@ -163,6 +168,6 @@ public class LoadBasedPartitionAssigner {
         return currentIndex;
       }
     }
-    return -1;
+    throw new DatastreamRuntimeException("No tasks found that can host an additional partition");
   }
 }
