@@ -60,7 +60,6 @@ public class LoadBasedPartitionAssigner {
     }));
 
     int numPartitions = partitionMetadata.getPartitions().size();
-    numPartitions += unassignedPartitions.size();
     int numTasks = newPartitions.size();
     validatePartitionCountAndThrow(datastreamGroupName, numTasks, numPartitions, maxPartitionsPerTask);
 
