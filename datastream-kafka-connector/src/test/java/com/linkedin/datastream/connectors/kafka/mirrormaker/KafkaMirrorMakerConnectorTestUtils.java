@@ -100,12 +100,21 @@ final class KafkaMirrorMakerConnectorTestUtils {
   }
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task) {
-    return createKafkaMirrorMakerConnectorTask(task, getKafkaBasedConnectorConfigBuilder().build());
+    return createKafkaMirrorMakerConnectorTask(task, "");
+  }
+
+  static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task, String connectorName) {
+    return createKafkaMirrorMakerConnectorTask(task, getKafkaBasedConnectorConfigBuilder().build(), connectorName);
   }
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       KafkaBasedConnectorConfig connectorConfig) {
-    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, "", false,
+    return createKafkaMirrorMakerConnectorTask(task, connectorConfig, "");
+  }
+
+  static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
+      KafkaBasedConnectorConfig connectorConfig, String connectorName) {
+    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, connectorName, false,
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
   }
 
