@@ -61,8 +61,8 @@ public class LoadBasedTaskCountEstimator {
     allPartitions.addAll(unassignedPartitions);
 
     PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(
-        PartitionAssignmentStrategyConfig.PARTITION_BYTES_IN_KB_RATE_DEFAULT,
-        PartitionAssignmentStrategyConfig.PARTITION_MESSAGES_IN_RATE_DEFAULT, "");
+        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
+        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
     // total throughput in KB/sec
     int totalThroughput = allPartitions.stream()
         .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))

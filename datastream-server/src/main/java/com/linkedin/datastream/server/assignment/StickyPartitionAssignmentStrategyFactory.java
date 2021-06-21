@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.assignment;
 
-import java.util.Optional;
 import java.util.Properties;
 
 import org.apache.commons.lang3.StringUtils;
@@ -30,7 +29,7 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
 
     boolean enableElasticTaskAssignment = _config.isElasticTaskAssignmentEnabled();
     // Create the zookeeper client
-    Optional<ZkClient> zkClient = Optional.empty();
+    ZkClient zkClient = null;
     try {
       zkClient = constructZooKeeperClient();
     } catch (IllegalStateException ex) {
@@ -43,9 +42,9 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
         _config.getPartitionFullnessThresholdPct(), zkClient, _config.getCluster());
   }
 
-  protected Optional<ZkClient> constructZooKeeperClient() {
+  protected ZkClient constructZooKeeperClient() {
     if (!_config.isElasticTaskAssignmentEnabled()) {
-      return Optional.empty();
+      return null;
     }
 
     if (StringUtils.isBlank(_config.getZkAddress())) {
@@ -53,7 +52,6 @@ public class StickyPartitionAssignmentStrategyFactory implements AssignmentStrat
       throw new IllegalStateException("ZkAddress is empty or not provided");
     }
 
-    return Optional.of(new ZkClient(_config.getZkAddress(), _config.getZkSessionTimeout(),
-        _config.getZkConnectionTimeout()));
+    return new ZkClient(_config.getZkAddress(), _config.getZkSessionTimeout(), _config.getZkConnectionTimeout());
   }
 }
