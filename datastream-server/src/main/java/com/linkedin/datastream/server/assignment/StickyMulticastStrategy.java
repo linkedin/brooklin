@@ -22,6 +22,8 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -29,6 +31,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
 
 
 /**
@@ -61,7 +64,6 @@ import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory
  */
 public class StickyMulticastStrategy implements AssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(StickyMulticastStrategy.class.getName());
-  private static final Integer DEFAULT_IMBALANCE_THRESHOLD = 1;
 
   private final Optional<Integer> _maxTasks;
   private final Integer _imbalanceThreshold;
@@ -80,13 +82,18 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
    *                           instances, before triggering a rebalance. The default is
    *                           {@value DEFAULT_IMBALANCE_THRESHOLD}.
    */
-  public StickyMulticastStrategy(Optional<Integer> maxTasks, Optional<Integer> imbalanceThreshold) {
+  public StickyMulticastStrategy(Optional<Integer> maxTasks, int imbalanceThreshold) {
     _maxTasks = maxTasks;
-    _imbalanceThreshold = imbalanceThreshold.orElse(DEFAULT_IMBALANCE_THRESHOLD);
+    _imbalanceThreshold = imbalanceThreshold;
 
     if (_imbalanceThreshold < 1) {
       throw new IllegalArgumentException("Imbalance threshold must be larger or equal than 1");
     }
+  }
+
+  @VisibleForTesting
+  StickyMulticastStrategy(Optional<Integer> maxTasks) {
+    this(maxTasks, DEFAULT_IMBALANCE_THRESHOLD);
   }
 
   @Override

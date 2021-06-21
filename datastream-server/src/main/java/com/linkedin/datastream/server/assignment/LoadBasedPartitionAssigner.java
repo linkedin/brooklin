@@ -58,8 +58,8 @@ public class LoadBasedPartitionAssigner {
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
     PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(
-        PartitionAssignmentStrategyConfig.PARTITION_BYTES_IN_KB_RATE_DEFAULT,
-        PartitionAssignmentStrategyConfig.PARTITION_MESSAGES_IN_RATE_DEFAULT, "");
+        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
+        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
           .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())

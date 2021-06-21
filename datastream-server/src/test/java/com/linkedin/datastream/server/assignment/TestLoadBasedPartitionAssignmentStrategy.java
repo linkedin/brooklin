@@ -73,15 +73,15 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     PartitionThroughputProvider mockProvider = mock(PartitionThroughputProvider.class);
     boolean enableElasticTaskAssignment = false;
     Optional<Integer> maxTasks = Optional.of(100);
-    Optional<Integer> imbalanceThreshold = Optional.of(50);
-    Optional<Integer> maxPartitionPerTask = Optional.of(100);
-    Optional<Integer> partitionsPerTask = Optional.of(50);
-    Optional<Integer> partitionFullnessFactorPct = Optional.of(80);
-    Optional<Integer> taskCapacityMBps = Optional.of(5);
-    Optional<Integer> taskCapacityUtilizationPct = Optional.of(90);
-    Optional<Integer> throughputInfoFetchTimeoutMs = Optional.of(1000);
-    Optional<Integer> throughputInfoFetchRetryPeriodMs = Optional.of(200);
-    Optional<ZkClient> zkClient = Optional.empty();
+    int imbalanceThreshold = 50;
+    int maxPartitionPerTask = 100;
+    int partitionsPerTask = 50;
+    int partitionFullnessFactorPct = 80;
+    int taskCapacityMBps = 5;
+    int taskCapacityUtilizationPct = 90;
+    int throughputInfoFetchTimeoutMs = 1000;
+    int throughputInfoFetchRetryPeriodMs = 200;
+    ZkClient zkClient = null;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
@@ -112,15 +112,15 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Mockito.when(mockProvider.getThroughputInfo(any(DatastreamGroup.class))).thenThrow(new RuntimeException());
     boolean enableElasticTaskAssignment = true;
     Optional<Integer> maxTasks = Optional.of(100);
-    Optional<Integer> imbalanceThreshold = Optional.of(50);
-    Optional<Integer> maxPartitionPerTask = Optional.of(100);
-    Optional<Integer> partitionsPerTask = Optional.of(50);
-    Optional<Integer> partitionFullnessFactorPct = Optional.of(80);
-    Optional<Integer> taskCapacityMBps = Optional.of(5);
-    Optional<Integer> taskCapacityUtilizationPct = Optional.of(90);
-    Optional<Integer> throughputInfoFetchTimeoutMs = Optional.of(1000);
-    Optional<Integer> throughputInfoFetchRetryPeriodMs = Optional.of(200);
-    Optional<ZkClient> zkClient = Optional.of(_zkClient);
+    int imbalanceThreshold = 50;
+    int maxPartitionPerTask = 100;
+    int partitionsPerTask = 50;
+    int partitionFullnessFactorPct = 80;
+    int taskCapacityMBps = 5;
+    int taskCapacityUtilizationPct = 90;
+    int throughputInfoFetchTimeoutMs = 1000;
+    int throughputInfoFetchRetryPeriodMs = 200;
+    ZkClient zkClient = _zkClient;
 
     LoadBasedPartitionAssignmentStrategy strategy = Mockito.spy(new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
@@ -150,15 +150,15 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     PartitionThroughputProvider mockProvider = mock(PartitionThroughputProvider.class);
     boolean enableElasticTaskAssignment = true;
     Optional<Integer> maxTasks = Optional.of(100);
-    Optional<Integer> imbalanceThreshold = Optional.of(50);
-    Optional<Integer> maxPartitionPerTask = Optional.of(100);
-    Optional<Integer> partitionsPerTask = Optional.of(50);
-    Optional<Integer> partitionFullnessFactorPct = Optional.of(80);
-    Optional<Integer> taskCapacityMBps = Optional.of(5);
-    Optional<Integer> taskCapacityUtilizationPct = Optional.of(90);
-    Optional<Integer> throughputInfoFetchTimeoutMs = Optional.of(1000);
-    Optional<Integer> throughputInfoFetchRetryPeriodMs = Optional.of(200);
-    Optional<ZkClient> zkClient = Optional.of(_zkClient);
+    int imbalanceThreshold = 50;
+    int maxPartitionPerTask = 100;
+    int partitionsPerTask = 50;
+    int partitionFullnessFactorPct = 80;
+    int taskCapacityMBps = 5;
+    int taskCapacityUtilizationPct = 90;
+    int throughputInfoFetchTimeoutMs = 1000;
+    int throughputInfoFetchRetryPeriodMs = 200;
+    ZkClient zkClient = _zkClient;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
@@ -193,15 +193,15 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Mockito.when(mockProvider.getThroughputInfo(any(DatastreamGroup.class))).thenReturn(clusterThroughputInfo);
     boolean enableElasticTaskAssignment = true;
     Optional<Integer> maxTasks = Optional.of(100);
-    Optional<Integer> imbalanceThreshold = Optional.of(50);
-    Optional<Integer> maxPartitionPerTask = Optional.of(100);
-    Optional<Integer> partitionsPerTask = Optional.of(50);
-    Optional<Integer> partitionFullnessFactorPct = Optional.of(80);
-    Optional<Integer> taskCapacityMBps = Optional.of(5);
-    Optional<Integer> taskCapacityUtilizationPct = Optional.of(90);
-    Optional<Integer> throughputInfoFetchTimeoutMs = Optional.of(1000);
-    Optional<Integer> throughputInfoFetchRetryPeriodMs = Optional.of(200);
-    Optional<ZkClient> zkClient = Optional.of(_zkClient);
+    int imbalanceThreshold = 50;
+    int maxPartitionPerTask = 100;
+    int partitionsPerTask = 50;
+    int partitionFullnessFactorPct = 80;
+    int taskCapacityMBps = 5;
+    int taskCapacityUtilizationPct = 90;
+    int throughputInfoFetchTimeoutMs = 1000;
+    int throughputInfoFetchRetryPeriodMs = 200;
+    ZkClient zkClient = _zkClient;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,

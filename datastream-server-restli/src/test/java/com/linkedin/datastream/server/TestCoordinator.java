@@ -29,6 +29,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Validate;
+import org.jetbrains.annotations.NotNull;
 import org.mockito.Mockito;
 import org.mockito.invocation.Invocation;
 import org.slf4j.Logger;
@@ -88,6 +89,7 @@ import com.linkedin.restli.server.UpdateResponse;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
+import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
@@ -568,19 +570,19 @@ public class TestCoordinator {
 
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
-    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
-    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector("connector3", testConnectorType);
-    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -638,7 +640,7 @@ public class TestCoordinator {
     // now add another instance, make sure it's getting rebalanced
     Coordinator instance4 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector4 = new TestHookConnector("connector4", testConnectorType);
-    instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance4.start();
 
@@ -719,19 +721,19 @@ public class TestCoordinator {
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, properties);
 
     TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
-    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
-    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = new TestHookConnector("connector3", testConnectorType);
-    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance3.addConnector(testConnectorType, connector3, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance3.start();
 
@@ -754,7 +756,7 @@ public class TestCoordinator {
     // now add another instance, make sure it's getting rebalanced
     Coordinator instance4 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector4 = new TestHookConnector("connector4", testConnectorType);
-    instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), Optional.of(2)), false,
+    instance4.addConnector(testConnectorType, connector4, new StickyMulticastStrategy(Optional.of(4), 2), false,
         new SourceBasedDeduper(), null);
     instance4.start();
 
@@ -796,21 +798,20 @@ public class TestCoordinator {
     TestHookConnector connector1 = createConnectorWithPartitionListener("connector1", testConnectorType, partitions, initialDelays);
 
     //Question why the multicast strategy is within one coordinator rather than shared between list of coordinators
-    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.of(2), Optional.empty(), testCluster), false, new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4), 2,
+        Integer.MAX_VALUE, testCluster), false, new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
-    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.of(2), Optional.empty(), testCluster), false, new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.of(4), 2,
+        Integer.MAX_VALUE, testCluster), false, new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
-    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.of(2), Optional.empty(), testCluster), false,
-        new SourceBasedDeduper(), null);
+    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.of(4), 2,
+        Integer.MAX_VALUE, testCluster), false, new SourceBasedDeduper(), null);
     instance3.start();
 
     List<TestHookConnector> connectors = new ArrayList<>();
@@ -948,24 +949,20 @@ public class TestCoordinator {
 
     int partitionsPerTask = 4;
     int fullnessFactorPct = 50;
-    instance1.addConnector(testConnectorType, connector1, new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
-        Optional.of(fullnessFactorPct), Optional.of(zkClient), testCluster), false, new SourceBasedDeduper(), null);
+    instance1.addConnector(testConnectorType, connector1, createStrategy(testCluster, zkClient, partitionsPerTask, fullnessFactorPct),
+        false, new SourceBasedDeduper(), null);
     instance1.start();
 
     Coordinator instance2 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector2 = createConnectorWithPartitionListener("connector2", testConnectorType, partitions, initialDelays);
-    instance2.addConnector(testConnectorType, connector2, new StickyPartitionAssignmentStrategy(Optional.empty(),
-        Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
-        Optional.of(fullnessFactorPct), Optional.of(zkClient), testCluster), false, new SourceBasedDeduper(), null);
+    instance2.addConnector(testConnectorType, connector2, createStrategy(testCluster, zkClient, partitionsPerTask, fullnessFactorPct),
+        false, new SourceBasedDeduper(), null);
     instance2.start();
 
     Coordinator instance3 = createCoordinator(_zkConnectionString, testCluster);
     TestHookConnector connector3 = createConnectorWithPartitionListener("connector3", testConnectorType, partitions, initialDelays);
-    instance3.addConnector(testConnectorType, connector3, new StickyPartitionAssignmentStrategy(Optional.empty(),
-            Optional.empty(), Optional.empty(), true, Optional.of(partitionsPerTask),
-            Optional.of(fullnessFactorPct), Optional.of(zkClient), testCluster), false,
-        new SourceBasedDeduper(), null);
+    instance3.addConnector(testConnectorType, connector3, createStrategy(testCluster, zkClient, partitionsPerTask, fullnessFactorPct),
+        false, new SourceBasedDeduper(), null);
     instance3.start();
 
     List<TestHookConnector> connectors = new ArrayList<>();
@@ -1003,6 +1000,13 @@ public class TestCoordinator {
     instance1.getDatastreamCache().getZkclient().close();
     instance2.getDatastreamCache().getZkclient().close();
     instance3.getDatastreamCache().getZkclient().close();
+  }
+
+  @NotNull
+  private StickyPartitionAssignmentStrategy createStrategy(String testCluster, ZkClient zkClient, int partitionsPerTask,
+      int fullnessFactorPct) {
+    return new StickyPartitionAssignmentStrategy(Optional.empty(), DEFAULT_IMBALANCE_THRESHOLD, Integer.MAX_VALUE, true,
+        partitionsPerTask, fullnessFactorPct, zkClient, testCluster);
   }
 
   /**
@@ -1203,7 +1207,7 @@ public class TestCoordinator {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     coordinator.addConnector(connectorType1, connector1, new StickyPartitionAssignmentStrategy(Optional.of(4),
-            Optional.empty(), Optional.empty(), testCluster), false,
+            DEFAULT_IMBALANCE_THRESHOLD, Integer.MAX_VALUE, testCluster), false,
         new SourceBasedDeduper(), null);
     coordinator.addConnector(connectorType2, connector2, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
