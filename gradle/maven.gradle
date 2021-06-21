@@ -1,5 +1,5 @@
 allprojects {
-  version = "1.0.3-SNAPSHOT"
+  version = "1.2.0"
 }
 
 subprojects {
@@ -33,7 +33,8 @@ subprojects {
     classifier = "tests"
   }
 
-  def allPublications = ['mavenJava', 'dataTemplateJava']
+  def allPublications = ['mavenJava', 'dataTemplateJava', 'testDataTemplateJava']
+
   if (project.tasks.findByName("mainRestClientJar")) {
 
     task restClientSourceJar(type: Jar) {
@@ -50,6 +51,19 @@ subprojects {
           artifact javadocJar
 
           version project.version
+
+          pom {
+            name = 'Brooklin'
+            description = 'An extensible distributed system for reliable nearline data streaming at scale'
+            url = 'https://github.com/linkedin/brooklin'
+
+            licenses {
+              license {
+                name = 'Copyright 2019 Linkedin, All Rights Reserved'
+                url = 'https://github.com/linkedin/brooklin/blob/master/LICENSE'
+              }
+            }
+          }
         }
       }
     }
@@ -59,7 +73,7 @@ subprojects {
 
   publishing {
     publications {
-      mavenJava(MavenPublication) {
+      maven(MavenPublication) {
         from components.java
 
         artifact sourcesJar
@@ -108,6 +122,19 @@ subprojects {
         artifact javadocJar
 
         version project.version
+
+        pom {
+          name = 'Brooklin'
+          description = 'An extensible distributed system for reliable nearline data streaming at scale'
+          url = 'https://github.com/linkedin/brooklin'
+
+          licenses {
+            license {
+              name = 'Copyright 2019 Linkedin, All Rights Reserved'
+              url = 'https://github.com/linkedin/brooklin/blob/master/LICENSE'
+            }
+          }
+        }
       }
 
       testDataTemplateJava(MavenPublication) {
@@ -117,6 +144,19 @@ subprojects {
         artifact javadocJar
 
         version project.version
+
+        pom {
+          name = 'Brooklin'
+          description = 'An extensible distributed system for reliable nearline data streaming at scale'
+          url = 'https://github.com/linkedin/brooklin'
+
+          licenses {
+            license {
+              name = 'Copyright 2019 Linkedin, All Rights Reserved'
+              url = 'https://github.com/linkedin/brooklin/blob/master/LICENSE'
+            }
+          }
+        }
       }
     }
   }
@@ -134,7 +174,9 @@ subprojects {
       }
 
       defaults {
-        publications('maven')
+        allPublications.each {
+          publication -> publications(publication)
+        }
       }
     }
   }
@@ -143,7 +185,7 @@ subprojects {
     skip = project.hasProperty('artifactory.dryRun')
 
     doFirst {
-      println "Publishing $jar.baseName to Artifactory (dryRun: $dryRun, repo: $repoName, publish: $publish)"
+      println "Publishing $jar.baseName to Artifactory (dryRun: $skip), publish: $publish)"
     }
   }
 
