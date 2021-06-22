@@ -59,7 +59,7 @@ subprojects {
 
             licenses {
               license {
-                name = 'Copyright 2021 Linkedin, All Rights Reserved'
+                name = 'Copyright 2019 Linkedin, All Rights Reserved'
                 url = 'https://www.github.com/linkedin/brooklin/blob/master/LICENSE'
               }
             }
@@ -95,7 +95,7 @@ subprojects {
 
           licenses {
             license {
-              name = 'Copyright 2021 Linkedin, All Rights Reserved'
+              name = 'Copyright 2019 Linkedin, All Rights Reserved'
               url = 'https://www.github.com/linkedin/brooklin/blob/master/LICENSE'
             }
           }
@@ -130,7 +130,7 @@ subprojects {
 
           licenses {
             license {
-              name = 'Copyright 2021 Linkedin, All Rights Reserved'
+              name = 'Copyright 2019 Linkedin, All Rights Reserved'
               url = 'https://www.github.com/linkedin/brooklin/blob/master/LICENSE'
             }
           }
@@ -152,7 +152,7 @@ subprojects {
 
           licenses {
             license {
-              name = 'Copyright 2021 Linkedin, All Rights Reserved'
+              name = 'Copyright 2019 Linkedin, All Rights Reserved'
               url = 'https://www.github.com/linkedin/brooklin/blob/master/LICENSE'
             }
           }
