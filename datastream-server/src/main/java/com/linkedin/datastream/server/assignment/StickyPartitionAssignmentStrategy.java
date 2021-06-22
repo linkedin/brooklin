@@ -77,8 +77,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
 
+  protected final Integer _maxPartitionPerTask;
+
   private final boolean _enableElasticTaskAssignment;
-  private final Integer _maxPartitionPerTask;
   private final Integer _partitionsPerTask;
   private final Integer _partitionFullnessFactorPct;
   private final ZkClient _zkClient;
