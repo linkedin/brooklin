@@ -73,7 +73,7 @@ subprojects {
 
   publishing {
     publications {
-      maven(MavenPublication) {
+      mavenJava(MavenPublication) {
         from components.java
 
         artifact sourcesJar
