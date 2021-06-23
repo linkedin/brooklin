@@ -11,7 +11,7 @@ buildscript {
 }
 
 allprojects {
-  group = "com.github.datastream"
+  group = "com.linkedin.datastream"
 
   apply plugin: 'eclipse'
   apply plugin: 'idea'
