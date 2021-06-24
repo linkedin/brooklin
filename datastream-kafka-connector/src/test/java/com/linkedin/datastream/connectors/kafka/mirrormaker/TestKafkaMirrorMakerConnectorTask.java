@@ -96,6 +96,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   @Test
   public void testConsumeFromMultipleTopics() throws Exception {
+    String connectorName = "testConsumeFromMultipleTopics";
+
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
     String saladTopic = "HealthySalad";
@@ -112,7 +114,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     task.setEventProducer(datastreamProducer);
 
     KafkaMirrorMakerConnectorTask connectorTask =
-        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task);
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, connectorName);
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
     // produce an event to each of the 3 topics
@@ -142,9 +144,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     MetricsTestUtils.verifyMetrics(new MetricsAware() {
       @Override
       public List<BrooklinMetricInfo> getMetricInfos() {
-        return KafkaMirrorMakerConnectorTask.getMetricInfos("");
+        return KafkaMirrorMakerConnectorTask.getMetricInfos(connectorName);
       }
-    }, DynamicMetricsManager.getInstance());
+    }, DynamicMetricsManager.getInstance(), s -> s.startsWith(connectorName));
 
     connectorTask.stop();
     Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),

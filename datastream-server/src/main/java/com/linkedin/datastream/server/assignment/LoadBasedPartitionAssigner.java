@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,6 +16,9 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -40,9 +44,10 @@ public class LoadBasedPartitionAssigner {
    */
   public Map<String, Set<DatastreamTask>> assignPartitions(ClusterThroughputInfo throughputInfo,
       Map<String, Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
-      DatastreamGroupPartitionsMetadata partitionMetadata) {
+      DatastreamGroupPartitionsMetadata partitionMetadata, int maxPartitionsPerTask) {
     String datastreamGroupName = partitionMetadata.getDatastreamGroup().getName();
     Map<String, PartitionThroughputInfo> partitionInfoMap = throughputInfo.getPartitionInfoMap();
+    Set<String> tasksWithChangedPartition = new HashSet<>();
 
     // filter out all the tasks for the current datastream group, and retain assignments in a map
     Map<String, Set<String>> newPartitions = new HashMap<>();
@@ -52,14 +57,21 @@ public class LoadBasedPartitionAssigner {
             Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
             retainedPartitions.retainAll(partitionMetadata.getPartitions());
             newPartitions.put(task.getId(), retainedPartitions);
+            if (retainedPartitions.size() != task.getPartitionsV2().size()) {
+              tasksWithChangedPartition.add(task.getId());
+            }
           }
     }));
+
+    int numPartitions = partitionMetadata.getPartitions().size();
+    int numTasks = newPartitions.size();
+    validatePartitionCountAndThrow(datastreamGroupName, numTasks, numPartitions, maxPartitionsPerTask);
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
     PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(
-        PartitionAssignmentStrategyConfig.PARTITION_BYTES_IN_KB_RATE_DEFAULT,
-        PartitionAssignmentStrategyConfig.PARTITION_MESSAGES_IN_RATE_DEFAULT, "");
+        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
+        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
           .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())
@@ -85,26 +97,36 @@ public class LoadBasedPartitionAssigner {
     });
 
     // build a priority queue of tasks based on throughput
-    List<String> tasks = new ArrayList<>(newPartitions.keySet());
+    // only add tasks that can accommodate more partitions in the queue
+    List<String> tasks = newPartitions.keySet().stream()
+        .filter(t -> newPartitions.get(t).size() < maxPartitionsPerTask)
+        .collect(Collectors.toList());
     PriorityQueue<String> taskQueue = new PriorityQueue<>(Comparator.comparing(taskThroughputMap::get));
     taskQueue.addAll(tasks);
 
     // assign partitions with throughput info one by one, by putting the heaviest partition in the lightest task
-    while (recognizedPartitions.size() > 0) {
+    while (recognizedPartitions.size() > 0 && taskQueue.size() > 0) {
        String heaviestPartition = recognizedPartitions.remove(recognizedPartitions.size() - 1);
        int heaviestPartitionThroughput = partitionInfoMap.get(heaviestPartition).getBytesInKBRate();
        String lightestTask = taskQueue.poll();
        newPartitions.get(lightestTask).add(heaviestPartition);
        taskThroughputMap.put(lightestTask, taskThroughputMap.get(lightestTask) + heaviestPartitionThroughput);
-       taskQueue.add(lightestTask);
+       tasksWithChangedPartition.add(lightestTask);
+       int currentNumPartitions = newPartitions.get(lightestTask).size();
+       // don't put the task back in the queue if the number of its partitions is maxed out
+       if (currentNumPartitions < maxPartitionsPerTask) {
+         taskQueue.add(lightestTask);
+       }
     }
 
-    // TODO implement a mechanism to prevent tasks from having more than partitionsPerTask partitions
     // assign unrecognized partitions with round-robin
+    Collections.shuffle(unrecognizedPartitions);
     int index = 0;
     for (String partition : unrecognizedPartitions) {
+      index = findTaskWithRoomForAPartition(tasks, newPartitions, index, maxPartitionsPerTask);
       String currentTask = tasks.get(index);
       newPartitions.get(currentTask).add(partition);
+      tasksWithChangedPartition.add(currentTask);
       index = (index + 1) % tasks.size();
     }
 
@@ -114,7 +136,7 @@ public class LoadBasedPartitionAssigner {
       Set<DatastreamTask> oldTasks = currentAssignment.get(instance);
       Set<DatastreamTask> newTasks = oldTasks.stream()
           .map(task -> {
-            if (task.getTaskPrefix().equals(datastreamGroupName)) {
+            if (tasksWithChangedPartition.contains(task.getId())) {
               return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
             }
         return task;
@@ -123,5 +145,29 @@ public class LoadBasedPartitionAssigner {
     });
 
     return newAssignments;
+  }
+
+  private void validatePartitionCountAndThrow(String datastream, int numTasks, int numPartitions,
+      int maxPartitionsPerTask) {
+    // conversion to long to avoid integer overflow
+    if (numTasks * (long) maxPartitionsPerTask < numPartitions) {
+      String message = String.format("Not enough tasks to fit partitions. Datastream: %s, Number of tasks: %d, " +
+          "number of partitions: %d, max partitions per task: %d", datastream, numTasks, numPartitions,
+          maxPartitionsPerTask);
+      throw new DatastreamRuntimeException(message);
+    }
+  }
+
+  @VisibleForTesting
+  int findTaskWithRoomForAPartition(List<String> tasks, Map<String, Set<String>> partitionMap, int startIndex,
+      int maxPartitionsPerTask) {
+    for (int i = 0; i < tasks.size(); i++) {
+      int currentIndex = (startIndex + i) % tasks.size();
+      String currentTask = tasks.get(currentIndex);
+      if (partitionMap.get(currentTask).size() < maxPartitionsPerTask) {
+        return currentIndex;
+      }
+    }
+    throw new DatastreamRuntimeException("No tasks found that can host an additional partition");
   }
 }
