@@ -12,7 +12,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
@@ -24,12 +26,19 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
+
+import static com.linkedin.datastream.server.assignment.LoadBasedPartitionAssigner.PartitionAssignmentStats;
 
 
 /**
@@ -38,12 +47,19 @@ import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
  */
 public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
+  private static final String CLASS_NAME = LoadBasedPartitionAssignmentStrategy.class.getSimpleName();
+  private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
+  private static final String MIN_PARTITIONS_ACROSS_TASKS = "minPartitionsAcrossTasks";
+  private static final String MAX_PARTITIONS_ACROSS_TASKS = "maxPartitionsAcrossTasks";
+  private static final String THROUGHPUT_INFO_FETCH_RATE = "throughputInfoFetchRate";
 
   private final PartitionThroughputProvider _throughputProvider;
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
   private final int _throughputInfoFetchTimeoutMs;
   private final int _throughputInfoFetchRetryPeriodMs;
+  private final LoadBasedPartitionAssigner _assigner;
+  private final Map<String, LoadBasedPartitionAssigner.PartitionAssignmentStats> _partitionAssignmentStatsMap;
 
   // TODO Make these configurable
   private final boolean _enableThroughputBasedPartitionAssignment = true;
@@ -63,6 +79,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
     _throughputInfoFetchTimeoutMs = throughputInfoFetchTimeoutMs;
     _throughputInfoFetchRetryPeriodMs = throughputInfoFetchRetryPeriodMs;
+    _assigner = new LoadBasedPartitionAssigner();
+    _partitionAssignmentStatsMap = new ConcurrentHashMap<>();
   }
 
   @Override
@@ -127,7 +145,6 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       }
     }
 
-    // TODO Implement metrics
     // Doing assignment
     Map<String, Set<DatastreamTask>> newAssignment = doAssignment(clusterThroughputInfo, currentAssignment,
         unassignedPartitions, datastreamPartitions);
@@ -139,10 +156,15 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   Map<String, Set<DatastreamTask>> doAssignment(ClusterThroughputInfo clusterThroughputInfo,
       Map<String, Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
-    LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
-    Map<String, Set<DatastreamTask>> assignment = partitionAssigner.assignPartitions(clusterThroughputInfo,
-        currentAssignment, unassignedPartitions, datastreamPartitions, _maxPartitionPerTask);
-    LOG.info("new assignment info, assignment: {}", assignment);
+    Pair<Map<String, Set<DatastreamTask>>, PartitionAssignmentStats> assignmentResult = _assigner.assignPartitions(
+        clusterThroughputInfo, currentAssignment, unassignedPartitions, datastreamPartitions, _maxPartitionPerTask);
+    Map<String, Set<DatastreamTask>> assignment = assignmentResult.getKey();
+    LOG.info("New assignment info, assignment: {}", assignment);
+    PartitionAssignmentStats stats = assignmentResult.getValue();
+    String taskPrefix = datastreamPartitions.getDatastreamGroup().getTaskPrefix();
+    LOG.info("Assignment stats for {}. Min partitions across tasks: {}, max partitions across tasks: {}", taskPrefix,
+        stats.getMinPartitionsAcrossTasks(), stats.getMaxPartitionsAcrossTasks());
+    updateMetricsForDatastream(taskPrefix, stats);
     return assignment;
   }
 
@@ -150,6 +172,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     AtomicInteger attemptNum = new AtomicInteger(0);
     return PollUtils.poll(() -> {
       try {
+        DYNAMIC_METRICS_MANAGER.createOrUpdateMeter(CLASS_NAME, THROUGHPUT_INFO_FETCH_RATE, 1);
         return _throughputProvider.getThroughputInfo(datastreamGroup);
       } catch (Exception ex) {
         attemptNum.set(attemptNum.get() + 1);
@@ -158,5 +181,49 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       }
     }, Objects::nonNull, _throughputInfoFetchRetryPeriodMs, _throughputInfoFetchTimeoutMs)
         .orElseThrow(RetriesExhaustedException::new);
+  }
+
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metricInfos = new ArrayList<>();
+    String prefix = CLASS_NAME + MetricsAware.KEY_REGEX;
+
+    metricInfos.add(new BrooklinGaugeInfo(prefix + MIN_PARTITIONS_ACROSS_TASKS));
+    metricInfos.add(new BrooklinGaugeInfo(prefix + MAX_PARTITIONS_ACROSS_TASKS));
+    metricInfos.add(new BrooklinMeterInfo(CLASS_NAME + "." + THROUGHPUT_INFO_FETCH_RATE));
+
+    return Collections.unmodifiableList(metricInfos);
+  }
+
+  @Override
+  public void cleanupStrategy() {
+    _partitionAssignmentStatsMap.keySet().forEach(this::unregisterMetrics);
+    _partitionAssignmentStatsMap.clear();
+    super.cleanupStrategy();
+  }
+
+  private void updateMetricsForDatastream(String datastream, PartitionAssignmentStats stats) {
+    if (!_partitionAssignmentStatsMap.containsKey(datastream)) {
+      registerLoadBasedPartitionAssignmentMetrics(datastream);
+    }
+    _partitionAssignmentStatsMap.put(datastream, stats);
+  }
+
+  private void registerLoadBasedPartitionAssignmentMetrics(String datastream) {
+    Supplier<Integer> minPartitionsAcrossTasksSupplier = () -> _partitionAssignmentStatsMap
+        .getOrDefault(datastream, PartitionAssignmentStats.DEFAULT).getMinPartitionsAcrossTasks();
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, datastream, MIN_PARTITIONS_ACROSS_TASKS,
+        minPartitionsAcrossTasksSupplier);
+
+    Supplier<Integer> maxPartitionsAcrossTasksSupplier = () -> _partitionAssignmentStatsMap
+        .getOrDefault(datastream, PartitionAssignmentStats.DEFAULT).getMaxPartitionsAcrossTasks();
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS,
+        maxPartitionsAcrossTasksSupplier);
+  }
+
+  @Override
+  protected void unregisterMetrics(String datastream) {
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MIN_PARTITIONS_ACROSS_TASKS);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS);
   }
 }

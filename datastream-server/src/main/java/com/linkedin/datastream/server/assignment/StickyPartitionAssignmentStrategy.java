@@ -722,7 +722,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   /**
    * Unregister metrics for a given datastream group
    */
-  private void unregisterMetrics(String datastreamTaskPrefix) {
+  protected void unregisterMetrics(String datastreamTaskPrefix) {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
   }
