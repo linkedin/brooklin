@@ -18,15 +18,27 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   public static final int DEFAULT_PARTITION_BYTES_IN_KB_RATE = 5;
   public static final int DEFAULT_PARTITION_MESSAGES_IN_RATE = 5;
 
+  public static final String CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = "throughputInfoFetchTimeoutMs";
+  public static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = "throughputInfoFetchRetryPeriodMs";
+  public static final String CFG_TASK_CAPACITY_MBPS = "taskCapacityMBps";
+  public static final String CFG_TASK_CAPACITY_UTILIZATION_PCT = "taskCapacityUtilizationPct";
+  public static final String CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT = "enableThroughputBasedPartitionAssignemnt";
+  public static final String CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = "enablePartitionNumBasedTaskCountEstimation";
+
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = (int) Duration.ofSeconds(10).toMillis();
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = (int) Duration.ofSeconds(1).toMillis();
   private static final int DEFAULT_TASK_CAPACITY_MBPS = 4;
   private static final int DEFAULT_TASK_CAPACITY_UTILIZATION_PCT = 90;
+  private static final boolean DEFAULT_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT = false;
+  private static final boolean DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = false;
+
 
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
   private final int _throughputInfoFetchTimeoutMs;
   private final int _throughputInfoFetchRetryPeriodMs;
+  private final boolean _enableThroughputBasedPartitionAssignment;
+  private final boolean _enablePartitionNumBasedTaskCountEstimation;
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategyConfig}
    * @param config Config properties
@@ -38,6 +50,11 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
     _taskCapacityUtilizationPct = props.getIntInRange(CFG_TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_TASK_CAPACITY_UTILIZATION_PCT, 0, 100);
     _throughputInfoFetchTimeoutMs = props.getInt(CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS, DEFAULT_THROUGHPUT_INFO_FETCH_TIMEOUT_MS);
     _throughputInfoFetchRetryPeriodMs = props.getInt(CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS, DEFAULT_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS);
+    _enableThroughputBasedPartitionAssignment = props.getBoolean(CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT,
+        DEFAULT_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT);
+    _enablePartitionNumBasedTaskCountEstimation = props.getBoolean(CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION,
+        DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION);
+
   }
 
   /**
@@ -70,5 +87,21 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
    */
   public int getThroughputInfoFetchRetryPeriodMs() {
     return _throughputInfoFetchRetryPeriodMs;
+  }
+
+  /**
+   * Check if throughput based partition assignment is enabled or not
+   * @return True if throughput based partition assignment is enabled else false
+   */
+  public boolean isEnableThroughputBasedPartitionAssignment() {
+    return _enableThroughputBasedPartitionAssignment;
+  }
+
+  /**
+   * Check if partition number based task count estimation is enabled or not
+   * @return True if partition number based task count estimation is enabled else false
+   */
+  public boolean isEnablePartitionNumBasedTaskCountEstimation() {
+    return _enablePartitionNumBasedTaskCountEstimation;
   }
 }

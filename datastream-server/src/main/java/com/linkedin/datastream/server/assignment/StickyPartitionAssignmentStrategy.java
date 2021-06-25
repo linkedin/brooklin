@@ -517,10 +517,10 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   }
 
   @Override
-  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, List<String> instances) {
+  protected int constructExpectedNumberOfTasks(DatastreamGroup dg, int totalInstances) {
     boolean enableElasticTaskAssignment = isElasticTaskAssignmentEnabled(dg);
     int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix()) :
-        getNumTasks(dg, instances.size());
+        getNumTasks(dg, totalInstances);
 
     // Case 1: If elastic task assignment is disabled set the expected number of tasks to numTasks.
     int expectedNumberOfTasks = numTasks;
@@ -531,15 +531,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
         // have (fetched either from ZK or from the assignment strategy cache). On leader change, numTasks should be
         // fetched from ZK. Return max(numTasks, minTasks) to ensure we have at least 'minTasks' number of tasks.
         expectedNumberOfTasks = Math.max(numTasks, minTasks);
+        if (expectedNumberOfTasks != numTasks) {
+          createOrUpdateNumTasksForDatastreamInZK(dg.getTaskPrefix(), expectedNumberOfTasks);
+        }
       } else {
         // Case 3: elastic task enabled, numTasks == 0. This can occur if a datastream is added/restarted. On restart,
         // the ZK numTasks znode is deleted. If a datastream is deleted and recreated with the same name, it will
         // also appear as a newly added datastream since on datastream delete the numTasks znode will be deleted.
         // In this situation, the expected number of tasks is set to minTasks.
         expectedNumberOfTasks = minTasks;
-      }
-
-      if (expectedNumberOfTasks != numTasks) {
         createOrUpdateNumTasksForDatastreamInZK(dg.getTaskPrefix(), expectedNumberOfTasks);
       }
     }

@@ -23,10 +23,6 @@ public class PartitionAssignmentStrategyConfig {
   public static final String CFG_MAX_PARTITION_PER_TASK = "maxPartitionsPerTask";
   public static final String CFG_PARTITIONS_PER_TASK = "partitionsPerTask";
   public static final String CFG_PARTITION_FULLNESS_THRESHOLD_PCT = "partitionFullnessThresholdPct";
-  public static final String CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = "throughputInfoFetchTimeoutMs";
-  public static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = "throughputInfoFetchRetryPeriodMs";
-  public static final String CFG_TASK_CAPACITY_MBPS = "taskCapacityMBps";
-  public static final String CFG_TASK_CAPACITY_UTILIZATION_PCT = "taskCapacityUtilizationPct";
   public static final String CFG_ENABLE_ELASTIC_TASK_ASSIGNMENT = "enableElasticTaskAssignment";
   public static final String CFG_CLUSTER_NAME = "cluster";
   public static final String CFG_ZK_ADDRESS = "zkAddress";
