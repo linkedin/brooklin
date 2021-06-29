@@ -23,14 +23,16 @@ public class TestLoadBasedPartitionAssignmentStrategyConfig {
   public void configValuesCorrectlyAssignedTest() {
     Properties props = new Properties();
 
-    props.setProperty(PartitionAssignmentStrategyConfig.CFG_TASK_CAPACITY_MBPS, CFG_TASK_CAPACITY_MBPS_VALUE);
-    props.setProperty(PartitionAssignmentStrategyConfig.CFG_TASK_CAPACITY_UTILIZATION_PCT,
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_TASK_CAPACITY_MBPS, CFG_TASK_CAPACITY_MBPS_VALUE);
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_TASK_CAPACITY_UTILIZATION_PCT,
         CFG_TASK_CAPACITY_UTILIZATION_PCT_VALUE);
-    props.setProperty(PartitionAssignmentStrategyConfig.CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS,
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS,
         CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS_VALUE);
-    props.setProperty(PartitionAssignmentStrategyConfig.CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS,
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS,
         CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE);
-
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION,
+        String.valueOf(false));
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT, String.valueOf(true));
 
     LoadBasedPartitionAssignmentStrategyConfig config = new LoadBasedPartitionAssignmentStrategyConfig(props);
 
@@ -38,5 +40,7 @@ public class TestLoadBasedPartitionAssignmentStrategyConfig {
     Assert.assertEquals(config.getTaskCapacityUtilizationPct(), Integer.parseInt(CFG_TASK_CAPACITY_UTILIZATION_PCT_VALUE));
     Assert.assertEquals(config.getThroughputInfoFetchTimeoutMs(), Integer.parseInt(CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS_VALUE));
     Assert.assertEquals(config.getThroughputInfoFetchRetryPeriodMs(), Integer.parseInt(CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE));
+    Assert.assertTrue(config.isEnableThroughputBasedPartitionAssignment());
+    Assert.assertFalse(config.isEnablePartitionNumBasedTaskCountEstimation());
   }
 }
