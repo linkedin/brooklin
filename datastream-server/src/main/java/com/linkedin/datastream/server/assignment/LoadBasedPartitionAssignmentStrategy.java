@@ -50,11 +50,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private final int _taskCapacityUtilizationPct;
   private final int _throughputInfoFetchTimeoutMs;
   private final int _throughputInfoFetchRetryPeriodMs;
+  private final boolean _enableThroughputBasedPartitionAssignment;
+  private final boolean _enablePartitionNumBasedTaskCountEstimation;
   private final LoadBasedPartitionAssigner _assigner;
-
-  // TODO Make these configurable
-  private final boolean _enableThroughputBasedPartitionAssignment = true;
-  private final boolean _enablePartitionNumBasedTaskCountEstimation = true;
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
@@ -62,7 +60,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   public LoadBasedPartitionAssignmentStrategy(PartitionThroughputProvider throughputProvider, Optional<Integer> maxTasks,
       int imbalanceThreshold, int maxPartitionPerTask, boolean enableElasticTaskAssignment, int partitionsPerTask,
       int partitionFullnessFactorPct, int taskCapacityMBps, int taskCapacityUtilizationPct,
-      int throughputInfoFetchTimeoutMs, int throughputInfoFetchRetryPeriodMs, ZkClient zkClient, String clusterName) {
+      int throughputInfoFetchTimeoutMs, int throughputInfoFetchRetryPeriodMs, ZkClient zkClient, String clusterName,
+      boolean enableThroughputBasedPartitionAssignment, boolean enablePartitionNumBasedTaskCountEstimation) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
     _throughputProvider = throughputProvider;
@@ -70,6 +69,14 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
     _throughputInfoFetchTimeoutMs = throughputInfoFetchTimeoutMs;
     _throughputInfoFetchRetryPeriodMs = throughputInfoFetchRetryPeriodMs;
+    _enableThroughputBasedPartitionAssignment = enableThroughputBasedPartitionAssignment;
+    _enablePartitionNumBasedTaskCountEstimation = enablePartitionNumBasedTaskCountEstimation;
+
+    LOG.info("Task capacity : {}MBps, task capacity utilization : {}%, Throughput info fetch timeout : {} ms, "
+        + "throughput info fetch retry period : {} ms, throughput based partition assignment : {}, "
+        + "partition num based task count estimation : {}", _taskCapacityMBps, _taskCapacityUtilizationPct,
+        _throughputInfoFetchTimeoutMs, _throughputInfoFetchRetryPeriodMs, _enableThroughputBasedPartitionAssignment ?
+            "enabled" : "disabled", _enablePartitionNumBasedTaskCountEstimation ? "enabled" : "disabled");
     _assigner = new LoadBasedPartitionAssigner();
   }
 
