@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.assignment;
 
-import com.linkedin.datastream.testutil.MetricsTestUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,6 +40,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
