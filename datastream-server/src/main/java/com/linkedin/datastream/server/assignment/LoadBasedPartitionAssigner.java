@@ -6,7 +6,6 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,8 +40,8 @@ import com.linkedin.datastream.server.PartitionThroughputInfo;
  * Performs partition assignment based on partition throughput information
  */
 public class LoadBasedPartitionAssigner implements MetricsAware {
-  private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
-  private static final String CLASS_NAME = LoadBasedPartitionAssignmentStrategy.class.getSimpleName();
+  private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssigner.class.getName());
+  private static final String CLASS_NAME = LoadBasedPartitionAssigner.class.getSimpleName();
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
   private static final String MIN_PARTITIONS_ACROSS_TASKS = "minPartitionsAcrossTasks";
   private static final String MAX_PARTITIONS_ACROSS_TASKS = "maxPartitionsAcrossTasks";
@@ -228,9 +227,13 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
    */
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metricInfos = new ArrayList<>();
     String prefix = CLASS_NAME + MetricsAware.KEY_REGEX;
-    return Arrays.asList(new BrooklinGaugeInfo(prefix + MIN_PARTITIONS_ACROSS_TASKS),
-        new BrooklinGaugeInfo(prefix + MAX_PARTITIONS_ACROSS_TASKS));
+
+    metricInfos.add(new BrooklinGaugeInfo(prefix + MIN_PARTITIONS_ACROSS_TASKS));
+    metricInfos.add(new BrooklinGaugeInfo(prefix + MAX_PARTITIONS_ACROSS_TASKS));
+
+    return Collections.unmodifiableList(metricInfos);
   }
 
   void cleanupMetrics() {
