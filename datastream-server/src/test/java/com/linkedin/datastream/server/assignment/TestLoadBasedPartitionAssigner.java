@@ -16,12 +16,16 @@ import java.util.Set;
 
 import org.mockito.Mockito;
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.connectors.DummyConnector;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
@@ -38,6 +42,14 @@ import static org.mockito.Matchers.anyString;
  * Tests for {@link LoadBasedPartitionAssigner}
  */
 public class TestLoadBasedPartitionAssigner {
+  /**
+   * Test setup
+   */
+  @BeforeClass
+  public void setup() {
+    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestLoadBasedPartitionAssigner");
+  }
+
   @Test
   public void assignFromScratchTest() {
     List<String> unassignedPartitions = Arrays.asList("P1", "P2", "P3");
@@ -104,8 +116,8 @@ public class TestLoadBasedPartitionAssigner {
         Collections.singletonList(ds2)), Arrays.asList("P3"));
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
-    Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
+    Map<String, Set<DatastreamTask>> newAssignment = assigner.assignPartitions(throughputInfo, currentAssignment,
+        unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     Set<DatastreamTask> allTasks = new HashSet<>();
     allTasks.add((DatastreamTask) newAssignment.get("instance1").toArray()[0]);
@@ -141,8 +153,8 @@ public class TestLoadBasedPartitionAssigner {
         Collections.singletonList(ds1)), Arrays.asList("P1", "P2", "P3", "P4"));
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
-    Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
+    Map<String, Set<DatastreamTask>> newAssignment = assigner.assignPartitions(throughputInfo, currentAssignment,
+        unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     DatastreamTask task1 = (DatastreamTask) newAssignment.get("instance1").toArray()[0];
     DatastreamTask task2 = (DatastreamTask) newAssignment.get("instance2").toArray()[0];
@@ -175,8 +187,8 @@ public class TestLoadBasedPartitionAssigner {
         Collections.singletonList(ds1)), Arrays.asList("P1", "P2", "P3", "P4"));
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
-    Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata, Integer.MAX_VALUE);
+    Map<String, Set<DatastreamTask>> newAssignment = assigner.assignPartitions(throughputInfo, currentAssignment,
+        unassignedPartitions, metadata, Integer.MAX_VALUE);
 
     DatastreamTask task3 = (DatastreamTask) newAssignment.get("instance1").toArray()[0];
 
@@ -233,9 +245,8 @@ public class TestLoadBasedPartitionAssigner {
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner();
     int maxPartitionsPerTask = 2;
-    Map<String, Set<DatastreamTask>> newAssignment =
-        assigner.assignPartitions(throughputInfo, currentAssignment, unassignedPartitions, metadata,
-            maxPartitionsPerTask);
+    Map<String, Set<DatastreamTask>> newAssignment = assigner.assignPartitions(throughputInfo, currentAssignment,
+        unassignedPartitions, metadata, maxPartitionsPerTask);
 
     DatastreamTask task3 = (DatastreamTask) newAssignment.get("instance2").toArray()[0];
 

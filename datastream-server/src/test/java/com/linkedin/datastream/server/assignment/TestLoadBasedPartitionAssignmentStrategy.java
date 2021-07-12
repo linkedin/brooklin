@@ -40,6 +40,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
@@ -331,6 +332,7 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Mockito.verify(mockProvider, atLeastOnce()).getThroughputInfo(any(DatastreamGroup.class));
     int expectedCount = enablePartitionCountBasedEstimation ? 1 : 0;
     Mockito.verify(strategy, times(expectedCount)).getTaskCountEstimateBasedOnNumPartitions(any(), anyInt());
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
   private DatastreamTask createTaskForDatastream(Datastream datastream) {
