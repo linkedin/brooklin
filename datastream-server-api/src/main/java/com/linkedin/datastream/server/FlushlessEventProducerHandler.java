@@ -56,6 +56,13 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
+   * Clear the source-partition entry from the _callbackStatusMap
+   */
+  public void clear(String source, int partition) {
+    _callbackStatusMap.remove(new SourcePartition(source, partition));
+  }
+
+  /**
    * Sends event to the transport.
    *
    * NOTE: This method should be called with monotonically increasing checkpoints for a given source and
@@ -246,3 +253,28 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     }
   }
 }
+
+/*
+max Null case:
+  5 6 7 2 3 4
+
+ack 5: check:5
+ack 6: check:6
+ack 4: check:4 ---> I was at 7, 4
+
+ack 7
+ack 2 check:2
+
+5 6 7 2 3 4
+
+send 6, 7, 2, 3, 4
+
+
+5 6 7 2 3 4
+
+5 6 7 4
+
+2 3 checkpoint will be 7
+
+2 3 7 8 9 10 11
+*/
