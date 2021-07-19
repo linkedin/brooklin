@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link StickyPartitionAssignmentStrategy}
  */
-public class TestStickyPartitionAssignment {
+public class TestStickyPartitionAssignmentStrategy {
   private EmbeddedZookeeper _embeddedZookeeper;
   private String _clusterName;
   private ZkClient _zkClient;
@@ -705,6 +705,32 @@ public class TestStickyPartitionAssignment {
     createStickyPartitionAssignmentStrategyObject(0, 0, null, null);
 
     createStickyPartitionAssignmentStrategyObject(0, 0, null, _clusterName);
+  }
+
+  @Test
+  public void testExpectedNumberOfTasks() {
+    StickyPartitionAssignmentStrategy strategy = createStickyPartitionAssignmentStrategy(3, 90, true,
+        getZkClient(true), _clusterName);
+
+    List<DatastreamGroup> ds = generateDatastreams("test", 1, 5);
+    _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, ds.get(0).getName()));
+    int numTasks = strategy.constructExpectedNumberOfTasks(ds.get(0), 3);
+    Assert.assertEquals(numTasks, 5);
+    Assert.assertEquals(numTasks, getNumTasksForDatastreamFromZK(ds.get(0).getName()));
+
+    ds = generateDatastreams("test1", 1);
+    _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, ds.get(0).getName()));
+    numTasks = strategy.constructExpectedNumberOfTasks(ds.get(0), 3);
+    Assert.assertEquals(numTasks, 3);
+    Assert.assertEquals(-1, getNumTasksForDatastreamFromZK(ds.get(0).getName()));
+  }
+
+  private int getNumTasksForDatastreamFromZK(String taskPrefix) {
+    String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, taskPrefix);
+    if (!_zkClient.exists(numTasksPath)) {
+      return -1;
+    }
+    return Integer.parseInt(_zkClient.readData(numTasksPath));
   }
 
   private void createStickyPartitionAssignmentStrategyObject(int partitionsPerTask, int partitionFullnessFactorPct,

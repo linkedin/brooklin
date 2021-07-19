@@ -24,6 +24,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.metrics.BrooklinMeterInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
@@ -38,16 +41,18 @@ import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
  */
 public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignmentStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedPartitionAssignmentStrategy.class.getName());
+  private static final String CLASS_NAME = LoadBasedPartitionAssignmentStrategy.class.getSimpleName();
+  private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
+  private static final String THROUGHPUT_INFO_FETCH_RATE = "throughputInfoFetchRate";
 
   private final PartitionThroughputProvider _throughputProvider;
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
   private final int _throughputInfoFetchTimeoutMs;
   private final int _throughputInfoFetchRetryPeriodMs;
-
-  // TODO Make these configurable
-  private final boolean _enableThroughputBasedPartitionAssignment = true;
-  private final boolean _enablePartitionNumBasedTaskCountEstimation = true;
+  private final boolean _enableThroughputBasedPartitionAssignment;
+  private final boolean _enablePartitionNumBasedTaskCountEstimation;
+  private final LoadBasedPartitionAssigner _assigner;
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
@@ -55,7 +60,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   public LoadBasedPartitionAssignmentStrategy(PartitionThroughputProvider throughputProvider, Optional<Integer> maxTasks,
       int imbalanceThreshold, int maxPartitionPerTask, boolean enableElasticTaskAssignment, int partitionsPerTask,
       int partitionFullnessFactorPct, int taskCapacityMBps, int taskCapacityUtilizationPct,
-      int throughputInfoFetchTimeoutMs, int throughputInfoFetchRetryPeriodMs, ZkClient zkClient, String clusterName) {
+      int throughputInfoFetchTimeoutMs, int throughputInfoFetchRetryPeriodMs, ZkClient zkClient, String clusterName,
+      boolean enableThroughputBasedPartitionAssignment, boolean enablePartitionNumBasedTaskCountEstimation) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
     _throughputProvider = throughputProvider;
@@ -63,8 +69,20 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
     _throughputInfoFetchTimeoutMs = throughputInfoFetchTimeoutMs;
     _throughputInfoFetchRetryPeriodMs = throughputInfoFetchRetryPeriodMs;
+    _enableThroughputBasedPartitionAssignment = enableThroughputBasedPartitionAssignment;
+    _enablePartitionNumBasedTaskCountEstimation = enablePartitionNumBasedTaskCountEstimation;
+
+    LOG.info("Task capacity : {}MBps, task capacity utilization : {}%, Throughput info fetch timeout : {} ms, "
+        + "throughput info fetch retry period : {} ms, throughput based partition assignment : {}, "
+        + "partition num based task count estimation : {}", _taskCapacityMBps, _taskCapacityUtilizationPct,
+        _throughputInfoFetchTimeoutMs, _throughputInfoFetchRetryPeriodMs, _enableThroughputBasedPartitionAssignment ?
+            "enabled" : "disabled", _enablePartitionNumBasedTaskCountEstimation ? "enabled" : "disabled");
+    _assigner = new LoadBasedPartitionAssigner();
   }
 
+  /**
+   * {@inheritDoc}
+   */
   @Override
   public Map<String, Set<DatastreamTask>> assignPartitions(Map<String, Set<DatastreamTask>> currentAssignment,
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
@@ -127,7 +145,6 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       }
     }
 
-    // TODO Implement metrics
     // Doing assignment
     Map<String, Set<DatastreamTask>> newAssignment = doAssignment(clusterThroughputInfo, currentAssignment,
         unassignedPartitions, datastreamPartitions);
@@ -139,10 +156,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   Map<String, Set<DatastreamTask>> doAssignment(ClusterThroughputInfo clusterThroughputInfo,
       Map<String, Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
-    LoadBasedPartitionAssigner partitionAssigner = new LoadBasedPartitionAssigner();
-    Map<String, Set<DatastreamTask>> assignment = partitionAssigner.assignPartitions(clusterThroughputInfo,
-        currentAssignment, unassignedPartitions, datastreamPartitions, _maxPartitionPerTask);
-    LOG.info("new assignment info, assignment: {}", assignment);
+    Map<String, Set<DatastreamTask>> assignment = _assigner.assignPartitions(
+        clusterThroughputInfo, currentAssignment, unassignedPartitions, datastreamPartitions, _maxPartitionPerTask);
+    LOG.info("New assignment info, assignment: {}", assignment);
     return assignment;
   }
 
@@ -150,6 +166,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     AtomicInteger attemptNum = new AtomicInteger(0);
     return PollUtils.poll(() -> {
       try {
+        DYNAMIC_METRICS_MANAGER.createOrUpdateMeter(CLASS_NAME, THROUGHPUT_INFO_FETCH_RATE, 1);
         return _throughputProvider.getThroughputInfo(datastreamGroup);
       } catch (Exception ex) {
         attemptNum.set(attemptNum.get() + 1);
@@ -158,5 +175,30 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       }
     }, Objects::nonNull, _throughputInfoFetchRetryPeriodMs, _throughputInfoFetchTimeoutMs)
         .orElseThrow(RetriesExhaustedException::new);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    List<BrooklinMetricInfo> metricInfos = new ArrayList<>();
+    metricInfos.add(new BrooklinMeterInfo(CLASS_NAME + "." + THROUGHPUT_INFO_FETCH_RATE));
+    metricInfos.addAll(_assigner.getMetricInfos());
+    return Collections.unmodifiableList(metricInfos);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public void cleanupStrategy() {
+    _assigner.cleanupMetrics();
+    super.cleanupStrategy();
+  }
+
+  @Override
+  protected void unregisterMetrics(String datastream) {
+    _assigner.unregisterMetricsForDatastream(datastream);
   }
 }
