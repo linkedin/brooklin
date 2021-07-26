@@ -1275,7 +1275,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 2, _kafkaCluster);
     KafkaMirrorMakerConnectorTestUtils.produceEvents(spicyTopic, 1, _kafkaCluster);
 
-    // verify that in-flight message count for each topic is 1
+    // verify that in-flight message count for each topic is 0
     Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(yummyTopic, 0) == 0, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
         "yummyTopic should have in-flight message count of 0 but was: " + connectorTask.getInFlightMessagesCount(
