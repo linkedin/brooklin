@@ -1275,31 +1275,31 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 2, _kafkaCluster);
     KafkaMirrorMakerConnectorTestUtils.produceEvents(spicyTopic, 1, _kafkaCluster);
 
-    // verify that in-flight message count for each topic is 1
-    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(yummyTopic, 0) == 1, POLL_PERIOD_MS,
+    // verify that in-flight message count for each topic is 0
+    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(yummyTopic, 0) == 0, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
-        "yummyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
+        "yummyTopic should have in-flight message count of 0 but was: " + connectorTask.getInFlightMessagesCount(
             yummyTopic, 0));
-    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(saltyTopic, 0) == 1, POLL_PERIOD_MS,
+    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(saltyTopic, 0) == 0, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
-        "saltyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
+        "saltyTopic should have in-flight message count of 0 but was: " + connectorTask.getInFlightMessagesCount(
             saltyTopic, 0));
-    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(spicyTopic, 0) == 1, POLL_PERIOD_MS,
+    Assert.assertTrue(PollUtils.poll(() -> connectorTask.getInFlightMessagesCount(spicyTopic, 0) == 0, POLL_PERIOD_MS,
         POLL_TIMEOUT_MS),
-        "spicyTopic should have in-flight message count of 1 but was: " + connectorTask.getInFlightMessagesCount(
+        "spicyTopic should have in-flight message count of 0 but was: " + connectorTask.getInFlightMessagesCount(
             spicyTopic, 0));
 
     // verify the states response returned by diagnostics endpoint contains correct counts
     KafkaDatastreamStatesResponse statesResponse = connectorTask.getKafkaDatastreamStatesResponse();
-    Assert.assertEquals(
+    Assert.assertNull(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(yummyTopic, 0)),
-        Long.valueOf(1), "In flight message count for yummyTopic was incorrect");
-    Assert.assertEquals(
+        "In flight message count for yummyTopic was incorrect");
+    Assert.assertNull(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(saltyTopic, 0)),
-        Long.valueOf(1), "In flight message count for saltyTopic was incorrect");
-    Assert.assertEquals(
+        "In flight message count for saltyTopic was incorrect");
+    Assert.assertNull(
         statesResponse.getInFlightMessageCounts().get(new FlushlessEventProducerHandler.SourcePartition(spicyTopic, 0)),
-        Long.valueOf(1), "In flight message count for spicyTopic was incorrect");
+        "In flight message count for spicyTopic was incorrect");
 
     // verify that none of the events were sent because of send error
     Assert.assertTrue(datastreamProducer.getEvents().isEmpty(), "No events should have been successfully sent");

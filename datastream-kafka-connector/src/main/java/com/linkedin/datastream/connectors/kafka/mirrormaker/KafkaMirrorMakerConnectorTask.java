@@ -507,6 +507,10 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     } catch (Exception e) {
       commitSafeOffsets(_consumer);
       throw e;
+    } finally {
+      if (_isFlushlessModeEnabled) {
+        topicPartitions.forEach(topicPartition -> _flushlessProducer.clear(topicPartition.topic(), topicPartition.partition()));
+      }
     }
   }
 
