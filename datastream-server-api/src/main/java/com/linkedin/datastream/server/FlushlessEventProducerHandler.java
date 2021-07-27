@@ -56,6 +56,13 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   }
 
   /**
+   * Clear the source-partition entry from the _callbackStatusMap
+   */
+  public void clear(String source, int partition) {
+    _callbackStatusMap.remove(new SourcePartition(source, partition));
+  }
+
+  /**
    * Sends event to the transport.
    *
    * NOTE: This method should be called with monotonically increasing checkpoints for a given source and
