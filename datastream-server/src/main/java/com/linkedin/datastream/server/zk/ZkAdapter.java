@@ -1075,7 +1075,7 @@ public class ZkAdapter {
       connectorTaskList.remove(KeyBuilder.DATASTREAM_TASK_LOCK_ROOT_NAME);
 
       if (connectorTaskList.size() > 0) {
-        LOG.warn("Found orphan tasks: {} in connector: {}", connectorTaskList, connector);
+        LOG.warn("Found {} orphan tasks: {} in connector: {}", connectorTaskList.size(), connectorTaskList, connector);
         if (cleanUpOrphanTasksInConnector) {
           connectorTaskList.forEach(t -> deleteConnectorTask(connector, t));
         }
@@ -1151,7 +1151,7 @@ public class ZkAdapter {
       });
 
       if (orphanLockList.size() > 0) {
-        LOG.warn("Found orphan task locks: {} in connector: {}", orphanLockList, connector);
+        LOG.warn("Found {} orphan task locks: {} in connector: {}", orphanLockList.size(), orphanLockList, connector);
         if (cleanUpOrphanTaskLocksInConnector) {
           _finalOrphanLockList.addAll(orphanLockList);
         }
