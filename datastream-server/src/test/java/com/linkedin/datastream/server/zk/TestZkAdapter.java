@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -42,7 +41,10 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 
 /**
@@ -52,7 +54,6 @@ public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(com.linkedin.datastream.server.zk.TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
   private static final long ZK_DEBOUNCE_TIMER_MS = 1000;
-
 
   private final String defaultTransportProviderName = "test";
   private EmbeddedZookeeper _embeddedZookeeper;
@@ -715,11 +716,13 @@ public class TestZkAdapter {
 
   private static class ZkClientInterceptingAdapter extends ZkAdapter {
     private ZkClient _zkClient;
+    private long _sleepMs;
 
     public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
         int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
       super(zkConnectionString, testCluster, defaultTransportProviderName, defaultSessionTimeoutMs,
           defaultConnectionTimeoutMs, debounceTimerMs, listener);
+      _sleepMs = defaultSessionTimeoutMs;
     }
 
     @Override
@@ -734,13 +737,24 @@ public class TestZkAdapter {
   }
 
   @Test
-  public void testZookeeperSessionExpiry() throws InterruptedException {
+  public void testZookeeperSessionExpiryDontReinitNewSession() throws InterruptedException {
+    testZookeeperSessionExpiry(false);
+  }
+  @Test
+  public void testZookeeperSessionExpiryReinitNewSession() throws InterruptedException {
+    testZookeeperSessionExpiry(true);
+  }
+
+  private void testZookeeperSessionExpiry(boolean reinitNewSession) throws InterruptedException {
     String testCluster = "testDeleteTaskWithPrefix";
     String connectorType = "connectorType";
     Duration timeout = Duration.ofMinutes(1);
 
     ZkClientInterceptingAdapter adapter = createInterceptingZkAdapter(testCluster, 5000, ZK_DEBOUNCE_TIMER_MS);
-    adapter.connect();
+    adapter.connect(reinitNewSession);
+
+    ZkClientInterceptingAdapter adapter2 = createInterceptingZkAdapter(testCluster, 5000, ZK_DEBOUNCE_TIMER_MS);
+    adapter2.connect(reinitNewSession);
 
     DatastreamTaskImpl task = new DatastreamTaskImpl();
     task.setId("3");
@@ -753,10 +767,81 @@ public class TestZkAdapter {
     LOG.info("Acquire from instance1 should succeed");
     Assert.assertTrue(expectException(() -> task.acquire(timeout), false));
 
+    Assert.assertTrue(adapter.isLeader());
+    Assert.assertFalse(adapter2.isLeader());
+    verifyZkListenersOfLeader(adapter);
+    verifyZkListenersOfFollower(adapter2);
+
     simulateSessionExpiration(adapter);
 
     Thread.sleep(5000);
-    Mockito.verify(adapter, Mockito.times(1)).onSessionExpired();
+    verify(adapter, times(1)).onSessionExpired();
+    if (!reinitNewSession) {
+      verifyZkListenersAfterDisconnect(adapter);
+    } else {
+      verifyZkListenersAfterExpiredSession(adapter);
+    }
+    Assert.assertFalse(adapter.isLeader());
+    Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
+    verifyZkListenersOfLeader(adapter2);
+
+    Assert.assertTrue(PollUtils.poll(adapter2::isLeader, 100, ZK_WAIT_IN_MS));
+    Assert.assertTrue(adapter2.isLeader());
+
+    //This connect is called from the coordinator code, calling it explicitly here for testing.
+    if (reinitNewSession) {
+      verify(adapter, times(1)).onNewSession();
+      Assert.assertFalse(adapter.isLeader());
+      adapter.connect();
+      verifyZkListenersOfFollower(adapter);
+    }
+
+    adapter2.disconnect();
+    verifyZkListenersAfterDisconnect(adapter2);
+
+    if (reinitNewSession) {
+      Assert.assertTrue(PollUtils.poll(adapter::isLeader, 100, ZK_WAIT_IN_MS));
+      verifyZkListenersOfLeader(adapter);
+
+      adapter.disconnect();
+      verifyZkListenersAfterDisconnect(adapter);
+    }
+  }
+
+  private void verifyZkListenersAfterDisconnect(ZkClientInterceptingAdapter adapter) {
+    Assert.assertNull(adapter.getLeaderElectionListener());
+    Assert.assertNull(adapter.getAssignmentListProvider());
+    Assert.assertNull(adapter.getStateChangeListener());
+    Assert.assertNull(adapter.getLiveInstancesProvider());
+    Assert.assertNull(adapter.getDatastreamList());
+    Assert.assertNull(adapter.getTargetAssignmentProvider());
+  }
+
+  private void verifyZkListenersAfterExpiredSession(ZkClientInterceptingAdapter adapter) {
+    Assert.assertNotNull(adapter.getLeaderElectionListener());
+    Assert.assertNull(adapter.getAssignmentListProvider());
+    Assert.assertNotNull(adapter.getStateChangeListener());
+    Assert.assertNull(adapter.getLiveInstancesProvider());
+    Assert.assertNull(adapter.getDatastreamList());
+    Assert.assertNull(adapter.getTargetAssignmentProvider());
+  }
+
+  private void verifyZkListenersOfFollower(ZkClientInterceptingAdapter adapter2) {
+    Assert.assertNotNull(adapter2.getLeaderElectionListener());
+    Assert.assertNotNull(adapter2.getAssignmentListProvider());
+    Assert.assertNotNull(adapter2.getStateChangeListener());
+    Assert.assertNotNull(adapter2.getLiveInstancesProvider());
+    Assert.assertNull(adapter2.getDatastreamList());
+    Assert.assertNull(adapter2.getTargetAssignmentProvider());
+  }
+
+  private void verifyZkListenersOfLeader(ZkClientInterceptingAdapter adapter) {
+    Assert.assertNotNull(adapter.getLeaderElectionListener());
+    Assert.assertNotNull(adapter.getAssignmentListProvider());
+    Assert.assertNotNull(adapter.getStateChangeListener());
+    Assert.assertNotNull(adapter.getLiveInstancesProvider());
+    Assert.assertNotNull(adapter.getDatastreamList());
+    Assert.assertNotNull(adapter.getTargetAssignmentProvider());
   }
 
   @Test
@@ -850,7 +935,7 @@ public class TestZkAdapter {
     updateInstanceAssignment(adapter, adapter.getInstanceName(), tasks);
     adapter.acquireTask(lockTask, Duration.ofSeconds(2));
 
-    ZkClient zkClient = Mockito.spy(adapter.getZkClient());
+    ZkClient zkClient = spy(adapter.getZkClient());
 
     // Delete a few nodes
     for (int j = 0; j < 8; j++) {
@@ -861,8 +946,8 @@ public class TestZkAdapter {
     // Not the most ideal way to test the issue of not being able to delete when the top level zk node is full,
     // but creating EmbeddedZK with smaller jute.maxbuffer size to actually testing filling a directory to
     // max requires setting system property which will interfere with any other parallel test using EmbeddedZk.
-    Mockito.verify(zkClient, Mockito.never()).getChildren(any());
-    Mockito.verify(zkClient, Mockito.never()).getChildren(any(), anyBoolean());
+    verify(zkClient, never()).getChildren(any());
+    verify(zkClient, never()).getChildren(any(), anyBoolean());
 
     List<String> leftOverTasks = zkClient.getChildren(KeyBuilder.connector(testCluster, connectorType));
     Assert.assertEquals(leftOverTasks.size(), 3);
