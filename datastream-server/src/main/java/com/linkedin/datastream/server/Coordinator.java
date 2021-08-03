@@ -119,9 +119,10 @@ import static com.linkedin.datastream.server.CoordinatorEvent.EventType;
  *                                         Coordinator                       Connector
  *
  * ┌──────────────┐       ┌─────────────────────────────────────────┐    ┌─────────────────┐
- * │              │       │                                         │    │                 │
- * │              │       │                                         │    │                 │
  * │              │       │ ┌──────────┐  ┌────────────────┐        │    │                 │
+ * │              │       │ |          |──▶ onNewSession   │        │    |                 │
+ * │              │       │ │          │  └────────────────┘        │    │                 │
+ * │              │       │ |          |  ┌────────────────┐        │    │                 │
  * │              │       │ │ZkAdapter ├──▶ onBecomeLeader │        │    │                 │
  * │              │       │ │          │  └────────────────┘        │    │                 │
  * │              ├───────┼─▶          │  ┌──────────────────┐      │    │                 │
@@ -248,7 +249,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void start() {
     _log.info("Starting coordinator");
     startEventThread();
-    _adapter.connect();
+    _adapter.connect(_config.getReinitOnNewZkSession());
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
@@ -528,6 +529,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   boolean isZkSessionExpired() {
     return _zkSessionExpired;
+  }
+
+  @Override
+  public void onNewSession() {
+    createEventThread();
+    startEventThread();
+    _adapter.connect(true);
+    // ensure it doesn't miss any assignment created
+    _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+
+    // Queue up one heartbeat per period with a initial delay of 3 periods
+    _executor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
+        _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
+
+    _zkSessionExpired = false;
   }
 
   private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start)

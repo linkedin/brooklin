@@ -2882,11 +2882,29 @@ public class TestCoordinator {
 
   @Test
   public void testOnSessionExpired() throws Exception {
+    testOnSessionExpired(false);
+  }
+
+  @Test
+  public void testOnSessionExpiredHandleNewSession() throws Exception {
+    testOnSessionExpired(true);
+  }
+
+  void testOnSessionExpired(boolean handleNewSession) throws DatastreamException, InterruptedException {
     String testCluster = "testCoordinationSmoke3";
     String testConnectorType = "testConnectorType";
     String datastreamName = "datastreamNameSessionExpired";
 
-    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_REINIT_ON_NEW_ZK_SESSION, String.valueOf(handleNewSession));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator instance1 = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
     instance1.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
         new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
             DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
@@ -2897,20 +2915,29 @@ public class TestCoordinator {
         new SourceBasedDeduper(), null);
     instance1.start();
 
-    ZkClient zkClient = new ZkClient(_zkConnectionString);
-    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName);
+    ZkClient zkClient1 = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient1, testCluster, testConnectorType, datastreamName);
     // verify the assignment
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
 
+    zkClient.delete(KeyBuilder.liveInstance(testCluster, "0000000000"));
     instance1.onSessionExpired();
-    PollUtils.poll(() -> {
-      return connector1._tasks.size() == 0;
-    }, 1000, WAIT_TIMEOUT_MS);
+    PollUtils.poll(() -> connector1._tasks.size() == 0, 1000, WAIT_TIMEOUT_MS);
     Assert.assertEquals(instance1.getDatastreamTasks().size(), 0);
     Thread t = instance1.getEventThread();
     Assert.assertFalse(t != null && t.isAlive());
     Assert.assertTrue(PollUtils.poll(instance1::isZkSessionExpired, 100, 30000));
     verify(mockStrategy, times(1)).cleanupStrategy();
+
+    if (handleNewSession) {
+      instance1.onNewSession();
+      PollUtils.poll(() -> connector1._tasks.size() == 1, 1000, WAIT_TIMEOUT_MS);
+      Assert.assertEquals(instance1.getDatastreamTasks().size(), 1);
+      t = instance1.getEventThread();
+      Assert.assertTrue(t != null && t.isAlive());
+      Assert.assertTrue(PollUtils.poll(() -> instance1.getIsLeader().getAsBoolean(), 100, 30000));
+    }
+
     instance1.stop();
     instance1.getDatastreamCache().getZkclient().close();
   }
