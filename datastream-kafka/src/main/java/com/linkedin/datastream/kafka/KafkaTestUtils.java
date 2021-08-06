@@ -10,19 +10,20 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.Validate;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.TopicListing;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
-
-import kafka.admin.AdminUtils;
-import kafka.utils.ZkUtils;
 
 
 /**
@@ -61,12 +62,13 @@ public final class KafkaTestUtils {
    *
    * Note: The topic creation must be issued before this method is called.
    *
+   * @param adminClient Kafka Admin client to check if topic exists
    * @param topic the topic to wait for broker assignment
    * @param brokerList the brokers in the Kafka cluster
    * @throws IllegalStateException if the topic is not ready before the timeout ({@value #DEFAULT_TIMEOUT_MS} ms)
    */
-  public static void waitForTopicCreation(ZkUtils zkUtils, String topic, String brokerList) throws IllegalStateException {
-    Validate.notNull(zkUtils);
+  public static void waitForTopicCreation(AdminClient adminClient, String topic, String brokerList) throws IllegalStateException {
+    Validate.notNull(adminClient);
     Validate.notEmpty(topic);
     Validate.notEmpty(brokerList);
 
@@ -74,7 +76,7 @@ public final class KafkaTestUtils {
     Instant expiration = Instant.now().plus(attemptDuration);
 
     // Wait for topic creation
-    while (Instant.now().isBefore(expiration) && !AdminUtils.topicExists(zkUtils, topic)) {
+    while (Instant.now().isBefore(expiration) && !topicExists(adminClient, topic)) {
       try {
         Thread.sleep(Duration.ofSeconds(1).toMillis());
       } catch (InterruptedException e) {
@@ -100,6 +102,24 @@ public final class KafkaTestUtils {
     }
 
     throw new IllegalStateException("Topic was not ready within the timeout");
+  }
+
+  /**
+   * Check if the given topic exists yet or not.
+   *
+   * @param adminClient AdminClient instance to check if topics exists
+   * @param topic Topic name
+   */
+  public static boolean topicExists(AdminClient adminClient, String topic) {
+    try {
+      Map<String, TopicListing> topicListingMap = adminClient.listTopics().namesToListings().get();
+      if (topicListingMap.containsKey(topic)) {
+        return true;
+      }
+    } catch (InterruptedException | ExecutionException e) {
+      return false;
+    }
+    return false;
   }
 
   /**
