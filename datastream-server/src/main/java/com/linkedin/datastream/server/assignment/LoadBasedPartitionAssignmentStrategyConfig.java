@@ -22,7 +22,7 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   public static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = "throughputInfoFetchRetryPeriodMs";
   public static final String CFG_TASK_CAPACITY_MBPS = "taskCapacityMBps";
   public static final String CFG_TASK_CAPACITY_UTILIZATION_PCT = "taskCapacityUtilizationPct";
-  public static final String CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT = "enableThroughputBasedPartitionAssignemnt";
+  public static final String CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT = "enableThroughputBasedPartitionAssignment";
   public static final String CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = "enablePartitionNumBasedTaskCountEstimation";
 
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = (int) Duration.ofSeconds(10).toMillis();
