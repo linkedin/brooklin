@@ -5,13 +5,19 @@
  */
 package com.linkedin.datastream.server.dms;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -27,13 +33,16 @@ import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.DatastreamRestClientFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.RetriesExhaustedException;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.server.Coordinator;
+import com.linkedin.datastream.server.DatastreamServer;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
@@ -47,7 +56,8 @@ import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.RestLiServiceException;
 
-
+import static com.linkedin.datastream.server.dms.DatastreamResources.CONFIG_STOP_TRANSITION_RETRY_PERIOD_MS;
+import static com.linkedin.datastream.server.dms.DatastreamResources.CONFIG_STOP_TRANSITION_TIMEOUT_MS;
 /**
  * Test DatastreamResources with ZooKeeper backed DatastreamStore
  */
@@ -55,6 +65,8 @@ import com.linkedin.restli.server.RestLiServiceException;
 public class TestDatastreamResources {
 
   private static final PagingContext NO_PAGING = new PagingContext(0, 0, false, false);
+  private static final Duration TRANSITION_TIMEOUT_MS_DEFAULT = Duration.ofMillis(100);
+  private static final Duration TRANSITION_RETRY_PERIOD_MS_DEFAULT = Duration.ofMillis(10);
 
   private EmbeddedDatastreamCluster _datastreamKafkaCluster;
 
@@ -102,7 +114,8 @@ public class TestDatastreamResources {
    * @param setByotMetadata Indicates whether {@value DatastreamMetadataConstants#IS_USER_MANAGED_DESTINATION_KEY}
    *                        should be set to {@code true} in the metadata of the returned datastream
    */
-  public static Datastream generateEncryptedDatastream(int seed, boolean setEncryptedMetadata, boolean setByotMetadata) {
+  public static Datastream generateEncryptedDatastream(int seed, boolean setEncryptedMetadata,
+      boolean setByotMetadata) {
     Datastream ds = new Datastream();
     ds.setName("name_" + seed);
     ds.setConnectorName(DummyConnector.CONNECTOR_TYPE);
@@ -228,6 +241,287 @@ public class TestDatastreamResources {
     Datastream ds2 = resource2.get(datastreamName);
     Assert.assertNotNull(ds2);
     Assert.assertEquals(ds2.getStatus(), DatastreamStatus.READY);
+  }
+
+  @Test
+  public void testStopDatastream() {
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Stop datastream.
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
+    ActionResult<Void> stopResponse = resource1.stop(pathKey, false);
+    Assert.assertEquals(stopResponse.getStatus(), HttpStatus.S_200_OK);
+
+    // Retrieve datastream and check that is in STOPPED state.
+    Datastream ds = resource2.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPED);
+  }
+
+  @Test
+  public void testSimultaneousStopDatastreamRequests() {
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Stop datastream.
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
+
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    executor.execute(() -> resource1.stop(pathKey, false));
+    executor.execute(() -> resource1.stop(pathKey, false));
+
+    try {
+      executor.awaitTermination(100, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException ignored) {
+    } finally {
+      executor.shutdownNow();
+    }
+
+    // Retrieve datastream and check that is in STOPPED state.
+    Datastream ds = resource2.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPED);
+  }
+
+  @Test
+  public void testStopDatastreamWhenRequestHandlerHostDies() {
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // The executor attempts to stop a datastream which gets killed after the datastream is transitioned to STOPPING state.
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.execute(() -> {
+      ActionResult<Void> stopResponse = resource1.stop(pathKey, false);
+      Assert.assertEquals(stopResponse.getStatus(), HttpStatus.S_200_OK);
+    });
+
+    PollUtils.poll(() -> resource2.get(datastreamName).getStatus().equals(DatastreamStatus.STOPPING),
+        inStoppingState -> inStoppingState, TRANSITION_RETRY_PERIOD_MS_DEFAULT.toMillis(),
+        TRANSITION_TIMEOUT_MS_DEFAULT.toMillis());
+
+    // Mocking crash of the request handler host.
+    executor.shutdownNow();
+
+    // Retrieve datastream and check that is in STOPPING state.
+    Datastream ds = resource2.get(datastreamName);
+    Assert.assertNotNull(ds);
+    DatastreamStatus retrievedStatus = ds.getStatus();
+
+    // If the datastream is found in STOPPED state, assuming that the leader already transitioned the datastream from STOPPING to STOPPED.
+    if (retrievedStatus.equals(DatastreamStatus.STOPPED)) {
+      return;
+    }
+    Assert.assertEquals(retrievedStatus, DatastreamStatus.STOPPING);
+
+    // If the datastream is found in STOPPING state, there could be two cases here,
+    // 1. The leader is notified before the host crashed, in that case the leader would transition the datastream back to STOPPED state.
+    //    Hence polling in try block until the leader transitions the state of the datastream to STOPPED state.
+    // 2. The host crashed before it could notify the leader, in that case we have to trigger stop call again, which is handled in catch block.
+    try {
+      PollUtils.poll(() -> resource2.get(datastreamName).getStatus().equals(DatastreamStatus.STOPPED),
+          inStoppingState -> inStoppingState, TRANSITION_RETRY_PERIOD_MS_DEFAULT.toMillis(),
+          TRANSITION_TIMEOUT_MS_DEFAULT.toMillis()).orElseThrow(RetriesExhaustedException::new);
+    } catch (RetriesExhaustedException exception) {
+      // Stop datastream.
+      ActionResult<Void> stopResponse = resource1.stop(pathKey, false);
+      Assert.assertEquals(stopResponse.getStatus(), HttpStatus.S_200_OK);
+    } finally {
+      // Retrieve datastream and check that is in STOPPED state.
+      ds = resource2.get(datastreamName);
+      Assert.assertNotNull(ds);
+      Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPED);
+    }
+  }
+
+  @Test
+  public void testPerformingAllActionsOnStoppingDatastream() throws DatastreamException {
+    DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamStore store = _datastreamKafkaCluster.getPrimaryDatastreamServer().getDatastreamStore();
+
+    // Create a Datastream
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Setting status to STOPPING explicitly to perform testing.
+    datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
+    store.updateDatastream(datastreamName, datastreamToCreate, false);
+
+    // Retrieve datastream and check that is in STOPPING state.
+    Datastream ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPING);
+
+    // Attempting to pause a datastream in stopping state, which should raise an exception.
+    Assert.assertEquals(
+        Assert.expectThrows(RestLiServiceException.class, () -> resource1.pause(pathKey, false)).getStatus(),
+        HttpStatus.S_405_METHOD_NOT_ALLOWED);
+
+    // Attempting to resume a datastream in stopping state, which should raise an exception.
+    Assert.assertEquals(
+        Assert.expectThrows(RestLiServiceException.class, () -> resource1.resume(pathKey, false)).getStatus(),
+        HttpStatus.S_405_METHOD_NOT_ALLOWED);
+
+    // Attempting to stop a datastream in stopping state, which should get executed without exception.
+    Assert.assertEquals(resource1.stop(pathKey, false).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.STOPPED);
+
+    // Setting status to STOPPING again explicitly to perform testing.
+    datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
+    store.updateDatastream(datastreamName, datastreamToCreate, false);
+
+    // Retrieve datastream and check that is in STOPPING state.
+    ds = resource1.get(datastreamName);
+    Assert.assertNotNull(ds);
+    Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPING);
+
+    // Attempting to delete a datastream in stopping state, which should get executed without exception.
+    Assert.assertEquals(resource1.delete(datastreamName).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.DELETING);
+  }
+
+  @Test
+  public void testStopRequestTimeoutScenarioWithConfigurableTimeouts() {
+    DatastreamServer testDatastreamServer = _datastreamKafkaCluster.getPrimaryDatastreamServer();
+
+    // Configuring small timeouts to mock timeout scenario
+    Properties testProperties = new Properties();
+    testProperties.setProperty(CONFIG_STOP_TRANSITION_TIMEOUT_MS, "2");
+    testProperties.setProperty(CONFIG_STOP_TRANSITION_RETRY_PERIOD_MS, "1");
+    DatastreamResources resource1 = new DatastreamResources(testDatastreamServer.getDatastreamStore(), testDatastreamServer.getCoordinator(), testProperties);
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Stop datastream.
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
+
+    // Attempting to stop a datastream which should timeout
+    Assert.assertEquals(
+        Assert.expectThrows(RestLiServiceException.class, () -> resource1.stop(pathKey, false)).getStatus(),
+        HttpStatus.S_408_REQUEST_TIMEOUT);
+  }
+
+
+  @Test
+  public void testStopRequestTimeoutWithBusyLeader() throws DatastreamException {
+    DatastreamStore testDatastreamStore = _datastreamKafkaCluster.getPrimaryDatastreamServer().getDatastreamStore();
+
+    // Attaching mock spies to the test instances of DatastreamCluster, DatastreamServer and DatastreamStore
+    EmbeddedDatastreamCluster mockDatastreamCluster = Mockito.spy(_datastreamKafkaCluster);
+    DatastreamServer mockDatastreamServer = Mockito.spy(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DatastreamStore mockDatastreamStore = Mockito.spy(testDatastreamStore);
+
+    // Overriding methods to return mock spies
+    Mockito.doReturn(mockDatastreamStore).when(mockDatastreamServer).getDatastreamStore();
+    Mockito.doReturn(mockDatastreamServer).when(mockDatastreamCluster).getPrimaryDatastreamServer();
+
+    DatastreamResources resource1 = new DatastreamResources(mockDatastreamCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+
+    // Mocking the busy behavior of leader coordinator in update datastream call which won't notify the leader, and thus the request should timeout
+    Mockito.doAnswer(invocation -> {
+      Object[] args = invocation.getArguments();
+      testDatastreamStore.updateDatastream((String) args[0], (Datastream) args[1], false); // Performing the same update action without notifying the leader
+      return null;
+    }).when(mockDatastreamStore).updateDatastream(Mockito.eq(datastreamName), Mockito.any(Datastream.class), Mockito.eq(true));
+
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + mockDatastreamCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+    CreateResponse response = resource1.create(datastreamToCreate);
+    PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // Stop datastream.
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
+
+    // Attempting to stop a datastream which should timeout
+    Assert.assertEquals(
+        Assert.expectThrows(RestLiServiceException.class, () -> resource1.stop(pathKey, false)).getStatus(),
+        HttpStatus.S_408_REQUEST_TIMEOUT);
   }
 
   @Test
@@ -582,8 +876,7 @@ public class TestDatastreamResources {
 
     // Regression for Byot
     Datastream justByotDS = generateEncryptedDatastream(3, false, true);
-    DatastreamDestination destination = new DatastreamDestination()
-        .setConnectionString("http://localhost:21324/foo");
+    DatastreamDestination destination = new DatastreamDestination().setConnectionString("http://localhost:21324/foo");
     justByotDS.setDestination(destination);
     response = resource.create(justByotDS);
     Assert.assertNull(response.getError());

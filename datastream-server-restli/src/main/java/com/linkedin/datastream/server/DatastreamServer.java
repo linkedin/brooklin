@@ -94,6 +94,7 @@ public class DatastreamServer {
   private final Map<String, String> _bootstrapConnectors;
 
   private Coordinator _coordinator;
+  private Properties _properties;
   private DatastreamStore _datastreamStore;
   private DatastreamJettyStandaloneLauncher _jettyLauncher;
   private JmxReporter _jmxReporter;
@@ -130,7 +131,8 @@ public class DatastreamServer {
   public DatastreamServer(Properties properties) throws DatastreamException {
     LOG.info("Start to initialize DatastreamServer. Properties: " + properties);
     LOG.info("Creating coordinator.");
-    VerifiableProperties verifiableProperties = new VerifiableProperties(properties);
+    _properties = properties;
+    VerifiableProperties verifiableProperties = new VerifiableProperties(_properties);
 
     HashSet<String> connectorTypes = new HashSet<>(verifiableProperties.getStringList(CONFIG_CONNECTOR_NAMES,
         Collections.emptyList()));
@@ -148,7 +150,7 @@ public class DatastreamServer {
       throw new DatastreamRuntimeException(errorMessage);
     }
 
-    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(properties);
+    CoordinatorConfig coordinatorConfig = new CoordinatorConfig(_properties);
 
     LOG.info("Setting up DMS endpoint server.");
     ZkClient zkClient = new ZkClient(coordinatorConfig.getZkAddress(), coordinatorConfig.getZkSessionTimeout(),
@@ -224,6 +226,10 @@ public class DatastreamServer {
 
   public DatastreamStore getDatastreamStore() {
     return _datastreamStore;
+  }
+
+  public Properties getProperties() {
+    return _properties;
   }
 
   public int getHttpPort() {

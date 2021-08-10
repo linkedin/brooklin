@@ -1064,17 +1064,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private List<DatastreamGroup> fetchDatastreamGroups() {
+    // Get all streams that are assignable, where status is READY or PAUSED. STOPPED or other datastream status will NOT get assigned
+    return fetchDatastreamGroupsWithStatus(Arrays.asList(DatastreamStatus.READY, DatastreamStatus.PAUSED));
+  }
+
+  private List<DatastreamGroup> fetchDatastreamGroupsWithStatus(List<DatastreamStatus> requiredStatus) {
     // Get all streams that are assignable. Assignable datastreams are the ones:
     //  1) has a valid destination
-    //  2) status is READY or PAUSED, STOPPED or other datastream status will NOT get assigned
-    //  3) TTL has not expired
+    //  2) TTL has not expired
     // Note: We do not need to flush the cache, because the datastreams should have been read as part of the
     //       handleDatastreamAddOrDelete event (that should occur before handleLeaderDoAssignment)
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(false)
         .stream()
-        .filter(datastream -> datastream.hasStatus() && (datastream.getStatus() == DatastreamStatus.READY
-            || datastream.getStatus() == DatastreamStatus.PAUSED) && hasValidDestination(datastream)
-            && !isDeletingOrExpired(datastream))
+        .filter(datastream -> datastream.hasStatus() && requiredStatus.contains(datastream.getStatus())
+            && hasValidDestination(datastream) && !isDeletingOrExpired(datastream))
         .collect(Collectors.toList());
 
     Set<Datastream> invalidDatastreams =
@@ -1107,7 +1110,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     try {
       List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
-
+      List<DatastreamGroup> stoppingDatastreamGroups =
+          fetchDatastreamGroupsWithStatus(Collections.singletonList(DatastreamStatus.STOPPING));
+      _log.info("stopping datastreams: {}", stoppingDatastreamGroups);
       onDatastreamChange(datastreamGroups);
 
       if (cleanUpOrphanNodes) {
@@ -1130,6 +1135,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // it failed to create or delete zNodes), we will do our best to continue the current process
       // and schedule a retry. The retry should be able to diff the remaining ZooKeeper work
       _adapter.updateAllAssignments(newAssignmentsByInstance);
+
+      for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
+        for (Datastream datastream : datastreamGroup.getDatastreams()) {
+          datastream.setStatus(DatastreamStatus.STOPPED);
+          if (!_adapter.updateDatastream(datastream)) {
+            _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
+            succeeded = false;
+          }
+        }
+      }
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime exception.", e);
       succeeded = false;

@@ -38,7 +38,7 @@
       "type" : {
         "type" : "enum",
         "name" : "DatastreamStatus",
-        "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING", "STOPPED" ]
+        "symbols" : [ "INITIALIZING", "READY", "PAUSED", "DELETING", "STOPPED", "STOPPING" ]
       },
       "doc" : "Status of the datastream",
       "symbolDocs" : {
@@ -187,7 +187,7 @@
             "name" : "force",
             "type" : "boolean",
             "default" : "false",
-            "doc" : "whether or not to resume all datastreams within the given datastream's group"
+            "doc" : "whether or not to stop all datastreams within the given datastream's group"
           } ]
         } ]
       }
