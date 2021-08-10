@@ -53,6 +53,7 @@ record Datastream {
     PAUSED
     DELETING
     STOPPED
+    STOPPING
   }
 
   /**
