@@ -233,7 +233,7 @@ public class TestDatabaseChunkedReader {
 
     for (int i = 0; i < numPartitions; i++) {
       try (DatabaseChunkedReader reader =
-          new DatabaseChunkedReader(props, mockSources.get(i), "TEST_DB", TEST_SOURCE_QUERY,
+          new DatabaseChunkedReader(props, mockSources.get(i).getConnection(), "TEST_DB", TEST_SOURCE_QUERY,
               TEST_COMPOSITE_KEY_TABLE, mockDBSource, "testRowCount_" + i)) {
         reader.subscribe(Collections.singletonList(0), null);
         for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
@@ -286,7 +286,7 @@ public class TestDatabaseChunkedReader {
 
     int count = 0;
     DatabaseChunkedReader reader =
-        new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
+        new DatabaseChunkedReader(props, mockDs.getConnection(), TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource, readerId);
     reader.subscribe(Collections.singletonList(0), null);
     for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
       Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
@@ -323,7 +323,7 @@ public class TestDatabaseChunkedReader {
     Mockito.when(mockRs.next()).thenReturn(false); //No results for the query. Test to ensure the first query is a chunked query
     Mockito.when(mockStmt.executeQuery()).thenReturn(mockRs);
     DatabaseChunkedReader reader =
-        new DatabaseChunkedReader(props, mockDs, TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource,
+        new DatabaseChunkedReader(props, mockDs.getConnection(), TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource,
             "TEST_CHECKPOINT");
     Map<String, Object> checkpoint = new HashMap<>();
     checkpoint.put("key1", 99);

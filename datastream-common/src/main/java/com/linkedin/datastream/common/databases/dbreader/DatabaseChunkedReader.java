@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
 import org.apache.commons.lang.StringUtils;
@@ -99,7 +98,7 @@ public class DatabaseChunkedReader implements Closeable {
   /**
    * Create a DatabaseChunkedReader instance
    * @param props Configuration
-   * @param source JDBC DataSource object to use for connecting
+   * @param connection JDBC DataSource Connection object
    * @param sourceQuery Query to execute on the source in chunked mode. The query cannot be any SQL query and
    *                    needs to follow specific rules. The query should only involve one table, as specified
    *                    by the 'table' parameter, should query all unique key columns and in the order specified
@@ -111,7 +110,7 @@ public class DatabaseChunkedReader implements Closeable {
    * @param databaseSource DatabaseSource implementation to query table metadata needed for constructing the chunk query
    * @param id Name to identify the reader instance in logs
    */
-  public DatabaseChunkedReader(Properties props, DataSource source, String sourceQuery, String db, String table,
+  public DatabaseChunkedReader(Properties props, Connection connection, String sourceQuery, String db, String table,
       DatabaseSource databaseSource, String id) throws SQLException {
     _databaseChunkedReaderConfig = new DatabaseChunkedReaderConfig(props);
     _sourceQuery = sourceQuery;
@@ -121,8 +120,7 @@ public class DatabaseChunkedReader implements Closeable {
     _fetchSize = _databaseChunkedReaderConfig.getFetchSize();
     _queryTimeoutSecs = _databaseChunkedReaderConfig.getQueryTimeout();
     _rowCountLimit = _databaseChunkedReaderConfig.getRowCountLimit();
-    _connection = source.getConnection();
-    Validate.notNull(_connection, "getConnection returned null for source" + source);
+    _connection = connection;
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     _skipBadMessagesEnabled = _databaseChunkedReaderConfig.getShouldSkipBadMessage();
 
