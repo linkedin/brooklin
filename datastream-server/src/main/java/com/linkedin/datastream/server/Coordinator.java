@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -81,6 +83,8 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
 import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
 import static com.linkedin.datastream.server.CoordinatorEvent.EventType;
+import static com.linkedin.datastream.server.CoordinatorEvent.EventType.HANDLE_ASSIGNMENT_CHANGE;
+import static com.linkedin.datastream.server.CoordinatorEvent.EventType.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE;
 
 
 /**
@@ -181,6 +185,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   // Currently assigned datastream tasks by taskName
   private final Map<String, DatastreamTask> _assignedDatastreamTasks = new ConcurrentHashMap<>();
+  // Maintain a count of onAssignmentChange retries in case of task initialization/submission failure.
+  // If count reaches maximum threshold do not queue the event further. Reset the count if event raised
+  // from any other path.
+  private AtomicInteger _assignmentRetryCount = new AtomicInteger(0);
 
   // One coordinator heartbeat per minute, heartbeat helps detect dead/live-lock
   // where no events can be handled if coordinator locks up. This can happen because
@@ -273,7 +281,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // now that instance is started, make sure it doesn't miss any assignment created during
     // the slow startup
-    _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+    queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleAssignmentChangeEvent(), true);
 
     // Queue up one heartbeat per period with a initial delay of 3 periods
     _executor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
@@ -435,7 +443,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         }
       });
     }
-    _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
+    queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleDatastreamChangeEvent(), true);
     _log.info("Coordinator::onDatastreamUpdate completed successfully");
   }
 
@@ -572,8 +580,42 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onAssignmentChange() {
     _log.info("Coordinator::onAssignmentChange is called");
-    _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
+    queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleAssignmentChangeEvent(), true);
     _log.info("Coordinator::onAssignmentChange completed successfully");
+  }
+
+  private int getAssignmentTaskCount(Map<String, List<DatastreamTask>> assignment) {
+    return assignment.values().stream().mapToInt(List::size).sum();
+  }
+
+  private void queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent event, boolean isReset) {
+    _eventQueue.put(event);
+    if (isReset) {
+      _assignmentRetryCount.set(0);
+    } else {
+      _assignmentRetryCount.incrementAndGet();
+    }
+  }
+
+  private void retryHandleAssignmentChange(boolean isDatastreamUpdate) {
+    boolean queueEvent = true;
+    if (_assignmentRetryCount.compareAndSet(_config.getMaxAssignmentRetryCount(), 0)) {
+      _log.error(
+          "onAssignmentChange retries reached threshold of {}. Not queuing further retry on onAssignmentChange event.",
+          _config.getMaxAssignmentRetryCount());
+      queueEvent = false;
+    }
+
+    EventType meter = isDatastreamUpdate ? HANDLE_DATASTREAM_CHANGE_WITH_UPDATE : HANDLE_ASSIGNMENT_CHANGE;
+    _log.warn("Updating metric for event " + meter);
+    _metrics.updateKeyedMeter(CoordinatorMetrics.getKeyedMeter(meter), 1);
+
+    if (queueEvent) {
+      _log.warn("Queuing onAssignmentChange event");
+      CoordinatorEvent event = isDatastreamUpdate ? CoordinatorEvent.createHandleDatastreamChangeEvent() :
+          CoordinatorEvent.createHandleAssignmentChangeEvent();
+      queueHandleAssignmentOrDatastreamChangeEvent(event, false);
+    }
   }
 
   private void handleAssignmentChange(boolean isDatastreamUpdate) throws TimeoutException {
@@ -598,6 +640,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         currentAssignment.get(connectorType).add(task);
       }
     });
+
+    int totalTasks = getAssignmentTaskCount(currentAssignment);
 
     _log.info(printAssignmentByType(currentAssignment));
 
@@ -634,6 +678,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .filter(Objects::nonNull)
         .collect(Collectors.toList()));
 
+    int submittedTasks = getAssignmentTaskCount(currentAssignment);
+
     // Wait till all the futures are complete or timeout.
     Instant start = Instant.now();
     try {
@@ -641,12 +687,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     } catch (TimeoutException e) {
       // if it's timeout then we will retry
       _log.warn("Timeout when doing the assignment", e);
-      if (isDatastreamUpdate) {
-        _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
-      } else {
-        _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
-      }
-      throw e;
+      retryHandleAssignmentChange(isDatastreamUpdate);
+      return;
     } catch (InterruptedException e) {
       _log.warn("onAssignmentChange call got interrupted", e);
     } finally {
@@ -659,6 +701,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .stream()
         .flatMap(Collection::stream)
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())));
+
+    if ((totalTasks - submittedTasks) > 0) {
+      _log.warn("Failed to submit {} tasks from currentAssignment. Queueing onAssignmentChange event again",
+          totalTasks - submittedTasks);
+      // Update the metric and queue the event only once for all the tasks that failed to be initialized
+      retryHandleAssignmentChange(isDatastreamUpdate);
+    }
 
     _log.info("END: Coordinator::handleAssignmentChange, Duration: {} milliseconds",
         System.currentTimeMillis() - startAt);
@@ -687,6 +736,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private Future<Boolean> dispatchAssignmentChangeIfNeeded(String connectorType, List<DatastreamTask> assignment,
       boolean isDatastreamUpdate, boolean retryAndSaveError) {
+    // Failed datastream tasks
+    Set<DatastreamTask> failedDatastreamTasks = new HashSet<>();
     ConnectorInfo connectorInfo = _connectors.get(connectorType);
     ConnectorWrapper connector = connectorInfo.getConnector();
 
@@ -705,7 +756,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (isDatastreamUpdate || !addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
-      addedTasks.stream().filter(t -> t.getEventProducer() == null).forEach(this::initializeTask);
+      addedTasks.stream()
+          .filter(t -> t.getEventProducer() == null)
+          .forEach(task -> initializeTask(task, failedDatastreamTasks, retryAndSaveError));
+      assignment.removeAll(failedDatastreamTasks);
       return submitAssignment(connectorType, assignment, isDatastreamUpdate, connector, removedTasks, retryAndSaveError);
     }
 
@@ -727,11 +781,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         if (retryAndSaveError) {
           err += " Queuing up a new onAssignmentChange event for retry.";
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
-          if (isDatastreamUpdate) {
-            _eventQueue.put(CoordinatorEvent.createHandleDatastreamChangeEvent());
-          } else {
-            _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
-          }
+          CoordinatorEvent event = isDatastreamUpdate ? CoordinatorEvent.createHandleDatastreamChangeEvent() :
+              CoordinatorEvent.createHandleAssignmentChangeEvent();
+          queueHandleAssignmentOrDatastreamChangeEvent(event, false);
         }
         _log.warn(err, ex);
         return false;
@@ -753,19 +805,26 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     tasks.forEach(_cpProvider::unassignDatastreamTask);
   }
 
-  private void initializeTask(DatastreamTask task) {
-    DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
-    assignSerdes(taskImpl);
+  private void initializeTask(DatastreamTask task, Set<DatastreamTask> failedDatastreamTasks, boolean retryAndSaveError) {
+    try {
+      DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
+      assignSerdes(taskImpl);
 
-    boolean customCheckpointing = getCustomCheckpointing(task);
-    TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
-    TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
-    EventProducer producer =
-        new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
+      boolean customCheckpointing = getCustomCheckpointing(task);
+      TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
+      TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
+      EventProducer producer = new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
 
-    taskImpl.setEventProducer(producer);
-    Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
-    taskImpl.setCheckpoints(checkpoints);
+      taskImpl.setEventProducer(producer);
+      Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
+      taskImpl.setCheckpoints(checkpoints);
+    } catch (Exception e) {
+      _log.warn("Failed to initialize {} task", task.getDatastreamTaskName());
+      if (retryAndSaveError) {
+        _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(e)));
+        failedDatastreamTasks.add(task);
+      }
+    }
   }
 
   private boolean getCustomCheckpointing(DatastreamTask task) {
@@ -2100,7 +2159,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       LEADER_PARTITION_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_PARTITION_ASSIGNMENT, NUM_ERRORS),
       LEADER_PARTITION_MOVEMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_PARTITION_MOVEMENT, NUM_ERRORS),
       HANDLE_ASSIGNMENT_CHANGE_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_ASSIGNMENT_CHANGE, NUM_ERRORS),
-      HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_DATASTREAM_CHANGE_WITH_UPDATE, NUM_ERRORS),
+      HANDLE_DATASTREAM_CHANGE_WITH_UPDATE_NUM_ERRORS(HANDLE_EVENT_PREFIX + HANDLE_DATASTREAM_CHANGE_WITH_UPDATE, NUM_ERRORS),
       HANDLE_ADD_OR_DELETE_DATASTREAM_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_ADD_OR_DELETE_DATASTREAM, NUM_ERRORS),
       HANDLE_INSTANCE_ERROR_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HANDLE_INSTANCE_ERROR, NUM_ERRORS),
       HEARTBEAT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.HEARTBEAT, NUM_ERRORS),

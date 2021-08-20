@@ -30,6 +30,9 @@ public final class CoordinatorConfig {
   public static final String CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE = PREFIX + "maxDatastreamTasksPerInstance";
   public static final String CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP = PREFIX + "performPreAssignmentCleanup";
   public static final String CONFIG_REINIT_ON_NEW_ZK_SESSION = PREFIX + "reinitOnNewZKSession";
+  public static final String CONFIG_MAX_ASSIGNMENT_RETRY_COUNT = PREFIX + "maxAssignmentRetryCount";
+
+  public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
 
   private final String _cluster;
   private final String _zkAddress;
@@ -46,11 +49,14 @@ public final class CoordinatorConfig {
   private final int _maxDatastreamTasksPerInstance;
   private final boolean _performPreAssignmentCleanup;
   private final boolean _reinitOnNewZkSession;
+  private final int _maxAssignmentRetryCount;
 
   /**
    * Construct an instance of CoordinatorConfig
    * @param config configuration properties to load
    * @throws IllegalArgumentException if any required config property is missing
+   *
+   * TODO : Add unit tests for all coordinator config properties
    */
   public CoordinatorConfig(Properties config) {
     _config = config;
@@ -68,6 +74,7 @@ public final class CoordinatorConfig {
     _maxDatastreamTasksPerInstance = _properties.getInt(CONFIG_MAX_DATASTREAM_TASKS_PER_INSTANCE, 0);
     _performPreAssignmentCleanup = _properties.getBoolean(CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP, false);
     _reinitOnNewZkSession = _properties.getBoolean(CONFIG_REINIT_ON_NEW_ZK_SESSION, false);
+    _maxAssignmentRetryCount = _properties.getInt(CONFIG_MAX_ASSIGNMENT_RETRY_COUNT, DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT);
   }
 
   public Properties getConfigProperties() {
@@ -124,5 +131,9 @@ public final class CoordinatorConfig {
 
   public boolean getReinitOnNewZkSession() {
     return _reinitOnNewZkSession;
+  }
+
+  public int getMaxAssignmentRetryCount() {
+    return _maxAssignmentRetryCount;
   }
 }

@@ -28,6 +28,8 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
   public static final String PROVIDER_NAME = "default";
 
   private final boolean _throwOnSend;
+  private boolean _failTransportProviderOnce;
+  private boolean _failTransportProvider;
 
   int _createDestinationCount = 0;
   int _dropDestinationCount = 0;
@@ -36,19 +38,29 @@ public class DummyTransportProviderAdminFactory implements TransportProviderAdmi
    * Constructor for DummyTransportProviderAdminFactory
    */
   public DummyTransportProviderAdminFactory() {
-    this(false);
+    this(false, false, false);
   }
 
   /**
    * Constructor for DummyTransportProviderAdminFactory which can optionally throw exception on every send call
    * @param throwOnSend whether or not to throw an exception on send calls
+   * @param failTransportProviderOnce whether to fail TransportProvider creation once
+   * @param failTransportProvider whether to fail TransportProvider creation always
    */
-  public DummyTransportProviderAdminFactory(boolean throwOnSend) {
+  public DummyTransportProviderAdminFactory(boolean throwOnSend, boolean failTransportProviderOnce,
+      boolean failTransportProvider) {
+    _failTransportProviderOnce = failTransportProviderOnce;
+    _failTransportProvider = failTransportProvider;
     _throwOnSend = throwOnSend;
   }
 
   @Override
   public TransportProvider assignTransportProvider(DatastreamTask task) {
+    if (_failTransportProviderOnce || _failTransportProvider) {
+      _failTransportProviderOnce = false;
+      throw new RuntimeException("Failed to initialize TransportProvider");
+    }
+
     return new TransportProvider() {
 
       @Override

@@ -511,6 +511,58 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testHandleAssignmentChangeTransientFailure() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    DummyTransportProviderAdminFactory dummyTransportProviderAdminFactory = new DummyTransportProviderAdminFactory(
+        false, true, false);
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, new Properties(),
+        dummyTransportProviderAdminFactory);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+    //verify the assignment
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName1);
+    String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
+    Assert.assertNotEquals(zkClient.getChildren(instance1Path).size(), 0);
+
+    instance1.stop();
+    instance1.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
+  @Test
+  public void testHandleAssignmentChangeFailure() throws Exception {
+    String testCluster = "testCoordinationSmoke";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    DummyTransportProviderAdminFactory dummyTransportProviderAdminFactory = new DummyTransportProviderAdminFactory(
+        false, false, true);
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, new Properties(),
+        dummyTransportProviderAdminFactory);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+    String instance1Path = KeyBuilder.instanceAssignments(testCluster, instance1.getInstanceName());
+    Assert.assertEquals(zkClient.getChildren(instance1Path).size(), 0);
+
+    instance1.stop();
+    instance1.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
+  @Test
   public void testStopAndResumeDatastream() throws Exception {
     String testCluster = "testCoordinationSmoke";
     String testConnectorType = "testConnectorType";
