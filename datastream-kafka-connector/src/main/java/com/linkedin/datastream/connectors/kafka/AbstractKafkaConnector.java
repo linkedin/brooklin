@@ -19,14 +19,18 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -51,6 +55,7 @@ import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.ThreadUtils;
+import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -81,6 +86,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
   private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
+  private static final String NUM_TASK_STOP_FAILURES = "numTaskStopFailures";
   private volatile long _numTaskRestarts = 0;
   private final String _metricsPrefix;
 
@@ -92,8 +98,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private final Logger _logger;
   private final AtomicInteger _threadCounter = new AtomicInteger(0);
-  // Access to this map must be synchronized at all times since it can be accessed by multiple concurrent threads.
+  // Access to both _runningTasks and _tasksToStop maps must be synchronized at all times since it can be accessed by
+  // multiple concurrent threads. If access is required to both maps then the order of synchronization must be
+  // _runningTasks followed by _tasksToStop to prevent deadlocks.
   private final Map<DatastreamTask, ConnectorTaskEntry> _runningTasks = new HashMap<>();
+  private final Map<DatastreamTask, ConnectorTaskEntry> _tasksToStop = new HashMap<>();
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
   private final ScheduledExecutorService _daemonThreadExecutorService =
@@ -135,6 +144,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _metricsPrefix = StringUtils.isBlank(connectorName) ? this.getClass().getSimpleName()
         : connectorName + "." + this.getClass().getSimpleName();
     _dynamicMetricsManager.registerGauge(_metricsPrefix, NUM_TASK_RESTARTS, () -> _numTaskRestarts);
+    _dynamicMetricsManager.registerMetric(_metricsPrefix, NUM_TASK_STOP_FAILURES, com.codahale.metrics.Counter.class);
   }
 
   protected abstract AbstractKafkaBasedConnectorTask createKafkaBasedConnectorTask(DatastreamTask task);
@@ -147,32 +157,47 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       Set<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());
       toCancel.removeAll(tasks);
 
-      for (DatastreamTask task : toCancel) {
-        ConnectorTaskEntry connectorTaskEntry = _runningTasks.remove(task);
-        // Spawn a separate thread to attempt stopping the connectorTask. The connectorTask will be canceled if it
-        // does not stop within a certain amount of time. This will force cleanup of connectorTasks which take too long
-        // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
-        // requires that onAssignmentChange() must complete quickly, and will kill the assignment threads if they take
-        // too long.
-        _shutdownExecutorService.submit(() -> {
-          stopTask(task, connectorTaskEntry);
-        });
+      if (toCancel.size() > 0) {
+        // Mark the connector task as stopped so that, in case stopping the task here fails for any reason in
+        // restartDeadTasks the task is not restarted
+        synchronized (_tasksToStop) {
+          toCancel.stream().forEach(task -> {
+            _tasksToStop.put(task, _runningTasks.get(task));
+            _runningTasks.remove(task);
+          });
+        }
+        stopUnassignedTasks();
       }
 
-      for (DatastreamTask task : tasks) {
-        ConnectorTaskEntry connectorTaskEntry = _runningTasks.get(task);
-        if (connectorTaskEntry != null) {
-          AbstractKafkaBasedConnectorTask kafkaBasedConnectorTask = connectorTaskEntry.getConnectorTask();
-          kafkaBasedConnectorTask.checkForUpdateTask(task);
-          // Make sure to replace the DatastreamTask with most up to date info
-          // This is necessary because DatastreamTaskImpl.hashCode() does not take into account all the
-          // fields/properties of the DatastreamTask (e.g. dependencies).
-          _runningTasks.remove(task);
-          _runningTasks.put(task, connectorTaskEntry);
-          continue; // already running
+      boolean toCallRestartDeadTasks = false;
+      synchronized (_tasksToStop) {
+        for (DatastreamTask task : tasks) {
+          ConnectorTaskEntry connectorTaskEntry = _runningTasks.get(task);
+          if (connectorTaskEntry != null) {
+            AbstractKafkaBasedConnectorTask kafkaBasedConnectorTask = connectorTaskEntry.getConnectorTask();
+            kafkaBasedConnectorTask.checkForUpdateTask(task);
+            // Make sure to replace the DatastreamTask with most up to date info
+            // This is necessary because DatastreamTaskImpl.hashCode() does not take into account all the
+            // fields/properties of the DatastreamTask (e.g. dependencies).
+            _runningTasks.remove(task);
+            _runningTasks.put(task, connectorTaskEntry);
+            continue; // already running
+          } else {
+            if (_tasksToStop.containsKey(task)) {
+              toCallRestartDeadTasks = true;
+              connectorTaskEntry = _tasksToStop.remove(task);
+            } else {
+              connectorTaskEntry = createKafkaConnectorTask(task);
+            }
+            _runningTasks.put(task, connectorTaskEntry);
+          }
         }
-
-        _runningTasks.put(task, createKafkaConnectorTask(task));
+      }
+      // If any tasks pending stop were re-assigned to this host we explicitly call restartDeadTasks to ensure
+      // stop and (re)start of the task. We do this to avoid waiting for the next periodic invocation of
+      // restartDeadTasks.
+      if (toCallRestartDeadTasks) {
+        restartDeadTasks();
       }
     }
   }
@@ -215,9 +240,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   /**
    * Check the health of all {@link AbstractKafkaBasedConnectorTask} corresponding to the DatastreamTasks.
-   * If any of them are not running or not healthy, Restart them.
+   * If any of them are not running or not healthy, Restart them. Also attempt to successfully stop all
+   * unassigned tasks.
    */
   protected void restartDeadTasks() {
+    // Attempt to stop all unassigned tasks
+    stopUnassignedTasks();
+
     synchronized (_runningTasks) {
       if (_runningTasks.isEmpty()) {
         _logger.info("Connector received no datastreams tasks yet.");
@@ -231,8 +260,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         if (isTaskDead(connectorTaskEntry)) {
           _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
               datastreamTask.getDatastreamTaskName());
-          boolean stopped = stopTask(datastreamTask, connectorTaskEntry);
-          if (stopped) {
+          // If stoppedTask is null it means that attempting to stop the task failed and that it will be retired again
+          // (in the next restartDeadTasks iteration).
+          // If we dont successfully stop the task before creating another connector task we can potentially end up with
+          // two connector tasks instances running in parallel. This is possible because the acquire method acts as a
+          // re-entrant lock if the same host calls the acquire method for the same task multiple times.
+          DatastreamTask stoppedTask = stopTask(datastreamTask, connectorTaskEntry);
+          if (stoppedTask != null) {
             deadDatastreamTasks.add(datastreamTask);
           } else {
             _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask.getDatastreamTaskName());
@@ -251,13 +285,75 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
+   * Returns the number of tasks yet to be stopped.
+   */
+  int getTasksToStopCount() {
+    synchronized (_tasksToStop) {
+      return _tasksToStop.size();
+    }
+  }
+
+  /**
+   * Returns the number of currently running tasks.
+   */
+  int getRunningTasksCount() {
+    synchronized (_runningTasks) {
+      return _runningTasks.size();
+    }
+  }
+
+  /**
+   * Attempt to stop the unassigned tasks.
+   */
+  private void stopUnassignedTasks() {
+    synchronized (_tasksToStop) {
+      if (_tasksToStop.size() == 0) {
+        _logger.info("No tasks to stop");
+        return;
+      }
+
+      // Spawn a separate thread to attempt stopping the connectorTask. The connectorTask will be canceled if it
+      // does not stop within a certain amount of time. This will force cleanup of connectorTasks which take too long
+      // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
+      // requires that this step completely because we call this from onAssignmentChange() (assignment thread gets
+      // killed if it takes too long) and restartDeadTasks which must complete quickly.
+      List<Future<DatastreamTask>> stopTaskFutures = _tasksToStop.keySet().stream()
+          .map(task -> _shutdownExecutorService.submit(() -> stopTask(task, _tasksToStop.get(task))))
+          .collect(Collectors.toList());
+
+      _shutdownExecutorService.submit(() -> {
+        List<DatastreamTask> toRemoveTasks = stopTaskFutures.stream().map(stopTaskFuture -> {
+          try {
+            return stopTaskFuture.get(CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT).toMillis(), TimeUnit.MILLISECONDS);
+          } catch (ExecutionException | InterruptedException | TimeoutException e) {
+            _logger.warn("Stop task future failed with exception", e);
+          }
+          return null;
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+
+        if (toRemoveTasks.size() > 0) {
+          synchronized (_tasksToStop) {
+            // Its possible that while stopping the task was pending there was another onAssignmentChange event
+            // which reassigned the task back to this host and the task was moved back to _runningTasks. In this
+            // case the remove operation here will be a no-op.
+            toRemoveTasks.forEach(_tasksToStop::remove);
+          }
+        }
+      });
+    }
+  }
+
+  /**
    * Stop the datastream task and wait for it to stop. If it has not stopped within a timeout, interrupt the thread.
+   * This method is expected to be idempotent.
    * @param datastreamTask Datastream task that needs to stopped.
    * @param connectorTaskEntry connectorTaskEntry corresponding to the datastream task.
-   * @return true if it was successfully stopped, false if it was not.
+   * @return datastreamTask if it was successfully stopped, null if it was not.
    */
-  private boolean stopTask(DatastreamTask datastreamTask, ConnectorTaskEntry connectorTaskEntry) {
+  private DatastreamTask stopTask(DatastreamTask datastreamTask, ConnectorTaskEntry connectorTaskEntry) {
     try {
+      connectorTaskEntry.setPendingStop();
+
       AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
       connectorTask.stop();
       boolean stopped = connectorTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -271,15 +367,18 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         if (!connectorTask.awaitStop(POST_CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
           _logger.warn("Connector task for datastream task {} did not stop even after {} ms.", datastreamTask,
               POST_CANCEL_TASK_TIMEOUT.toMillis());
+          updateTaskStopFailureMetric(1);
+          return null;
         }
       }
-      return true;
+      return datastreamTask;
     } catch (InterruptedException e) {
       _logger.warn(String.format("Caught exception while trying to stop the connector task for datastream task %s",
           datastreamTask), e);
     }
 
-    return false;
+    updateTaskStopFailureMetric(1);
+    return null;
   }
 
   /**
@@ -290,7 +389,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   protected boolean isTaskDead(ConnectorTaskEntry connectorTaskEntry) {
     Thread taskThread = connectorTaskEntry.getThread();
     AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
-    return (taskThread == null || !taskThread.isAlive()
+    return (connectorTaskEntry.isPendingStop() || taskThread == null || !taskThread.isAlive()
         || ((System.currentTimeMillis() - connectorTask.getLastPolledTimeMillis())
         >= _config.getNonGoodStateThresholdMillis()));
   }
@@ -302,6 +401,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       // Try to stop the the tasks
       _runningTasks.forEach(this::stopTask);
       _runningTasks.clear();
+    }
+    synchronized (_tasksToStop) {
+      // Try to stop the the tasks
+      _tasksToStop.forEach(this::stopTask);
+      _tasksToStop.clear();
     }
     _logger.info("Start to shut down the shutdown executor and wait up to {} ms.",
         SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
@@ -448,6 +552,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     synchronized (_runningTasks) {
       responses = _runningTasks.values()
           .stream()
+          .filter(connectorTaskEntry -> !connectorTaskEntry.isPendingStop())
           .map(ConnectorTaskEntry::getConnectorTask)
           .filter(task -> task.hasDatastream(streamName))
           .map(AbstractKafkaBasedConnectorTask::getKafkaDatastreamStatesResponse)
@@ -481,22 +586,25 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
     synchronized (_runningTasks) {
       _runningTasks.forEach((dataStreamTask, connectorTaskEntry) -> {
-        List<Datastream> datastreams = dataStreamTask.getDatastreams();
-        Set<String> datastreamNames = new HashSet<>();
-        datastreams.forEach(datastream -> datastreamNames.add(datastream.getName()));
+        if (!connectorTaskEntry.isPendingStop()) {
+          List<Datastream> datastreams = dataStreamTask.getDatastreams();
+          Set<String> datastreamNames = new HashSet<>();
+          datastreams.forEach(datastream -> datastreamNames.add(datastream.getName()));
 
-        KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+          KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
 
-        String hostname = null;
-        try {
-          hostname = InetAddress.getLocalHost().getHostName();
-        } catch (UnknownHostException ex) {
-          _logger.warn("Hostname not found");
+          String hostname = null;
+          try {
+            hostname = InetAddress.getLocalHost().getHostName();
+          } catch (UnknownHostException ex) {
+            _logger.warn("Hostname not found");
+          }
+
+          KafkaTopicPartitionStatsResponse response =
+              new KafkaTopicPartitionStatsResponse(tracker.getConsumerGroupId(), hostname, tracker.getTopicPartitions(),
+                  datastreamNames);
+          serializedResponses.add(response);
         }
-
-        KafkaTopicPartitionStatsResponse response = new KafkaTopicPartitionStatsResponse(tracker.getConsumerGroupId(),
-                hostname, tracker.getTopicPartitions(), datastreamNames);
-        serializedResponses.add(response);
       });
     }
     return JsonUtils.toJson(serializedResponses);
@@ -508,11 +616,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
     synchronized (_runningTasks) {
       _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
-        KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
-        KafkaConsumerOffsetsResponse response = new KafkaConsumerOffsetsResponse(tracker.getConsumedOffsets(),
-            tracker.getCommittedOffsets(), tracker.getConsumptionLag(), tracker.getConsumerGroupId(),
-            tracker.getDatastreamName());
-        serializedResponses.add(response);
+        if (!connectorTaskEntry.isPendingStop()) {
+          KafkaTopicPartitionTracker tracker = connectorTaskEntry.getConnectorTask().getKafkaTopicPartitionTracker();
+          KafkaConsumerOffsetsResponse response =
+              new KafkaConsumerOffsetsResponse(tracker.getConsumedOffsets(), tracker.getCommittedOffsets(),
+                  tracker.getConsumptionLag(), tracker.getConsumerGroupId(), tracker.getDatastreamName());
+          serializedResponses.add(response);
+        }
       });
     }
     return JsonUtils.toJson(serializedResponses);
@@ -593,10 +703,12 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   protected static class ConnectorTaskEntry {
     private final AbstractKafkaBasedConnectorTask _task;
     private final Thread _thread;
+    private boolean _pendingStop;
 
     public ConnectorTaskEntry(AbstractKafkaBasedConnectorTask connectorTask, Thread connectorTaskThread) {
       _task = connectorTask;
       _thread = connectorTaskThread;
+      _pendingStop = false;
     }
 
     public Thread getThread() {
@@ -606,14 +718,27 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     public AbstractKafkaBasedConnectorTask getConnectorTask() {
       return _task;
     }
+
+    public boolean isPendingStop() {
+      return _pendingStop;
+    }
+
+    public void setPendingStop() {
+      _pendingStop = true;
+    }
   }
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     metrics.add(new BrooklinGaugeInfo(buildMetricName(_metricsPrefix, NUM_TASK_RESTARTS)));
+    metrics.add(new BrooklinCounterInfo(buildMetricName(_metricsPrefix, NUM_TASK_STOP_FAILURES)));
 
     return Collections.unmodifiableList(metrics);
+  }
+
+  private void updateTaskStopFailureMetric(int value) {
+    _dynamicMetricsManager.createOrUpdateCounter(_metricsPrefix, NUM_TASK_STOP_FAILURES, value);
   }
 
   /**
@@ -624,11 +749,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public Map<String, Map<Integer, Long>> getConsumptionLagForTask(DatastreamTask task) throws IllegalArgumentException {
     Validate.notNull(task);
 
-    ConnectorTaskEntry taskEntry = _runningTasks.getOrDefault(task, null);
-    if (taskEntry == null) {
-      throw new IllegalArgumentException("Task not found.");
-    }
+    synchronized (_runningTasks) {
+      ConnectorTaskEntry taskEntry = _runningTasks.getOrDefault(task, null);
+      if (taskEntry == null || taskEntry.isPendingStop()) {
+        throw new IllegalArgumentException("Task not found.");
+      }
 
-    return taskEntry.getConnectorTask().getKafkaTopicPartitionTracker().getConsumptionLag();
+      return taskEntry.getConnectorTask().getKafkaTopicPartitionTracker().getConsumptionLag();
+    }
   }
 }
