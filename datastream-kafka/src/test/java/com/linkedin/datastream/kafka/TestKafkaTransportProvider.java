@@ -220,9 +220,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
     TransportProvider transportProvider = provider.assignTransportProvider(task);
-    provider.createTopic(destinationUri, 1, new Properties());
-
-    KafkaTestUtils.waitForTopicCreation(_zkUtils, topicName, _kafkaCluster.getBrokers());
+    provider.createTopic(destinationUri, 1, new Properties(), ds);
 
     LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, 1,
         new Properties()));
@@ -296,9 +294,9 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
     DatastreamTask task = new DatastreamTaskImpl(Collections.singletonList(ds));
     TransportProvider transportProvider = provider.assignTransportProvider(task);
-    provider.createTopic(destinationUri, numberOfPartitions, new Properties());
+    provider.createTopic(destinationUri, numberOfPartitions, new Properties(), ds);
 
-    KafkaTestUtils.waitForTopicCreation(_zkUtils, topicName, _kafkaCluster.getBrokers());
+    //KafkaTestUtils.waitForTopicCreation(_adminClient, topicName, _kafkaCluster.getBrokers());
 
     LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, numberOfPartitions,
         new Properties()));

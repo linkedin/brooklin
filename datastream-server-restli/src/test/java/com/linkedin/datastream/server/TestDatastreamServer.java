@@ -13,23 +13,22 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
-import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.io.FileUtils;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
-
-import kafka.admin.AdminUtils;
-import kafka.admin.RackAwareMode;
-import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.Datastream;
@@ -243,10 +242,12 @@ public class TestDatastreamServer {
     Path tempFile1 = Files.createTempFile("testFile1", "");
     String fileName1 = tempFile1.toAbsolutePath().toString();
 
-    ZkClient zkClient = new ZkClient(_datastreamCluster.getZkConnection());
-    ZkConnection zkConnection = new ZkConnection(_datastreamCluster.getZkConnection());
-    ZkUtils zkUtils = new ZkUtils(zkClient, zkConnection, false);
-    AdminUtils.createTopic(zkUtils, destinationTopic, numberOfPartitions, 1, new Properties(), RackAwareMode.Disabled$.MODULE$);
+    String broker = _datastreamCluster.getBrokers().split("\\s*,\\s*")[0];
+    Properties adminClientProps = new Properties();
+    adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, broker);
+    AdminClient adminClient = AdminClient.create(adminClientProps);
+    NewTopic newTopic = new NewTopic(destinationTopic, numberOfPartitions, (short) 1);
+    adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
 
     Datastream fileDatastream1 = createFileDatastream(fileName1, destinationTopic, 2);
     Assert.assertEquals((int) fileDatastream1.getDestination().getPartitions(), 2);

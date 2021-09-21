@@ -46,7 +46,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
     // create topics
     List<String> topics = new ArrayList<>();
     IntStream.range(0, TOPIC_COUNT).forEach(i -> topics.add("topic" + i));
-    topics.forEach(topic -> createTopic(_zkUtils, topic, PARTITION_COUNT));
+    topics.forEach(topic -> createTopic(_adminClient, topic, PARTITION_COUNT));
 
     // setup datastream and connector
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("topicStream", _broker, "topic\\d+");
