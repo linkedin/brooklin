@@ -17,19 +17,21 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.I0Itec.zkclient.ZkConnection;
 import org.apache.commons.lang.Validate;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import kafka.admin.AdminUtils;
-import kafka.admin.RackAwareMode;
-import kafka.server.ConfigType;
-import kafka.utils.ZkUtils;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
@@ -38,7 +40,6 @@ import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
-import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -79,7 +80,6 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   // Brokers config may not exist if transport provider handles multiple destination clusters
   private final Optional<String> _brokersConfig;
   private final Optional<String> _zkAddress;
-  private final Optional<ZkUtils> _zkUtils;
 
   private final Map<DatastreamTask, KafkaTransportProvider> _transportProviders = new HashMap<>();
 
@@ -100,8 +100,6 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     // ZK connect string and bootstrap servers configs might not exist for connectors that manage their own destinations
     _zkAddress = Optional.ofNullable(_transportProviderProperties.getProperty(ZK_CONNECT_STRING_CONFIG))
         .filter(v -> !v.isEmpty());
-
-    _zkUtils = _zkAddress.map(address -> new ZkUtils(new ZkClient(address), new ZkConnection(address), false));
 
     //Load default producer bootstrap server from config if available
     _brokersConfig =
@@ -227,7 +225,7 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   public void createDestination(Datastream datastream) {
     String destination = datastream.getDestination().getConnectionString();
     int partition = datastream.getDestination().getPartitions();
-    createTopic(destination, partition, new Properties());
+    createTopic(destination, partition, new Properties(), datastream);
   }
 
   @Override
@@ -245,45 +243,93 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
    */
   @Override
   public Duration getRetention(Datastream datastream) {
-    Validate.isTrue(_zkUtils.isPresent(), "zkUtils should be present");
+
+    AdminClient adminClient = getAdminClient(datastream);
+
     String destination = datastream.getDestination().getConnectionString();
     Validate.notNull(destination, "null destination URI");
     String topicName = KafkaTransportProviderUtils.getTopicName(destination);
-    Properties props = AdminUtils.fetchEntityConfig(_zkUtils.get(), ConfigType.Topic(), topicName);
-    if (!props.containsKey(TOPIC_RETENTION_MS)) {
-      return null;
+
+    try {
+      // TODO: In rare cases it may happen that even though topic has been created, its metadata hasn't synced
+      // to all the brokers yet and adminClient might query such a broker in which case topic retention will
+      // not be present in the topic config. To circumvent this we need to query only the controller node in
+      // Kafka cluster which will always return successful result, but that is more involved.
+      ConfigResource topicResource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
+      Map<ConfigResource, Config> topicConfigMap = adminClient.describeConfigs(Collections.singletonList(topicResource)).all().get();
+      Config topicConfig = topicConfigMap.get(topicResource);
+      ConfigEntry entry = topicConfig.get(TOPIC_RETENTION_MS);
+      if (entry != null) {
+        return Duration.ofMillis(Long.parseLong(entry.value()));
+      }
+    } catch (InterruptedException | ExecutionException e) {
+      LOG.warn("Failed to retrieve config for topic {}.", topicName, e);
     }
-    return Duration.ofMillis(Long.parseLong(props.getProperty(TOPIC_RETENTION_MS)));
+
+    return null;
   }
 
   /**
    * Create Kafka topic based on the destination connection string, if it does not already exist.
    * @param connectionString connection string from which to obtain topic name
    * @param numberOfPartitions number of partitions
-   * @param topicConfig topic config to use for topic creation
+   * @param topicProperties topic config to use for topic creation
+   * @param datastream the Datastream object for which to create the topic
    */
-  public void createTopic(String connectionString, int numberOfPartitions, Properties topicConfig) {
+  public void createTopic(String connectionString, int numberOfPartitions, Properties topicProperties, Datastream datastream) {
     Validate.notNull(connectionString, "destination should not be null");
-    Validate.notNull(topicConfig, "topicConfig should not be null");
-    Validate.isTrue(_zkUtils.isPresent(), "zkUtils should be present");
+    Validate.notNull(topicProperties, "topicConfig should not be null");
 
     String topicName = KafkaTransportProviderUtils.getTopicName(connectionString);
-    populateTopicConfig(topicConfig);
-    try {
-      // Create only if it doesn't exist.
-      if (!AdminUtils.topicExists(_zkUtils.get(), topicName)) {
-        int replicationFactor = Integer.parseInt(topicConfig.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
-        LOG.info("Creating topic with name {} partitions={} with properties {}", topicName, numberOfPartitions,
-                topicConfig);
+    populateTopicConfig(topicProperties);
 
-        AdminUtils.createTopic(_zkUtils.get(), topicName, numberOfPartitions, replicationFactor, topicConfig, RackAwareMode.Disabled$.MODULE$);
-      } else {
+    try {
+      AdminClient adminClient = getAdminClient(datastream);
+      NewTopic newTopic = getTopic(topicName, numberOfPartitions, topicProperties);
+      // Removing from topic config since its passed as a direct argument
+      topicProperties.remove("replicationFactor");
+      // TopicExistsException is thrown if topic exists. Its a no-op.
+      adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+    } catch (InterruptedException | ExecutionException e) {
+      if (e.getCause() instanceof TopicExistsException) {
         LOG.warn("Topic with name {} already exists", topicName);
+      } else {
+        LOG.error(String.format("Creating topic %s failed with exception: ", topicName), e);
+        throw new DatastreamRuntimeException(e);
       }
     } catch (Throwable e) {
       LOG.error("Creating topic {} failed with exception {}", topicName, e);
       throw e;
     }
+  }
+
+  private AdminClient getAdminClient(Datastream datastream) {
+    String destinationBrokers = getDestinationBrokers(datastream);
+    if (destinationBrokers.isEmpty()) {
+      throw new DatastreamRuntimeException("Destination brokers not provided for creating topic");
+    }
+
+    Properties adminClientProps = new Properties();
+    adminClientProps.putAll(_transportProviderProperties);
+    adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, destinationBrokers);
+    AdminClient adminClient = AdminClient.create(adminClientProps);
+    return adminClient;
+  }
+
+  private NewTopic getTopic(String topicName, int numberOfPartitions, Properties topicProperties) {
+    int replicationFactor = Integer.parseInt(topicProperties.getProperty("replicationFactor", DEFAULT_REPLICATION_FACTOR));
+    Map<String, String> newTopicConfig = getTopicConfig(topicProperties);
+    NewTopic newTopic = new NewTopic(topicName, numberOfPartitions, (short) replicationFactor);
+    newTopic.configs(newTopicConfig);
+    return newTopic;
+  }
+
+  private Map<String, String> getTopicConfig(Properties topicConfig) {
+    Map<String, String> newTopicConfig = new HashMap<>();
+    for (String topicConfigKey : topicConfig.stringPropertyNames()) {
+      newTopicConfig.put(topicConfigKey, topicConfig.getProperty(topicConfigKey));
+    }
+    return newTopicConfig;
   }
 
   private void populateTopicConfig(Properties topicConfig) {

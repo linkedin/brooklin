@@ -42,7 +42,7 @@ public class TestKafkaTopicPartitionStats extends BaseKafkaZkTest {
   @Test
   public void testProcessTopicPartitionStats() {
     List<String> topics = Arrays.asList("topic1", "topic2");
-    topics.forEach(topic -> createTopic(_zkUtils, topic, PARTITION_COUNT));
+    topics.forEach(topic -> createTopic(_adminClient, topic, PARTITION_COUNT));
 
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("topicStream", _broker, "topic\\d+");
 
@@ -72,7 +72,7 @@ public class TestKafkaTopicPartitionStats extends BaseKafkaZkTest {
     }
 
     // Delete the topic to revoke partitions from topic2
-    deleteTopic(_zkUtils, topics.get(0));
+    deleteTopic(_adminClient, topics.get(0));
     expected.remove(topics.get(0));
 
     // Wait until the partitions from the deleted topic are revoked

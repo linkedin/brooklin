@@ -30,7 +30,6 @@ import org.testng.annotations.Test;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import kafka.admin.AdminUtils;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -221,9 +220,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     coordinator.initializeDatastream(datastream);
 
     // create topic
-    if (!AdminUtils.topicExists(_zkUtils, topic)) {
-      AdminUtils.createTopic(_zkUtils, topic, 2, 1, new Properties(), null);
-    }
+    createTopic(_adminClient, topic, 2);
 
     // Make sure "*" is converted to a list of partitions
     pausedPartitions.put(topic, new HashSet<>(Collections.singletonList("*")));
@@ -274,9 +271,9 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String saltyTopic = "SaltyPizza";
     String saladTopic = "HealthySalad";
 
-    createTopic(_zkUtils, saladTopic);
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, saladTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -378,7 +375,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
 
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -409,7 +406,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         "Expected record from YummyPizza topic but got record from " + record.getDestination().get());
 
     // create a new topic ending in "Pizza" and produce an event to it
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, saltyTopic);
     KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
 
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
@@ -429,8 +426,8 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
 
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -460,7 +457,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     datastreamProducer.getEvents().clear();
 
     // delete the topic
-    deleteTopic(_zkUtils, yummyTopic);
+    deleteTopic(_adminClient, yummyTopic);
 
     // produce another event to SaltyPizza
     KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
@@ -611,7 +608,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     String yummyTopic = "YummyPizza";
 
-    createTopic(_zkUtils, yummyTopic, 1);
+    createTopic(_adminClient, yummyTopic, 1);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -637,7 +634,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
         ImmutableSet.of(yummyTopic + "-0"));
 
     String saltyTopic = "SaltyPizza";
-    createTopic(_zkUtils, saltyTopic, 2);
+    createTopic(_adminClient, saltyTopic, 2);
 
     Assert.assertTrue(PollUtils.poll(() -> partitionChangeCalls.get() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
     partitionInfo = connector.getDatastreamPartitions();
@@ -716,7 +713,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
   @Test
   public void testGetStateForMultipleTasks() throws Exception {
     List<String> topics = Arrays.asList("YummyPizza", "SaltyPizza", "HealthySalad");
-    topics.forEach(t -> createTopic(_zkUtils, t));
+    topics.forEach(t -> createTopic(_adminClient, t));
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");

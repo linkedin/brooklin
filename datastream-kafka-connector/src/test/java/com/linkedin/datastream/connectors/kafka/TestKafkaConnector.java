@@ -69,9 +69,8 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
   @Test
   public void testConnectorWithStartPosition() throws UnsupportedEncodingException, DatastreamValidationException {
     String topicName = "testConnectorWithStartPosition";
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 100);
-    long ts = System.currentTimeMillis();
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName, 0, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName, 100, 100);
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     Map<Integer, Long> offsets = Collections.singletonMap(0, 100L);
     KafkaConnector connector =
@@ -92,8 +91,8 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
   @Test
   public void testPopulatingDefaultSerde() throws Exception {
     String topicName = "testPopulatingDefaultSerde";
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 100);
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 100, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName, 0, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName, 100, 100);
     Datastream ds = createDatastream("testPopulatingDefaultSerde", topicName);
     KafkaConnector connector =
         new KafkaConnector("test", getDefaultConfig(null), "testCluster");
@@ -107,7 +106,7 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
   @Test
   public void testConnectorPopulatesPartitions() throws UnsupportedEncodingException, DatastreamValidationException {
     String topicName = "testConnectorPopulatesPartitions";
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName, 0, 10);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName, 0, 10);
 
     Datastream ds = createDatastream("testConnectorPopulatesPartitions", topicName);
     KafkaConnector connector =
@@ -147,9 +146,9 @@ public class TestKafkaConnector extends BaseKafkaZkTest {
     String topicName2 = "topic2";
     String topicName3 = "topic3";
 
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName1, 0, 100);
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName2, 0, 100);
-    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _zkUtils, topicName3, 0, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName1, 0, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName2, 0, 100);
+    TestKafkaConnectorTask.produceEvents(_kafkaCluster, _adminClient, topicName3, 0, 100);
 
     Properties properties = getDefaultConfig(null);
     properties.put(AbstractKafkaConnector.IS_GROUP_ID_HASHING_ENABLED, Boolean.toString(isGroupIdHashingEnabled));

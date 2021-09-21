@@ -5,19 +5,25 @@
  */
 package com.linkedin.datastream.testutil;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
-import org.I0Itec.zkclient.ZkConnection;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicListing;
+import org.apache.kafka.common.errors.TopicExistsException;
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.codahale.metrics.MetricRegistry;
-import kafka.admin.AdminUtils;
-import kafka.utils.ZkUtils;
 
-import com.linkedin.datastream.common.PollUtils;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 
@@ -31,8 +37,8 @@ public abstract class BaseKafkaZkTest {
 
   protected DatastreamEmbeddedZookeeperKafkaCluster _kafkaCluster;
   protected ZkClient _zkClient;
-  protected ZkUtils _zkUtils;
   protected String _broker;
+  protected AdminClient _adminClient;
 
   @BeforeMethod(alwaysRun = true)
   public void beforeMethodSetup() throws Exception {
@@ -45,15 +51,15 @@ public abstract class BaseKafkaZkTest {
     _kafkaCluster = new DatastreamEmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
     _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
+    Properties adminClientProps = new Properties();
+    adminClientProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, _broker);
+    _adminClient = AdminClient.create(adminClientProps);
+
     _zkClient = new ZkClient(_kafkaCluster.getZkConnection());
-    _zkUtils = new ZkUtils(_zkClient, new ZkConnection(_kafkaCluster.getZkConnection()), false);
   }
 
   @AfterMethod(alwaysRun = true)
   public void afterMethodTeardown() {
-    if (_zkUtils != null) {
-      _zkUtils.close();
-    }
     if (_zkClient != null) {
       _zkClient.close();
     }
@@ -63,25 +69,42 @@ public abstract class BaseKafkaZkTest {
     _broker = null;
   }
 
-  protected static void createTopic(ZkUtils zkUtils, String topic, int partitionCount) {
-    if (!AdminUtils.topicExists(zkUtils, topic)) {
-      Properties properties = new Properties();
-      properties.put("message.timestamp.type", "LogAppendTime");
-      AdminUtils.createTopic(zkUtils, topic, partitionCount, 1, properties, null);
-    }
-  }
-
-  protected static void createTopic(ZkUtils zkUtils, String topic) {
-    createTopic(zkUtils, topic, 1);
-  }
-
-  protected static void deleteTopic(ZkUtils zkUtils, String topic) {
-    if (AdminUtils.topicExists(zkUtils, topic)) {
-      AdminUtils.deleteTopic(zkUtils, topic);
-
-      if (!PollUtils.poll(() -> !AdminUtils.topicExists(zkUtils, topic), 100, 25000)) {
-        Assert.fail("topic was not properly deleted " + topic);
+  protected static void createTopic(AdminClient adminClient, String topic, int partitionCount) {
+    NewTopic newTopic = new NewTopic(topic, partitionCount, (short) 1);
+    try {
+      adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+    } catch (InterruptedException | ExecutionException e) {
+      if (e.getCause() instanceof TopicExistsException) {
+        return;
+      } else {
+        throw new DatastreamRuntimeException(e);
       }
     }
+  }
+
+  protected static void createTopic(AdminClient adminClient, String topic) {
+    createTopic(adminClient, topic, 1);
+  }
+
+  protected static void deleteTopic(AdminClient adminClient, String topic) {
+    try {
+      adminClient.deleteTopics(Collections.singletonList(topic)).all().get();
+    } catch (InterruptedException | ExecutionException e) {
+      if (e instanceof UnknownTopicOrPartitionException || e.getCause() instanceof UnknownTopicOrPartitionException) {
+        Assert.fail(String.format("Exception caught while deleting topic %s", topic));
+      }
+    }
+  }
+
+  protected static boolean topicExists(AdminClient adminClient, String topic) {
+    try {
+      Map<String, TopicListing> topicListingMap = adminClient.listTopics().namesToListings().get();
+      if (topicListingMap.containsKey(topic)) {
+        return true;
+      }
+    } catch (InterruptedException | ExecutionException e) {
+      return false;
+    }
+    return false;
   }
 }

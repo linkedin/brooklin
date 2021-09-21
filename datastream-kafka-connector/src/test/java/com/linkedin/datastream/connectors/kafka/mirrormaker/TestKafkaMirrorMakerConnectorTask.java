@@ -102,9 +102,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     String saltyTopic = "SaltyPizza";
     String saladTopic = "HealthySalad";
 
-    createTopic(_zkUtils, saladTopic);
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, saladTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -161,9 +161,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     String destinationTopicPrefixOverride = "newPrefix";
 
-    createTopic(_zkUtils, saladTopic);
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, saladTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -209,7 +209,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     String yummyTopic = "YummyPizza";
 
     int partitionCount = 10;
-    createTopic(_zkUtils, yummyTopic, partitionCount);
+    createTopic(_adminClient, yummyTopic, partitionCount);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -254,7 +254,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testFlushAndCommitDuringGracefulStop() throws Exception {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -561,7 +561,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testAutoOffsetResetConfigOverride() throws Exception {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create 2 datastreams to consume from topics ending in "Pizza", each with different offset reset strategy
     Datastream datastreamLatest =
@@ -628,9 +628,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     String saltyTopic = "SaltyPizza";
     String spicyTopic = "SpicyPizza";
 
-    createTopic(_zkUtils, spicyTopic);
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, spicyTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -790,7 +790,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @SuppressWarnings("unchecked")
   public void testAutoPauseOnSendFailure() throws Exception {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -873,7 +873,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testAutoPauseAndResumeOnSendFailure() throws Exception {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -947,7 +947,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private void testValidateTaskDiesOnRewindFailure(boolean failOnGetLastCheckpointToSeekTo, boolean flushlessMode) throws InterruptedException {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -1012,8 +1012,8 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
 
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -1049,7 +1049,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     KafkaMirrorMakerConnectorTestUtils.produceEvents(saltyTopic, 1, _kafkaCluster);
 
     // delete YummyPizza topic
-    deleteTopic(_zkUtils, yummyTopic);
+    deleteTopic(_adminClient, yummyTopic);
 
     // verify the task is no longer subscribed to the deleted topic YummyPizza
     boolean partitionRevoked = PollUtils.poll(() -> {
@@ -1121,7 +1121,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @SuppressWarnings("unchecked")
   public void testAutoPauseAndResume() throws Exception {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -1174,7 +1174,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testFlowControlDisabled() throws Exception {
     String yummyTopic = "YummyPizza";
-    createTopic(_zkUtils, yummyTopic);
+    createTopic(_adminClient, yummyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
@@ -1219,7 +1219,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     };
 
     for (String topic : cookieTopics) {
-      createTopic(_zkUtils, topic);
+      createTopic(_adminClient, topic);
     }
 
     // create a datastream to consume from topics ending in "Cookie"
@@ -1254,9 +1254,9 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
     String spicyTopic = "SpicyPizza";
-    createTopic(_zkUtils, yummyTopic);
-    createTopic(_zkUtils, saltyTopic);
-    createTopic(_zkUtils, spicyTopic);
+    createTopic(_adminClient, yummyTopic);
+    createTopic(_adminClient, saltyTopic);
+    createTopic(_adminClient, spicyTopic);
 
     // create a datastream to consume from topics ending in "Pizza"
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");

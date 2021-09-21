@@ -176,6 +176,10 @@ public class EmbeddedDatastreamCluster {
     return domainConnectorProperties;
   }
 
+  public String getBrokers() {
+    return _kafkaCluster.getBrokers();
+  }
+
   public KafkaCluster getKafkaCluster() {
     return _kafkaCluster;
   }

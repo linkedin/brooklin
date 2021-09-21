@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -37,7 +38,6 @@ import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import kafka.utils.ZkUtils;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
@@ -77,8 +77,8 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   private static final int POLL_TIMEOUT_MS = 25000;
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
 
-  protected static void produceEvents(DatastreamEmbeddedZookeeperKafkaCluster cluster, ZkUtils zkUtils, String topic, int index, int numEvents)
-      throws UnsupportedEncodingException {
+  protected static void produceEvents(DatastreamEmbeddedZookeeperKafkaCluster cluster, AdminClient adminClient,
+      String topic, int index, int numEvents) throws UnsupportedEncodingException {
     Properties props = new Properties();
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, cluster.getBrokers());
     props.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -89,7 +89,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getCanonicalName());
     props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getCanonicalName());
 
-    createTopic(zkUtils, topic);
+    createTopic(adminClient, topic);
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(props)) {
       for (int i = 0; i < numEvents; i++) {
         final int finalIndex = index;
@@ -149,18 +149,18 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testConsumeWithStartingOffsetAndNoResetStrategy() throws Exception {
     String topic = "pizza1";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     LOG.info("Sending first set of events");
 
     //produce 100 msgs to topic before start
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 0, 100);
     Map<Integer, Long> startOffsets = Collections.singletonMap(0, 100L);
 
     LOG.info("Sending second set of events");
 
     //produce 100 msgs to topic before start
-    produceEvents(_kafkaCluster, _zkUtils, topic, 100, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 100, 100);
 
     //start
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -180,7 +180,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     LOG.info("Sending third set of events");
 
     //send 100 more msgs
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 1000, 100);
 
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 200 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
@@ -194,18 +194,18 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testConsumeWithStartingOffsetAndResetStrategy() throws Exception {
     String topic = "pizza1";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     LOG.info("Sending first set of events");
 
     //produce 100 msgs to topic before start
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 0, 100);
     Map<Integer, Long> startOffsets = Collections.singletonMap(0, 100L);
 
     LOG.info("Sending second set of events");
 
     //produce 100 msgs to topic before start
-    produceEvents(_kafkaCluster, _zkUtils, topic, 100, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 100, 100);
 
     //start
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -226,7 +226,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     LOG.info("Sending third set of events");
 
     //send 100 more msgs
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 1000, 100);
 
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 200, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 200 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
@@ -240,7 +240,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testCommittingOffsetRegularly() throws Exception {
     String topic = "pizza1";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     //start
     MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
@@ -278,10 +278,10 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testConsumerBaseCase() throws Exception {
     String topic = "Pizza2";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+    produceEvents(_kafkaCluster, _adminClient, topic, 0, 1);
 
     LOG.info("Creating and Starting KafkaConnectorTask");
     Datastream datastream = getDatastream(_broker, topic);
@@ -292,7 +292,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 1000, 100);
 
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
@@ -308,10 +308,10 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     final KafkaBasedConnectorConfig config = new KafkaBasedConnectorConfigBuilder().build();
 
     final String topic = "ChicagoStylePizza";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+    produceEvents(_kafkaCluster, _adminClient, topic, 0, 1);
 
     LOG.info("Creating and Starting KafkaConnectorTask");
     final Datastream datastream = getDatastream(_broker, topic);
@@ -322,7 +322,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     final KafkaConnectorTask connectorTask = createKafkaConnectorTask(task, config);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 1000, 100);
 
     if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + datastreamProducer.getEvents().size());
@@ -336,7 +336,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testRewindWhenSkippingMessage() throws Exception {
     String topic = "pizza1";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
     AtomicInteger i = new AtomicInteger(0);
 
     //Throw exactly one error message when sending the messages, causing partition to be paused for exactly once
@@ -414,10 +414,10 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @Test
   public void testFlakyProducer() throws Exception {
     String topic = "pizza3";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+    produceEvents(_kafkaCluster, _adminClient, topic, 0, 1);
 
     class State {
       int messagesProcessed = 0;
@@ -443,7 +443,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     KafkaConnectorTask connectorTask = createKafkaConnectorTask(task);
 
     LOG.info("Producing 100 msgs to topic: " + topic);
-    produceEvents(_kafkaCluster, _zkUtils, topic, 1000, 100);
+    produceEvents(_kafkaCluster, _adminClient, topic, 1000, 100);
 
     if (!PollUtils.poll(() -> state.messagesProcessed >= 100, 100, POLL_TIMEOUT_MS)) {
       Assert.fail("did not transfer 100 msgs within timeout. transferred " + state.messagesProcessed);
@@ -458,10 +458,10 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
   @SuppressWarnings("rawtypes")
   public void testFlakyConsumer() throws Exception {
     String topic = "Pizza2";
-    createTopic(_zkUtils, topic);
+    createTopic(_adminClient, topic);
 
     LOG.info("Sending first event, to avoid an empty topic.");
-    produceEvents(_kafkaCluster, _zkUtils, topic, 0, 1);
+    produceEvents(_kafkaCluster, _adminClient, topic, 0, 1);
 
     LOG.info("Creating and Starting KafkaConnectorTask");
     Datastream datastream = getDatastream(_broker, topic);
