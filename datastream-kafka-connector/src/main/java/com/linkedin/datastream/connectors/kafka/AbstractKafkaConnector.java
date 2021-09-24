@@ -82,7 +82,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(75);
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(15);
-  private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
+  private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT);
+  //Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
   private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
@@ -161,7 +162,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         // Mark the connector task as stopped so that, in case stopping the task here fails for any reason in
         // restartDeadTasks the task is not restarted
         synchronized (_tasksToStop) {
-          toCancel.stream().forEach(task -> {
+          toCancel.forEach(task -> {
             _tasksToStop.put(task, _runningTasks.get(task));
             _runningTasks.remove(task);
           });
@@ -181,7 +182,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
             // fields/properties of the DatastreamTask (e.g. dependencies).
             _runningTasks.remove(task);
             _runningTasks.put(task, connectorTaskEntry);
-            continue; // already running
           } else {
             if (_tasksToStop.containsKey(task)) {
               toCallRestartDeadTasks = true;
@@ -318,7 +318,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       // requires that this step completely because we call this from onAssignmentChange() (assignment thread gets
       // killed if it takes too long) and restartDeadTasks which must complete quickly.
       List<Future<DatastreamTask>> stopTaskFutures = _tasksToStop.keySet().stream()
-          .map(task -> _shutdownExecutorService.submit(() -> stopTask(task, _tasksToStop.get(task))))
+          .map(task -> asyncStopTask(task, _tasksToStop.get(task)))
           .collect(Collectors.toList());
 
       _shutdownExecutorService.submit(() -> {
@@ -341,6 +341,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         }
       });
     }
+  }
+
+  @NotNull
+  private Future<DatastreamTask> asyncStopTask(DatastreamTask task, ConnectorTaskEntry connectorTaskEntry) {
+    return _shutdownExecutorService.submit(() -> stopTask(task, connectorTaskEntry));
   }
 
   /**
@@ -398,13 +403,13 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   public void stop() {
     _daemonThreadExecutorService.shutdown();
     synchronized (_runningTasks) {
-      // Try to stop the the tasks
-      _runningTasks.forEach(this::stopTask);
+      // Try to stop the running tasks
+      _runningTasks.forEach(this::asyncStopTask);
       _runningTasks.clear();
     }
     synchronized (_tasksToStop) {
-      // Try to stop the the tasks
-      _tasksToStop.forEach(this::stopTask);
+      // Try to stop the tasks
+      _tasksToStop.forEach(this::asyncStopTask);
       _tasksToStop.clear();
     }
     _logger.info("Start to shut down the shutdown executor and wait up to {} ms.",
