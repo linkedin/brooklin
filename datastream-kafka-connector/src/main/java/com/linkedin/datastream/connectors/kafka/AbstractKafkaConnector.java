@@ -83,7 +83,6 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(75);
   private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(15);
   private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT);
-  //Duration.ofSeconds(30);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
   private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
