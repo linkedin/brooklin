@@ -81,7 +81,24 @@ public class DatastreamTaskImpl implements DatastreamTask {
   // TODO: Investigate the requirement to populate both _partition and _partitionV2 and cleanup if required.
   private List<String> _partitionsV2;
 
-  private List<String> _dependencies;
+  private final List<String> _dependencies;
+
+  @JsonIgnore
+  public String getStats() {
+    return _stats;
+  }
+
+  @JsonIgnore
+  public String getStatsFromZK() {
+    return getState("stats");
+  }
+
+  @JsonIgnore
+  public void setStats(String stats) {
+    _stats = stats;
+  }
+
+  private String _stats = "";
 
   // Status to indicate if instance has hooked up and process this object
   private ZkAdapter _zkAdapter;

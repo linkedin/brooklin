@@ -87,6 +87,10 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertTrue(assignedPartitions.contains("P1"));
     Assert.assertTrue(assignedPartitions.contains("P2"));
     Assert.assertTrue(assignedPartitions.contains("P3"));
+
+    System.out.println(((DatastreamTaskImpl) task1).getStats());
+    System.out.println(((DatastreamTaskImpl) task2).getStats());
+    System.out.println(((DatastreamTaskImpl) task3).getStats());
   }
 
   @Test

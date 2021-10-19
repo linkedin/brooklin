@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.assignment;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -19,12 +20,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -158,13 +161,33 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
           .map(task -> {
             int partitionCount = newPartitions.containsKey(task.getId()) ? newPartitions.get(task.getId()).size() :
                 task.getPartitionsV2().size();
+
             minPartitionsAcrossTasks.set(Math.min(minPartitionsAcrossTasks.get(), partitionCount));
             maxPartitionsAcrossTasks.set(Math.max(maxPartitionsAcrossTasks.get(), partitionCount));
             if (tasksWithChangedPartition.contains(task.getId())) {
-              return new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
+              DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
+              /*String stats = String.format("{\'throughput\':%d, \'numPartitions\':%d, \'partitionsWithUnknownThroughputRate\': %d}",
+                  throughputRate, partitionCount, partitionCount);
+              task.setStats(stats);//saveState("throughputMetadata", throughputRate.toString()); */
+              PartitionAssignmentStatPerTask stat = PartitionAssignmentStatPerTask.fromJson(((DatastreamTaskImpl) task).getStats());
+              if (partitionInfoMap.isEmpty()) {
+                stat.isThroughputRateLatest = false;
+              } else {
+                stat.throughputRate = taskThroughputMap.get(task.getId());
+                stat.isThroughputRateLatest = true;
+              }
+              stat.totalPartitions = partitionCount;
+              //TODO: Update this metric.
+              stat.partitionsWithUnknownThroughput = 0;
+              try {
+                newTask.setStats(stat.toJson());
+              } catch (IOException e) {
+                LOG.error("Exception while saving the stats to Json", e);
+              }
+              return newTask;
             }
-        return task;
-      }).collect(Collectors.toSet());
+            return task;
+          }).collect(Collectors.toSet());
       newAssignments.put(instance, newTasks);
     });
 
@@ -246,6 +269,66 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS);
   }
 
+  private static class PartitionAssignmentStatPerTask {
+    private int throughputRate;
+    private int totalPartitions;
+    private int partitionsWithUnknownThroughput;
+    private boolean isThroughputRateLatest;
+
+    //getters and setters required for fromJson and toJson
+    public int getThroughputRate() {
+      return throughputRate;
+    }
+
+    public void setThroughputRate(int throughputRate) {
+      this.throughputRate = throughputRate;
+    }
+
+    public int getTotalPartitions() {
+      return totalPartitions;
+    }
+
+    public void setTotalPartitions(int totalPartitions) {
+      this.totalPartitions = totalPartitions;
+    }
+
+    public int getPartitionsWithUnknownThroughput() {
+      return partitionsWithUnknownThroughput;
+    }
+
+    public void setPartitionsWithUnknownThroughput(int partitionsWithUnknownThroughput) {
+      this.partitionsWithUnknownThroughput = partitionsWithUnknownThroughput;
+    }
+
+    public boolean getIsThroughputRateLatest() {
+      return isThroughputRateLatest;
+    }
+
+    public void setIsThroughputRateLatest(boolean isThroughputRateLatest) {
+      this.isThroughputRateLatest = isThroughputRateLatest;
+    }
+
+    /**
+     * Construct PartitionAssignmentStatPerTask from json string
+     * @param  json JSON string of the PartitionAssignmentStatPerTask
+     */
+    public static PartitionAssignmentStatPerTask fromJson(String json) {
+      PartitionAssignmentStatPerTask stat = new PartitionAssignmentStatPerTask();
+      if (StringUtils.isNotEmpty(json)) {
+        stat = JsonUtils.fromJson(json, PartitionAssignmentStatPerTask.class);
+      }
+      LOG.info("Loaded existing PartitionAssignmentStatPerTask: {}", stat);
+      return stat;
+    }
+
+    /**
+     * Get PartitionAssignmentStatPerTask serialized as JSON
+     */
+    public String toJson() throws IOException {
+      return JsonUtils.toJson(this);
+    }
+
+  }
   /**
    * Encapsulates assignment metrics for a single datastream group
    */
