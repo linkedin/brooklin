@@ -141,6 +141,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     }
 
     // assign unrecognized partitions with round-robin
+    Map<String, Integer> unrecognizedPartitionCountPerTask = new HashMap<>();
     Collections.shuffle(unrecognizedPartitions);
     int index = 0;
     for (String partition : unrecognizedPartitions) {
@@ -149,6 +150,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       newPartitions.get(currentTask).add(partition);
       tasksWithChangedPartition.add(currentTask);
       index = (index + 1) % tasks.size();
+      unrecognizedPartitionCountPerTask.put(currentTask, unrecognizedPartitionCountPerTask.getOrDefault(currentTask, 0) + 1);
     }
 
     AtomicInteger minPartitionsAcrossTasks = new AtomicInteger(Integer.MAX_VALUE);
@@ -166,24 +168,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
             maxPartitionsAcrossTasks.set(Math.max(maxPartitionsAcrossTasks.get(), partitionCount));
             if (tasksWithChangedPartition.contains(task.getId())) {
               DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
-              /*String stats = String.format("{\'throughput\':%d, \'numPartitions\':%d, \'partitionsWithUnknownThroughputRate\': %d}",
-                  throughputRate, partitionCount, partitionCount);
-              task.setStats(stats);//saveState("throughputMetadata", throughputRate.toString()); */
-              PartitionAssignmentStatPerTask stat = PartitionAssignmentStatPerTask.fromJson(((DatastreamTaskImpl) task).getStats());
-              if (partitionInfoMap.isEmpty()) {
-                stat.isThroughputRateLatest = false;
-              } else {
-                stat.throughputRate = taskThroughputMap.get(task.getId());
-                stat.isThroughputRateLatest = true;
-              }
-              stat.totalPartitions = partitionCount;
-              //TODO: Update this metric.
-              stat.partitionsWithUnknownThroughput = 0;
-              try {
-                newTask.setStats(stat.toJson());
-              } catch (IOException e) {
-                LOG.error("Exception while saving the stats to Json", e);
-              }
+              saveStats(partitionInfoMap, taskThroughputMap, unrecognizedPartitionCountPerTask, task, partitionCount, newTask);
               return newTask;
             }
             return task;
@@ -200,6 +185,26 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
         stats.getMinPartitionsAcrossTasks(), stats.getMaxPartitionsAcrossTasks());
 
     return newAssignments;
+  }
+
+  private void saveStats(Map<String, PartitionThroughputInfo> partitionInfoMap, Map<String, Integer> taskThroughputMap,
+      Map<String, Integer> unrecognizedPartitionCountPerTask, DatastreamTask task, int partitionCount,
+      DatastreamTaskImpl newTask) {
+    PartitionAssignmentStatPerTask stat = PartitionAssignmentStatPerTask.fromJson(((DatastreamTaskImpl) task).getStats());
+    if (partitionInfoMap.isEmpty()) {
+      stat.isThroughputRateLatest = false;
+    } else {
+      stat.throughputRate = taskThroughputMap.get(task.getId());
+      stat.isThroughputRateLatest = true;
+    }
+    stat.totalPartitions = partitionCount;
+    // ignores the partitions removed. This value will be approximate.
+    stat.partitionsWithUnknownThroughput += unrecognizedPartitionCountPerTask.getOrDefault(task.getId(), 0);
+    try {
+      newTask.setStats(stat.toJson());
+    } catch (IOException e) {
+      LOG.error("Exception while saving the stats to Json for task {}", task.getId(), e);
+    }
   }
 
   private void validatePartitionCountAndThrow(String datastream, int numTasks, int numPartitions,
@@ -269,7 +274,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS);
   }
 
-  private static class PartitionAssignmentStatPerTask {
+  static class PartitionAssignmentStatPerTask {
     private int throughputRate;
     private int totalPartitions;
     private int partitionsWithUnknownThroughput;

@@ -88,9 +88,12 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertTrue(assignedPartitions.contains("P2"));
     Assert.assertTrue(assignedPartitions.contains("P3"));
 
-    System.out.println(((DatastreamTaskImpl) task1).getStats());
-    System.out.println(((DatastreamTaskImpl) task2).getStats());
-    System.out.println(((DatastreamTaskImpl) task3).getStats());
+    String stats = (((DatastreamTaskImpl) task1).getStats());
+    LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask statObj = LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask.fromJson(stats);
+    Assert.assertTrue(statObj.getIsThroughputRateLatest());
+    Assert.assertEquals(statObj.getTotalPartitions(), 1);
+    Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 0);
+    Assert.assertEquals(statObj.getThroughputRate(), 5);
   }
 
   @Test
@@ -138,6 +141,13 @@ public class TestLoadBasedPartitionAssigner {
     DatastreamTask newTask = (DatastreamTask) allTasks.toArray()[0];
     Assert.assertEquals(newTask.getPartitionsV2().size(), 1);
     Assert.assertTrue(newTask.getPartitionsV2().contains("P3"));
+
+    String stats = (((DatastreamTaskImpl) newTask).getStats());
+    LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask statObj = LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask.fromJson(stats);
+    Assert.assertTrue(statObj.getIsThroughputRateLatest());
+    Assert.assertEquals(statObj.getTotalPartitions(), 1);
+    Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 0);
+    Assert.assertEquals(statObj.getThroughputRate(), 5);
   }
 
   @Test
@@ -166,6 +176,14 @@ public class TestLoadBasedPartitionAssigner {
     // verify that tasks got 2 partition each
     Assert.assertEquals(task1.getPartitionsV2().size(), 2);
     Assert.assertEquals(task2.getPartitionsV2().size(), 2);
+
+
+    String stats = (((DatastreamTaskImpl) task1).getStats());
+    LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask statObj = LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask.fromJson(stats);
+    Assert.assertFalse(statObj.getIsThroughputRateLatest());
+    Assert.assertEquals(statObj.getTotalPartitions(), 2);
+    Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 2);
+    Assert.assertEquals(statObj.getThroughputRate(), 0);
   }
 
   @Test
