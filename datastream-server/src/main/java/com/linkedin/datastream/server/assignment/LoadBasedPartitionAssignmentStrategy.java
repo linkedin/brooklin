@@ -129,14 +129,20 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       //   (1) Tasks already allocated for the datastream
       //   (2) Partition number based estimate, if the appropriate config is enabled
       //   (3) Throughput based task count estimate
+      int numTasksEstimateBasedOnPartitionCount = 0;
       int numTasksNeeded = taskCount;
       if (_enablePartitionNumBasedTaskCountEstimation) {
-        numTasksNeeded = getTaskCountEstimateBasedOnNumPartitions(datastreamPartitions, taskCount);
+        numTasksEstimateBasedOnPartitionCount = getTaskCountEstimateBasedOnNumPartitions(datastreamPartitions, taskCount);
+        numTasksNeeded = numTasksEstimateBasedOnPartitionCount;
       }
 
       LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
-      numTasksNeeded = Math.max(numTasksNeeded, estimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
-          unassignedPartitions));
+      int numTasksEstimateBasedOnLoad = estimator.getTaskCount(clusterThroughputInfo, assignedPartitions, unassignedPartitions);
+      numTasksNeeded = Math.max(numTasksNeeded, numTasksEstimateBasedOnLoad);
+
+      LOG.info("NumTask estimations for datastream {}: existingTasks: {}, PartitionCountBasedEstimate: {} "
+              + "LoadBasedEstimate: {}. Final numTasks: {}", datastreamGroupName, taskCount,
+          numTasksEstimateBasedOnPartitionCount, numTasksEstimateBasedOnLoad, numTasksNeeded);
 
       // Task count is validated against max tasks config
       numTasksNeeded = validateNumTasksAgainstMaxTasks(datastreamPartitions, numTasksNeeded);
