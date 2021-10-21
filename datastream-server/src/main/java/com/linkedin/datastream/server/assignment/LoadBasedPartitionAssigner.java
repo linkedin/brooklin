@@ -332,7 +332,6 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     public String toJson() throws IOException {
       return JsonUtils.toJson(this);
     }
-
   }
   /**
    * Encapsulates assignment metrics for a single datastream group

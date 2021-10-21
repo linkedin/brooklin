@@ -177,7 +177,6 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertEquals(task1.getPartitionsV2().size(), 2);
     Assert.assertEquals(task2.getPartitionsV2().size(), 2);
 
-
     String stats = (((DatastreamTaskImpl) task1).getStats());
     LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask statObj = LoadBasedPartitionAssigner.PartitionAssignmentStatPerTask.fromJson(stats);
     Assert.assertFalse(statObj.getIsThroughputRateLatest());
