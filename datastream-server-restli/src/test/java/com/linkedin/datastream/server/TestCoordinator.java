@@ -2337,7 +2337,7 @@ public class TestCoordinator {
     // Adding a sleep to simulate time required for topic metadata to be synced across all brokers of destination
     // kafka cluster.
     try {
-      Thread.sleep(2000);
+      Thread.sleep(5000);
     } catch (Exception e) {
     }
 

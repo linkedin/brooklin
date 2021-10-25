@@ -48,4 +48,13 @@ public class PartitionThroughputInfo {
   public String getPartitionName() {
     return _partitionName;
   }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String toString() {
+    return String.format("[PartitionName: %s, BytesInKBRate: %s, MessagesInRate: %s]",
+        _partitionName, _bytesInKBRate, _messagesInRate);
+  }
 }
