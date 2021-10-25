@@ -33,6 +33,7 @@ import org.I0Itec.zkclient.IZkDataListener;
 import org.I0Itec.zkclient.IZkStateListener;
 import org.I0Itec.zkclient.exception.ZkException;
 import org.I0Itec.zkclient.exception.ZkNoNodeException;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.Watcher;
 import org.slf4j.Logger;
@@ -680,6 +681,11 @@ public class ZkAdapter {
     String taskStatePath =
         KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(), task.getDatastreamTaskName());
     _zkclient.ensurePath(taskStatePath);
+
+    // save the task stats.
+    if (!StringUtils.isEmpty(task.getStats())) {
+      task.saveState("stats", task.getStats());
+    }
 
     String instancePath = KeyBuilder.instanceAssignment(_cluster, instance, name);
     String json = "";
