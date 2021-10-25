@@ -191,6 +191,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     List<BrooklinMetricInfo> metricInfos = new ArrayList<>();
     metricInfos.add(new BrooklinMeterInfo(CLASS_NAME + "." + THROUGHPUT_INFO_FETCH_RATE));
     metricInfos.addAll(_assigner.getMetricInfos());
+    metricInfos.addAll(_throughputProvider.getMetricInfos());
     return Collections.unmodifiableList(metricInfos);
   }
 
