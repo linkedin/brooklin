@@ -7,6 +7,7 @@ package com.linkedin.datastream.server.providers;
 
 import java.util.Map;
 
+import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 
@@ -15,7 +16,7 @@ import com.linkedin.datastream.server.DatastreamGroup;
  * Abstraction that provides topic partition throughput information. Used by load-based assignment strategies to do
  * partition assignment based on throughput
  */
-public interface PartitionThroughputProvider {
+public interface PartitionThroughputProvider extends MetricsAware {
 
   /**
    * Retrieves per-partition throughput information for the given cluster
