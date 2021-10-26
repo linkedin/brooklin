@@ -34,6 +34,9 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
+import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
+import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrategyConfig.CFG_PARTITIONS_PER_TASK;
+
 
 /**
  * Partition assignment strategy that does assignment based on throughput information supplied by a
@@ -155,6 +158,30 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     Map<String, Set<DatastreamTask>> newAssignment = doAssignment(clusterThroughputInfo, currentAssignment,
         unassignedPartitions, datastreamPartitions);
     partitionSanityChecks(newAssignment, datastreamPartitions);
+
+    // verify if the elastic task configurations need adjustment for the datastream.
+    int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
+    // if numTasks == maxTasks, the task configurations require readjustment from scale point of view.
+    if (maxTasks > 0 && maxTasks == getTaskCountForDatastreamGroup(datastreamGroup.getTaskPrefix())) {
+      updateOrRegisterElasticTaskAssignmentMetrics(datastreamGroup.getTaskPrefix(), true);
+    }
+
+    if (_enablePartitionNumBasedTaskCountEstimation) {
+      // if the partition count does not honor the partitionsPerTask configuration, the elastic task configurations
+      // require readjustment.
+      int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_PARTITIONS_PER_TASK,
+          getPartitionsPerTask());
+      for (Set<DatastreamTask> tasksSet : newAssignment.values()) {
+        for (DatastreamTask task : tasksSet) {
+          if (task.getTaskPrefix().equals(datastreamGroup.getTaskPrefix())) {
+            if (task.getPartitionsV2().size() > partitionsPerTask) {
+              updateOrRegisterElasticTaskAssignmentMetrics(task.getTaskPrefix(), true);
+              break;
+            }
+          }
+        }
+      }
+    }
     return newAssignment;
   }
 

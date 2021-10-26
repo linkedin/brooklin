@@ -23,6 +23,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -44,6 +45,9 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.CLASS_NAME;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.NUM_TASKS;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,6 +60,7 @@ public class TestStickyPartitionAssignmentStrategy {
   private EmbeddedZookeeper _embeddedZookeeper;
   private String _clusterName;
   private ZkClient _zkClient;
+  private DynamicMetricsManager _metricsManager;
 
   @BeforeMethod
   public void setup() throws IOException {
@@ -64,7 +69,7 @@ public class TestStickyPartitionAssignmentStrategy {
     String zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(zkConnectionString);
-    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
+    _metricsManager = DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
   }
 
   @AfterMethod
@@ -541,6 +546,10 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), numTasksNeeded);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 1.0);
   }
 
   @Test
@@ -575,6 +584,10 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, minTasks);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), minTasks);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 0.0);
   }
 
   @Test
@@ -631,6 +644,11 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), maxTasks);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 1.0);
   }
 
   @Test
