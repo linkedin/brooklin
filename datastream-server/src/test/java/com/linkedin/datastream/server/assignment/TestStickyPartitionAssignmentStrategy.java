@@ -19,7 +19,9 @@ import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
 import org.testng.Assert;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -62,6 +64,14 @@ public class TestStickyPartitionAssignmentStrategy {
   private ZkClient _zkClient;
   private DynamicMetricsManager _metricsManager;
 
+  /**
+   * Test class initialization code
+   */
+  @BeforeClass
+  public void setupClass() throws IOException {
+    _metricsManager = DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
+  }
+
   @BeforeMethod
   public void setup() throws IOException {
     _clusterName = "testcluster";
@@ -69,12 +79,18 @@ public class TestStickyPartitionAssignmentStrategy {
     String zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(zkConnectionString);
-    _metricsManager = DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
   }
 
   @AfterMethod
   public void teardown() throws Exception {
     _embeddedZookeeper.shutdown();
+  }
+
+  /**
+   * Test class teardown code
+   */
+  @AfterClass
+  public void teardownClass() throws Exception {
     // A hack to force clean up DynamicMetricsManager
     Field field = DynamicMetricsManager.class.getDeclaredField("_instance");
     try {
@@ -451,7 +467,7 @@ public class TestStickyPartitionAssignmentStrategy {
     StickyPartitionAssignmentStrategy strategy = createStickyPartitionAssignmentStrategy(partitionsPerTask,
         fullnessFactorPct, true, _zkClient, _clusterName);
 
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    List<DatastreamGroup> datastreams = generateDatastreams("testElasticTaskPartitionAssignmentRepeatedPartitionAssignments", 1, minTasks);
     datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
@@ -546,10 +562,10 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
-    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", NUM_TASKS));
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), NUM_TASKS));
     Assert.assertEquals(gauge.getValue(), numTasksNeeded);
-    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
-    Assert.assertEquals(gauge.getValue(), 1.0);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 0.0);
   }
 
   @Test
@@ -561,7 +577,7 @@ public class TestStickyPartitionAssignmentStrategy {
     StickyPartitionAssignmentStrategy strategy = createStickyPartitionAssignmentStrategy(partitionsPerTask,
         fullnessFactorPct, true, _zkClient, _clusterName);
 
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    List<DatastreamGroup> datastreams = generateDatastreams("testElasticTaskPartitionAssignmentCreatesMinTasksEvenForSmallPartitionCount", 1, minTasks);
     datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
@@ -584,9 +600,9 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, minTasks);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
-    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", NUM_TASKS));
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), NUM_TASKS));
     Assert.assertEquals(gauge.getValue(), minTasks);
-    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
     Assert.assertEquals(gauge.getValue(), 0.0);
   }
 
@@ -600,7 +616,7 @@ public class TestStickyPartitionAssignmentStrategy {
     StickyPartitionAssignmentStrategy strategy =
         createStickyPartitionAssignmentStrategy(partitionsPerTask, fullnessFactorPct, true, _zkClient, _clusterName);
 
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    List<DatastreamGroup> datastreams = generateDatastreams("testElasticTaskPartitionAssignmentCreatesAtMostMaxTasks", 1, minTasks);
     datastreams.forEach(datastreamGroup -> {
       datastreamGroup.getDatastreams().get(0).getMetadata()
           .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks));
@@ -644,10 +660,9 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
-
-    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", NUM_TASKS));
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), NUM_TASKS));
     Assert.assertEquals(gauge.getValue(), maxTasks);
-    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, "ds0", ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
     Assert.assertEquals(gauge.getValue(), 1.0);
   }
 
