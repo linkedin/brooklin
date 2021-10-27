@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.apache.commons.lang3.StringUtils;
 import org.mockito.Mockito;
@@ -173,6 +174,12 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Mockito.verify(mockProvider, atLeastOnce()).getThroughputInfo(any(DatastreamGroup.class));
     Mockito.verify(strategy, never()).doAssignment(anyObject(), anyObject(), anyObject(), anyObject());
     Assert.assertNotNull(newAssignment);
+
+    // Verify that metrics in both StickyPartitionAssignmentStrategy and LoadBasedPartitionAssignmentStrategy are
+    // properly registered
+    Predicate<String> metricFilter = s -> s.startsWith(LoadBasedPartitionAssignmentStrategy.class.getSimpleName()) ||
+        s.startsWith(StickyPartitionAssignmentStrategy.class.getSimpleName());
+    MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance(), metricFilter);
   }
 
   @Test
