@@ -35,7 +35,6 @@ import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.providers.PartitionThroughputProvider;
 
 import static com.linkedin.datastream.server.assignment.BroadcastStrategyFactory.CFG_MAX_TASKS;
-import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrategyConfig.CFG_PARTITIONS_PER_TASK;
 
 
 /**
@@ -169,15 +168,12 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     if (_enablePartitionNumBasedTaskCountEstimation) {
       // if the partition count does not honor the partitionsPerTask configuration, the elastic task configurations
       // require readjustment.
-      int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_PARTITIONS_PER_TASK,
-          getPartitionsPerTask());
+      int partitionsPerTask = getPartitionsPerTask(datastreamPartitions.getDatastreamGroup());
       for (Set<DatastreamTask> tasksSet : newAssignment.values()) {
         for (DatastreamTask task : tasksSet) {
-          if (task.getTaskPrefix().equals(datastreamGroup.getTaskPrefix())) {
-            if (task.getPartitionsV2().size() > partitionsPerTask) {
-              updateOrRegisterElasticTaskAssignmentMetrics(task.getTaskPrefix(), true);
-              break;
-            }
+          if (task.getTaskPrefix().equals(datastreamGroup.getTaskPrefix()) && task.getPartitionsV2().size() > partitionsPerTask) {
+            updateOrRegisterElasticTaskAssignmentMetrics(task.getTaskPrefix(), true);
+            break;
           }
         }
       }

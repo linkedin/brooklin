@@ -176,8 +176,13 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return super.assign(datastreams, instances, currentAssignment);
   }
 
-  public Integer getPartitionsPerTask() {
-    return _partitionsPerTask;
+  /**
+   *  Returns partitions per task based on Datastream group
+   * @param datastreamGroup Name of the datastream group
+   * @return partitions per task
+   */
+  public Integer getPartitionsPerTask(DatastreamGroup datastreamGroup) {
+    return resolveConfigWithMetadata(datastreamGroup, CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
   }
 
   protected Pair<List<String>, Integer> getAssignedPartitionsAndTaskCountForDatastreamGroup(
@@ -566,8 +571,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int actualPartitionsPerTask = (totalPartitions / totalTaskCount)
         + (((totalPartitions % totalTaskCount) == 0) ? 0 : 1);
 
-    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
-        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    int partitionsPerTask = getPartitionsPerTask(datastreamPartitions.getDatastreamGroup());
     String taskPrefix = datastreamPartitions.getDatastreamGroup().getTaskPrefix();
     updateOrRegisterElasticTaskAssignmentMetrics(taskPrefix, actualPartitionsPerTask, partitionsPerTask);
   }
@@ -597,8 +601,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
     // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
     // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
-    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
-        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    int partitionsPerTask = getPartitionsPerTask(datastreamPartitions.getDatastreamGroup());
     int partitionFullnessFactorPct = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
         CFG_PARTITION_FULLNESS_THRESHOLD_PCT, _partitionFullnessFactorPct);
     LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
