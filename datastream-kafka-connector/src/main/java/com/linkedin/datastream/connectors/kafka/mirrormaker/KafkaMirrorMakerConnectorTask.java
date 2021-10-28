@@ -356,6 +356,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         _dynamicMetricsManager.createOrUpdateMeter(generateMetricsPrefix(_connectorName, CLASS_NAME), _datastreamName,
             TASK_LOCK_ACQUIRE_ERROR_RATE, 1);
         throw ex;
+      } finally {
+        _stoppedLatch.countDown();
       }
     }
     super.run();

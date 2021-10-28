@@ -256,19 +256,25 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
       Set<DatastreamTask> deadDatastreamTasks = new HashSet<>();
       _runningTasks.forEach((datastreamTask, connectorTaskEntry) -> {
-        if (isTaskDead(connectorTaskEntry)) {
+        if (isConnectorTaskDead(connectorTaskEntry)) {
           _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
               datastreamTask.getDatastreamTaskName());
-          // If stoppedTask is null it means that attempting to stop the task failed and that it will be retired again
-          // (in the next restartDeadTasks iteration).
-          // If we dont successfully stop the task before creating another connector task we can potentially end up with
-          // two connector tasks instances running in parallel. This is possible because the acquire method acts as a
-          // re-entrant lock if the same host calls the acquire method for the same task multiple times.
-          DatastreamTask stoppedTask = stopTask(datastreamTask, connectorTaskEntry);
-          if (stoppedTask != null) {
+          if (isTaskThreadDead(connectorTaskEntry)) {
+            _logger.warn("Task thread for datastream task {} has died. No need to attempt to stop the task",
+                datastreamTask.getDatastreamTaskName());
             deadDatastreamTasks.add(datastreamTask);
           } else {
-            _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask.getDatastreamTaskName());
+            // If stoppedTask is null it means that attempting to stop the task failed and that it will be retired again
+            // (in the next restartDeadTasks iteration).
+            // If we dont successfully stop the task before creating another connector task we can potentially end up with
+            // two connector tasks instances running in parallel. This is possible because the acquire method acts as a
+            // re-entrant lock if the same host calls the acquire method for the same task multiple times.
+            DatastreamTask stoppedTask = stopTask(datastreamTask, connectorTaskEntry);
+            if (stoppedTask != null) {
+              deadDatastreamTasks.add(datastreamTask);
+            } else {
+              _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask.getDatastreamTaskName());
+            }
           }
         } else {
           _logger.info("Connector task for datastream task {} is healthy", datastreamTask.getDatastreamTaskName());
@@ -385,12 +391,21 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     return null;
   }
 
+
+  protected boolean isTaskThreadDead(ConnectorTaskEntry connectorTaskEntry) {
+    Thread taskThread = connectorTaskEntry.getThread();
+    if (taskThread == null || !taskThread.isAlive()) {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Check if the {@link AbstractKafkaBasedConnectorTask} is dead.
    * @param connectorTaskEntry connector task and thread that needs to be checked whether it is dead.
    * @return true if it is dead, false if it is still running.
    */
-  protected boolean isTaskDead(ConnectorTaskEntry connectorTaskEntry) {
+  protected boolean isConnectorTaskDead(ConnectorTaskEntry connectorTaskEntry) {
     Thread taskThread = connectorTaskEntry.getThread();
     AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
     return (connectorTaskEntry.isPendingStop() || taskThread == null || !taskThread.isAlive()
