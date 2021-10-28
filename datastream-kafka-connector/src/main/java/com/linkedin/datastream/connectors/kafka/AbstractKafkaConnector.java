@@ -391,7 +391,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     return null;
   }
 
-
+  /**
+   * Check if the connector task thread is alive or not
+   * @param connectorTaskEntry connector task checked for whether task thread is dead.
+   * @return true if it is dead, false if it is still running.
+   */
   protected boolean isTaskThreadDead(ConnectorTaskEntry connectorTaskEntry) {
     Thread taskThread = connectorTaskEntry.getThread();
     if (taskThread == null || !taskThread.isAlive()) {
@@ -406,9 +410,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    * @return true if it is dead, false if it is still running.
    */
   protected boolean isConnectorTaskDead(ConnectorTaskEntry connectorTaskEntry) {
-    Thread taskThread = connectorTaskEntry.getThread();
     AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
-    return (connectorTaskEntry.isPendingStop() || taskThread == null || !taskThread.isAlive()
+    return (connectorTaskEntry.isPendingStop() || isTaskThreadDead(connectorTaskEntry)
         || ((System.currentTimeMillis() - connectorTask.getLastPolledTimeMillis())
         >= _config.getNonGoodStateThresholdMillis()));
   }

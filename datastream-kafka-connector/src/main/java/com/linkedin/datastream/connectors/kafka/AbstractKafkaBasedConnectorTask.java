@@ -436,9 +436,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
       postShutdownHook();
-      _stoppedLatch.countDown();
+      countDownLatch();
       _logger.info("{} stopped", _taskName);
     }
+  }
+
+  protected void countDownLatch() {
+    _stoppedLatch.countDown();
   }
 
   /**
