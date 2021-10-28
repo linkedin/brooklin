@@ -19,10 +19,13 @@ import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
 import org.testng.Assert;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -44,6 +47,9 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.CLASS_NAME;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.NUM_TASKS;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,6 +62,15 @@ public class TestStickyPartitionAssignmentStrategy {
   private EmbeddedZookeeper _embeddedZookeeper;
   private String _clusterName;
   private ZkClient _zkClient;
+  private DynamicMetricsManager _metricsManager;
+
+  /**
+   * Test class initialization code
+   */
+  @BeforeClass
+  public void setupClass() throws IOException {
+    _metricsManager = DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
+  }
 
   @BeforeMethod
   public void setup() throws IOException {
@@ -64,12 +79,18 @@ public class TestStickyPartitionAssignmentStrategy {
     String zkConnectionString = _embeddedZookeeper.getConnection();
     _embeddedZookeeper.startup();
     _zkClient = new ZkClient(zkConnectionString);
-    DynamicMetricsManager.createInstance(new MetricRegistry(), "TestStickyPartitionAssignment");
   }
 
   @AfterMethod
   public void teardown() throws Exception {
     _embeddedZookeeper.shutdown();
+  }
+
+  /**
+   * Test class teardown code
+   */
+  @AfterClass
+  public void teardownClass() throws Exception {
     // A hack to force clean up DynamicMetricsManager
     Field field = DynamicMetricsManager.class.getDeclaredField("_instance");
     try {
@@ -446,7 +467,7 @@ public class TestStickyPartitionAssignmentStrategy {
     StickyPartitionAssignmentStrategy strategy = createStickyPartitionAssignmentStrategy(partitionsPerTask,
         fullnessFactorPct, true, _zkClient, _clusterName);
 
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    List<DatastreamGroup> datastreams = generateDatastreams("testElasticTaskPartitionAssignmentRepeatedPartitionAssignments", 1, minTasks);
     datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
@@ -541,6 +562,10 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, numTasksNeeded);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), numTasksNeeded);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 0.0);
   }
 
   @Test
@@ -552,7 +577,7 @@ public class TestStickyPartitionAssignmentStrategy {
     StickyPartitionAssignmentStrategy strategy = createStickyPartitionAssignmentStrategy(partitionsPerTask,
         fullnessFactorPct, true, _zkClient, _clusterName);
 
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    List<DatastreamGroup> datastreams = generateDatastreams("testElasticTaskPartitionAssignmentCreatesMinTasksEvenForSmallPartitionCount", 1, minTasks);
     datastreams.forEach(dg -> _zkClient.ensurePath(KeyBuilder.datastream(_clusterName, dg.getTaskPrefix())));
 
     Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
@@ -575,6 +600,10 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, minTasks);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), minTasks);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 0.0);
   }
 
   @Test
@@ -587,7 +616,7 @@ public class TestStickyPartitionAssignmentStrategy {
     StickyPartitionAssignmentStrategy strategy =
         createStickyPartitionAssignmentStrategy(partitionsPerTask, fullnessFactorPct, true, _zkClient, _clusterName);
 
-    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1, minTasks);
+    List<DatastreamGroup> datastreams = generateDatastreams("testElasticTaskPartitionAssignmentCreatesAtMostMaxTasks", 1, minTasks);
     datastreams.forEach(datastreamGroup -> {
       datastreamGroup.getDatastreams().get(0).getMetadata()
           .put(BroadcastStrategyFactory.CFG_MAX_TASKS, String.valueOf(maxTasks));
@@ -631,6 +660,10 @@ public class TestStickyPartitionAssignmentStrategy {
     validatePartitionAssignment(assignment, partitions, maxPartitionsPerTask, maxTasks);
 
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
+    Gauge<?> gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), maxTasks);
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    Assert.assertEquals(gauge.getValue(), 1.0);
   }
 
   @Test

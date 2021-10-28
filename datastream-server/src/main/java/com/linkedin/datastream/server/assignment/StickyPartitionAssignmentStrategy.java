@@ -70,9 +70,13 @@ import static com.linkedin.datastream.server.assignment.PartitionAssignmentStrat
 public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy implements MetricsAware {
   public static final String CFG_MIN_TASKS = "minTasks";
 
-  private static final String CLASS_NAME = StickyPartitionAssignmentStrategy.class.getSimpleName();
+  @VisibleForTesting
+  static final String CLASS_NAME = StickyPartitionAssignmentStrategy.class.getSimpleName();
+  @VisibleForTesting
+  static final String NUM_TASKS = "numTasks";
   private static final String ACTUAL_PARTITIONS_PER_TASK = "actualPartitionsPerTask";
-  private static final String PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT = "partitionsPerTaskNeedsAdjustment";
+  @VisibleForTesting
+  static final String ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT = "elasticTaskParametersNeedAdjustment";
 
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
@@ -170,6 +174,15 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
       }
     });
     return super.assign(datastreams, instances, currentAssignment);
+  }
+
+  /**
+   *  Returns partitions per task based on Datastream group
+   * @param datastreamGroup Name of the datastream group
+   * @return partitions per task
+   */
+  public Integer getPartitionsPerTask(DatastreamGroup datastreamGroup) {
+    return resolveConfigWithMetadata(datastreamGroup, CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
   }
 
   protected Pair<List<String>, Integer> getAssignedPartitionsAndTaskCountForDatastreamGroup(
@@ -510,8 +523,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
     String prefix = CLASS_NAME + MetricsAware.KEY_REGEX;
 
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_TASKS));
     metrics.add(new BrooklinGaugeInfo(prefix + ACTUAL_PARTITIONS_PER_TASK));
-    metrics.add(new BrooklinGaugeInfo(prefix + PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT));
+    metrics.add(new BrooklinGaugeInfo(prefix + ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
 
     return Collections.unmodifiableList(metrics);
   }
@@ -557,12 +571,24 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     int actualPartitionsPerTask = (totalPartitions / totalTaskCount)
         + (((totalPartitions % totalTaskCount) == 0) ? 0 : 1);
 
-    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
-        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    int partitionsPerTask = getPartitionsPerTask(datastreamPartitions.getDatastreamGroup());
     String taskPrefix = datastreamPartitions.getDatastreamGroup().getTaskPrefix();
+    updateOrRegisterElasticTaskAssignmentMetrics(taskPrefix, actualPartitionsPerTask, partitionsPerTask);
+  }
+
+  private void updateOrRegisterElasticTaskAssignmentMetrics(String taskPrefix, int actualPartitionsPerTask, int partitionsPerTask) {
     ElasticTaskAssignmentInfo elasticTaskAssignmentInfo =
         new ElasticTaskAssignmentInfo(actualPartitionsPerTask, actualPartitionsPerTask > partitionsPerTask);
 
+    updateOrRegisterElasticTaskAssignmentMetrics(taskPrefix, elasticTaskAssignmentInfo);
+  }
+
+  void updateOrRegisterElasticTaskAssignmentMetrics(String taskPrefix, boolean needsAdjustment) {
+    ElasticTaskAssignmentInfo elasticTaskAssignmentInfo = new ElasticTaskAssignmentInfo(-1, needsAdjustment);
+    updateOrRegisterElasticTaskAssignmentMetrics(taskPrefix, elasticTaskAssignmentInfo);
+  }
+
+  private void updateOrRegisterElasticTaskAssignmentMetrics(String taskPrefix, ElasticTaskAssignmentInfo elasticTaskAssignmentInfo) {
     if (!_elasticTaskAssignmentInfoHashMap.containsKey(taskPrefix)) {
       registerElasticTaskAssignmentMetrics(taskPrefix);
     }
@@ -575,8 +601,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     // datastream. Assess the number of tasks needed based on partitionsPerTask and the fullness threshold. If
     // the number of tasks needed is smaller than the number of tasks found, throw a DatastreamRuntimeException
     // so that LEADER_DO_ASSIGNMENT and LEADER_PARTITION_ASSIGNMENT can be retried with an updated number of tasks.
-    int partitionsPerTask = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
-        CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
+    int partitionsPerTask = getPartitionsPerTask(datastreamPartitions.getDatastreamGroup());
     int partitionFullnessFactorPct = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(),
         CFG_PARTITION_FULLNESS_THRESHOLD_PCT, _partitionFullnessFactorPct);
     LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
@@ -706,6 +731,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
    * Register metrics related to elastic task assignment
    */
   private void registerElasticTaskAssignmentMetrics(String taskPrefix) {
+    Supplier<Integer> numTasksSupplier = () -> getTaskCountForDatastreamGroup(taskPrefix);
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, NUM_TASKS, numTasksSupplier);
+
     Supplier<Double> actualPartitionsPerTaskSupplier = () ->
         (double) (_elasticTaskAssignmentInfoHashMap.containsKey(taskPrefix)
             ? _elasticTaskAssignmentInfoHashMap.get(taskPrefix).getActualPartitionsPerTask() : 0);
@@ -715,7 +743,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     Supplier<Double> needsAdjustmentSupplier = () ->
         (_elasticTaskAssignmentInfoHashMap.containsKey(taskPrefix)
             && _elasticTaskAssignmentInfoHashMap.get(taskPrefix).getNeedsAdjustment()) ? 1.0 : 0.0;
-    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT,
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT,
         needsAdjustmentSupplier);
   }
 
@@ -723,16 +751,18 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
    * Unregister metrics for a given datastream group
    */
   protected void unregisterMetrics(String datastreamTaskPrefix) {
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, NUM_TASKS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
-    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, PARTITIONS_PER_TASK_NEEDS_ADJUSTMENT);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT);
   }
 
   /**
    * Contains the elastic task information for a given datastream group
    */
   private static class ElasticTaskAssignmentInfo {
-    private int _actualPartitionsPerTask;
-    private boolean _needsAdjustment;
+    // -1 implies variable partitions per task
+    private final int _actualPartitionsPerTask;
+    private final boolean _needsAdjustment;
 
     public ElasticTaskAssignmentInfo(int actualPartitionsPerTask, boolean needsAdjustment) {
       _actualPartitionsPerTask = actualPartitionsPerTask;
