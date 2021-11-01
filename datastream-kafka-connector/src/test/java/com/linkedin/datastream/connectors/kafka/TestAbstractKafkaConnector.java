@@ -235,7 +235,12 @@ public class TestAbstractKafkaConnector {
     }
 
     @Override
-    protected boolean isTaskDead(ConnectorTaskEntry connectorTaskEntry) {
+    protected boolean isConnectorTaskDead(ConnectorTaskEntry connectorTaskEntry) {
+      return true;
+    }
+
+    @Override
+    protected boolean isTaskThreadDead(ConnectorTaskEntry connectorTaskEntry) {
       return true;
     }
 
