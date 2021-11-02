@@ -5,8 +5,11 @@
  */
 package com.linkedin.datastream.server.providers;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
@@ -37,4 +40,9 @@ public interface PartitionThroughputProvider extends MetricsAware {
    * @return A map, where keys are cluster names and values are throughput information for the cluster
    */
   Map<String, ClusterThroughputInfo> getThroughputInfo();
+
+  @Override
+  default List<BrooklinMetricInfo> getMetricInfos() {
+    return Collections.emptyList();
+  }
 }
