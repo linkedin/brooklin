@@ -2334,13 +2334,6 @@ public class TestCoordinator {
   }
 
   private void validateRetention(Datastream stream, DatastreamResources resource, Duration expectedRetention) {
-    // Adding a sleep to simulate time required for topic metadata to be synced across all brokers of destination
-    // kafka cluster.
-    try {
-      Thread.sleep(5000);
-    } catch (Exception e) {
-    }
-
     Datastream queryStream = resource.get(stream.getName());
     Assert.assertNotNull(queryStream.getDestination());
     StringMap metadata = queryStream.getMetadata();
