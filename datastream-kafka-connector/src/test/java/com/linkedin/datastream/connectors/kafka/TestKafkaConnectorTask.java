@@ -374,7 +374,13 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
         any(Exception.class));
     //Verify that we have call at least seekToLastCheckpoint twice as the skip messages also trigger this
     verify(connectorTask, atLeast(2)).seekToLastCheckpoint(ImmutableSet.of(topicPartition));
+    verify(connectorTask, times(0)).deregisterMetrics();
     connectorTask.stop();
+    // Verify that multiple stop requests do not result in multiple metric de-registration.
+    connectorTask.stop();
+    verify(connectorTask, times(1)).deregisterMetrics();
+    connectorTask.stop();
+    verify(connectorTask, times(1)).deregisterMetrics();
   }
 
   @Test
