@@ -85,13 +85,13 @@ public class TestAbstractKafkaConnector {
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
     TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
-    DatastreamTask datastreamTask1 = new DatastreamTaskImpl();
-    ((DatastreamTaskImpl) datastreamTask1).setTaskPrefix("testtask1");
+    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl();
+    datastreamTask1.setTaskPrefix("testtask1");
     connector.onAssignmentChange(Collections.singletonList(datastreamTask1));
     connector.start(null);
 
-    DatastreamTask datastreamTask2 = new DatastreamTaskImpl();
-    ((DatastreamTaskImpl) datastreamTask2).setTaskPrefix("testtask2");
+    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl();
+    datastreamTask2.setTaskPrefix("testtask2");
     // AbstractKafkaBasedConnectorTask stop should fail on this onAssignmentChange call
     connector.onAssignmentChange(Collections.singletonList(datastreamTask2));
     Assert.assertEquals(connector.getTasksToStopCount(), 1);
@@ -115,13 +115,13 @@ public class TestAbstractKafkaConnector {
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
     TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
-    DatastreamTask datastreamTask = new DatastreamTaskImpl();
-    ((DatastreamTaskImpl) datastreamTask).setTaskPrefix("testtask1");
+    DatastreamTaskImpl datastreamTask = new DatastreamTaskImpl();
+    datastreamTask.setTaskPrefix("testtask1");
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
     connector.start(null);
 
     datastreamTask = new DatastreamTaskImpl();
-    ((DatastreamTaskImpl) datastreamTask).setTaskPrefix("testtask2");
+    datastreamTask.setTaskPrefix("testtask2");
     // AbstractKafkaBasedConnectorTask stop should fail on this onAssignmentChange call
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
     Assert.assertEquals(connector.getTasksToStopCount(), 1);
