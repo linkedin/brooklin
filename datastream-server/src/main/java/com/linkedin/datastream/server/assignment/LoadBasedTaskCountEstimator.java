@@ -29,15 +29,22 @@ public class LoadBasedTaskCountEstimator {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
+  private final int _defaultPartitionBytesInKBRate;
+  private final int _defaultPartitionMsgsInRate;
 
   /**
    * Creates an instance of {@link LoadBasedTaskCountEstimator}
    * @param taskCapacityMBps Task capacity in MB/sec
    * @param taskCapacityUtilizationPct Task capacity utilization percentage
+   * @param defaultPartitionBytesInKBRate Default bytesIn rate in KB for partition
+   * @param defaultPartitionMsgsInRate Default msgsIn rate for partition
    */
-  public LoadBasedTaskCountEstimator(int taskCapacityMBps, int taskCapacityUtilizationPct) {
+  public LoadBasedTaskCountEstimator(int taskCapacityMBps, int taskCapacityUtilizationPct,
+      int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate) {
     _taskCapacityMBps = taskCapacityMBps;
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
+    _defaultPartitionBytesInKBRate = defaultPartitionBytesInKBRate;
+    _defaultPartitionMsgsInRate = defaultPartitionMsgsInRate;
   }
 
   /**
@@ -60,9 +67,9 @@ public class LoadBasedTaskCountEstimator {
     Set<String> allPartitions = new HashSet<>(assignedPartitions);
     allPartitions.addAll(unassignedPartitions);
 
-    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
+    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
+        _defaultPartitionMsgsInRate, "");
+
     // total throughput in KB/sec
     int totalThroughput = allPartitions.stream()
         .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))

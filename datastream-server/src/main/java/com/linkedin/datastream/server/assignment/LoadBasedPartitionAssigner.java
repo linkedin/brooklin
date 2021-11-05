@@ -51,6 +51,19 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
   private final Map<String, LoadBasedPartitionAssigner.PartitionAssignmentStats> _partitionAssignmentStatsMap =
       new ConcurrentHashMap<>();
+  private final int _defaultPartitionBytesInKBRate;
+  private final int _defaultPartitionMsgsInRate;
+
+  /**
+   * Constructor of LoadBasedPartitionAssigner
+   * @param defaultPartitionBytesInKBRate default bytesIn rate in KB for partition
+   * @param defaultPartitionMsgsInRate default msgsIn rate in KB for partition
+   */
+  public LoadBasedPartitionAssigner(int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate) {
+    _defaultPartitionBytesInKBRate = defaultPartitionBytesInKBRate;
+    _defaultPartitionMsgsInRate = defaultPartitionMsgsInRate;
+  }
+
   /**
    * Performs partition assignment based on partition throughput information.
    * <p>
@@ -90,9 +103,9 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
-    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
+    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
+        _defaultPartitionMsgsInRate, "");
+
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
           .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())

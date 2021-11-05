@@ -15,15 +15,14 @@ import com.linkedin.datastream.common.VerifiableProperties;
  */
 public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignmentStrategyConfig {
 
-  public static final int DEFAULT_PARTITION_BYTES_IN_KB_RATE = 5;
-  public static final int DEFAULT_PARTITION_MESSAGES_IN_RATE = 5;
-
   public static final String CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = "throughputInfoFetchTimeoutMs";
   public static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = "throughputInfoFetchRetryPeriodMs";
   public static final String CFG_TASK_CAPACITY_MBPS = "taskCapacityMBps";
   public static final String CFG_TASK_CAPACITY_UTILIZATION_PCT = "taskCapacityUtilizationPct";
   public static final String CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT = "enableThroughputBasedPartitionAssignment";
   public static final String CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = "enablePartitionNumBasedTaskCountEstimation";
+  public static final String CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE = "defaultPartitionBytesInKBRate";
+  public static final String CFG_DEFAULT_PARTITION_MSGS_IN_RATE = "defaultPartitionMsgsInRate";
 
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = (int) Duration.ofSeconds(10).toMillis();
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = (int) Duration.ofSeconds(1).toMillis();
@@ -31,6 +30,8 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   private static final int DEFAULT_TASK_CAPACITY_UTILIZATION_PCT = 90;
   private static final boolean DEFAULT_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT = false;
   private static final boolean DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = false;
+  private static final int DEFAULT_PARTITION_BYTES_IN_KB_RATE = 5;
+  private static final int DEFAULT_PARTITION_MSGS_IN_RATE = 5;
 
 
   private final int _taskCapacityMBps;
@@ -39,6 +40,9 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   private final int _throughputInfoFetchRetryPeriodMs;
   private final boolean _enableThroughputBasedPartitionAssignment;
   private final boolean _enablePartitionNumBasedTaskCountEstimation;
+  private final int _defaultPartitionBytesInKBRAte;
+  private final int _defaultPartitionMsgsInRate;
+
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategyConfig}
    * @param config Config properties
@@ -54,7 +58,8 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
         DEFAULT_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT);
     _enablePartitionNumBasedTaskCountEstimation = props.getBoolean(CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION,
         DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION);
-
+    _defaultPartitionBytesInKBRAte = props.getInt(CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE, DEFAULT_PARTITION_BYTES_IN_KB_RATE);
+    _defaultPartitionMsgsInRate = props.getInt(CFG_DEFAULT_PARTITION_MSGS_IN_RATE, DEFAULT_PARTITION_MSGS_IN_RATE);
   }
 
   /**
@@ -103,5 +108,13 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
    */
   public boolean isEnablePartitionNumBasedTaskCountEstimation() {
     return _enablePartitionNumBasedTaskCountEstimation;
+  }
+
+  public int getDefaultPartitionBytesInKBRate() {
+    return _defaultPartitionBytesInKBRAte;
+  }
+
+  public int getDefaultPartitionMsgsInRate() {
+    return _defaultPartitionMsgsInRate;
   }
 }
