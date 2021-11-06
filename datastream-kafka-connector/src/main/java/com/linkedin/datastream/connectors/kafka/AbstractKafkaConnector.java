@@ -155,7 +155,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
 
     synchronized (_runningTasks) {
       Set<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());
-      toCancel.removeAll(tasks);
+      tasks.forEach(toCancel::remove);
 
       if (toCancel.size() > 0) {
         // Mark the connector task as stopped so that, in case stopping the task here fails for any reason in
@@ -363,13 +363,12 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   private DatastreamTask stopTask(DatastreamTask datastreamTask, ConnectorTaskEntry connectorTaskEntry) {
     try {
       connectorTaskEntry.setPendingStop();
-
       AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
       connectorTask.stop();
       boolean stopped = connectorTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       if (!stopped) {
         _logger.warn("Connector task for datastream task {} took longer than {} ms to stop. Interrupting the thread.",
-            datastreamTask, CANCEL_TASK_TIMEOUT.toMillis());
+            datastreamTask.getDatastreamTaskName(), CANCEL_TASK_TIMEOUT.toMillis());
         connectorTaskEntry.getThread().interrupt();
         // Check that the thread really got interrupted and log a message if it seems like the thread is still running.
         // Threads which don't check for the interrupt status may land up running forever, and we would like to
@@ -398,10 +397,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    */
   protected boolean isTaskThreadDead(ConnectorTaskEntry connectorTaskEntry) {
     Thread taskThread = connectorTaskEntry.getThread();
-    if (taskThread == null || !taskThread.isAlive()) {
-      return true;
-    }
-    return false;
+    return taskThread == null || !taskThread.isAlive();
   }
 
   /**

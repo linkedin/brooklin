@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
@@ -93,6 +94,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile long _lastPollCompletedTimeMillis = 0;
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
   protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
+  private final AtomicBoolean _metricDeregistered = new AtomicBoolean(false);
 
   // config
   protected DatastreamTask _datastreamTask;
@@ -451,6 +453,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.info("Waking up the consumer for task {}", _taskName);
       _consumer.wakeup();
     }
+    if (!_metricDeregistered.getAndSet(true)) {
+      deregisterMetrics();
+    }
+  }
+
+  @VisibleForTesting
+  void deregisterMetrics() {
     _consumerMetrics.deregisterMetrics();
   }
 

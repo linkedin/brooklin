@@ -145,7 +145,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
 
       LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct,
           _defaultPartitionBytesInKBRate, _defaultPartitionMsgsInRate);
-      int numTasksEstimateBasedOnLoad = estimator.getTaskCount(clusterThroughputInfo, assignedPartitions, unassignedPartitions);
+      int numTasksEstimateBasedOnLoad = estimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
+          unassignedPartitions, datastreamGroupName);
       numTasksNeeded = Math.max(numTasksNeeded, numTasksEstimateBasedOnLoad);
 
       LOG.info("NumTask estimations for datastream {}: existingTasks: {}, PartitionCountBasedEstimate: {} "
