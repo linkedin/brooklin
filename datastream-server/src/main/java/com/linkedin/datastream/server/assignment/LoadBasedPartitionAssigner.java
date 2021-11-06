@@ -207,7 +207,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     if (partitionInfoMap.isEmpty()) {
       stat.isThroughputRateLatest = false;
     } else {
-      stat.throughputRate = taskThroughputMap.get(task.getId());
+      stat.throughputRateInKBps = taskThroughputMap.get(task.getId());
       stat.isThroughputRateLatest = true;
     }
     stat.totalPartitions = partitionCount;
@@ -288,18 +288,18 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   }
 
   static class PartitionAssignmentStatPerTask {
-    private int throughputRate;
+    private int throughputRateInKBps;
     private int totalPartitions;
     private int partitionsWithUnknownThroughput;
     private boolean isThroughputRateLatest;
 
     //getters and setters required for fromJson and toJson
-    public int getThroughputRate() {
-      return throughputRate;
+    public int getThroughputRateInKBps() {
+      return throughputRateInKBps;
     }
 
-    public void setThroughputRate(int throughputRate) {
-      this.throughputRate = throughputRate;
+    public void setThroughputRateInKBps(int throughputRateInKBps) {
+      this.throughputRateInKBps = throughputRateInKBps;
     }
 
     public int getTotalPartitions() {

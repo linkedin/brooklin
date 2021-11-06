@@ -93,7 +93,7 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertTrue(statObj.getIsThroughputRateLatest());
     Assert.assertEquals(statObj.getTotalPartitions(), 1);
     Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 0);
-    Assert.assertEquals(statObj.getThroughputRate(), 5);
+    Assert.assertEquals(statObj.getThroughputRateInKBps(), 5);
   }
 
   @Test
@@ -147,7 +147,7 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertTrue(statObj.getIsThroughputRateLatest());
     Assert.assertEquals(statObj.getTotalPartitions(), 1);
     Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 0);
-    Assert.assertEquals(statObj.getThroughputRate(), 5);
+    Assert.assertEquals(statObj.getThroughputRateInKBps(), 5);
   }
 
   @Test
@@ -182,7 +182,7 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertFalse(statObj.getIsThroughputRateLatest());
     Assert.assertEquals(statObj.getTotalPartitions(), 2);
     Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 2);
-    Assert.assertEquals(statObj.getThroughputRate(), 0);
+    Assert.assertEquals(statObj.getThroughputRateInKBps(), 0);
   }
 
   @Test

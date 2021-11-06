@@ -53,10 +53,11 @@ public class LoadBasedTaskCountEstimator {
    * @param throughputInfo Per-partition throughput information
    * @param assignedPartitions The list of assigned partitions
    * @param unassignedPartitions The list of unassigned partitions
+   * @param datastreamName Name of the datastream
    * @return The estimated number of tasks
    */
   public int getTaskCount(ClusterThroughputInfo throughputInfo, List<String> assignedPartitions,
-      List<String> unassignedPartitions) {
+      List<String> unassignedPartitions, String datastreamName) {
     Validate.notNull(throughputInfo, "null throughputInfo");
     Validate.notNull(assignedPartitions, "null assignedPartitions");
     Validate.notNull(unassignedPartitions, "null unassignedPartitions");
@@ -75,13 +76,15 @@ public class LoadBasedTaskCountEstimator {
         .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))
         .mapToInt(PartitionThroughputInfo::getBytesInKBRate)
         .sum();
-    LOG.info("Total throughput in all {} partitions: {}KB/sec", allPartitions.size(), totalThroughput);
+    LOG.info("Total throughput in all {} partitions for datastream {}: {}KB/sec, assigned partitions: {} "
+            + "unassigned partitions: {}", allPartitions.size(), datastreamName, totalThroughput,
+        assignedPartitions.size(), unassignedPartitions.size());
 
     double taskCapacityUtilizationCoefficient = _taskCapacityUtilizationPct / 100.0;
     int taskCountEstimate = (int) Math.ceil((double) totalThroughput /
         (_taskCapacityMBps * 1024 * taskCapacityUtilizationCoefficient));
     taskCountEstimate = Math.min(allPartitions.size(), taskCountEstimate);
-    LOG.info("Estimated number of tasks required to handle the throughput: {}", taskCountEstimate);
+    LOG.info("Estimated number of tasks for datastream {} required to handle the throughput: {}", datastreamName, taskCountEstimate);
     return taskCountEstimate;
   }
 }
