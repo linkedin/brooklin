@@ -40,7 +40,7 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   private final int _throughputInfoFetchRetryPeriodMs;
   private final boolean _enableThroughputBasedPartitionAssignment;
   private final boolean _enablePartitionNumBasedTaskCountEstimation;
-  private final int _defaultPartitionBytesInKBRAte;
+  private final int _defaultPartitionBytesInKBRate;
   private final int _defaultPartitionMsgsInRate;
 
   /**
@@ -58,7 +58,7 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
         DEFAULT_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT);
     _enablePartitionNumBasedTaskCountEstimation = props.getBoolean(CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION,
         DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION);
-    _defaultPartitionBytesInKBRAte = props.getInt(CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE, DEFAULT_PARTITION_BYTES_IN_KB_RATE);
+    _defaultPartitionBytesInKBRate = props.getInt(CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE, DEFAULT_PARTITION_BYTES_IN_KB_RATE);
     _defaultPartitionMsgsInRate = props.getInt(CFG_DEFAULT_PARTITION_MSGS_IN_RATE, DEFAULT_PARTITION_MSGS_IN_RATE);
   }
 
@@ -111,7 +111,7 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   }
 
   public int getDefaultPartitionBytesInKBRate() {
-    return _defaultPartitionBytesInKBRAte;
+    return _defaultPartitionBytesInKBRate;
   }
 
   public int getDefaultPartitionMsgsInRate() {
