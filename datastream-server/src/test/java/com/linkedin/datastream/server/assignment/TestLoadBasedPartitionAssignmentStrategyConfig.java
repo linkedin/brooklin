@@ -18,6 +18,8 @@ public class TestLoadBasedPartitionAssignmentStrategyConfig {
   private static final String CFG_TASK_CAPACITY_UTILIZATION_PCT_VALUE = "82";
   private static final String CFG_THROUGHPUT_INFO_FETCH_TIMEOUT_MS_VALUE = "1100";
   private static final String CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE = "1200";
+  private static final String CFG_PARTITION_BYTES_IN_KB_RATE = "10";
+  private static final String CFG_PARTITION_MSGS_IN_RATE = "20";
 
   @Test
   public void configValuesCorrectlyAssignedTest() {
@@ -33,6 +35,10 @@ public class TestLoadBasedPartitionAssignmentStrategyConfig {
     props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION,
         String.valueOf(false));
     props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_ENABLE_THROUGHPUT_BASED_PARTITION_ASSIGNMENT, String.valueOf(true));
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE,
+        CFG_PARTITION_BYTES_IN_KB_RATE);
+    props.setProperty(LoadBasedPartitionAssignmentStrategyConfig.CFG_DEFAULT_PARTITION_MSGS_IN_RATE,
+        CFG_PARTITION_MSGS_IN_RATE);
 
     LoadBasedPartitionAssignmentStrategyConfig config = new LoadBasedPartitionAssignmentStrategyConfig(props);
 
@@ -42,5 +48,7 @@ public class TestLoadBasedPartitionAssignmentStrategyConfig {
     Assert.assertEquals(config.getThroughputInfoFetchRetryPeriodMs(), Integer.parseInt(CFG_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS_VALUE));
     Assert.assertTrue(config.isEnableThroughputBasedPartitionAssignment());
     Assert.assertFalse(config.isEnablePartitionNumBasedTaskCountEstimation());
+    Assert.assertEquals(config.getDefaultPartitionBytesInKBRate(), Integer.parseInt(CFG_PARTITION_BYTES_IN_KB_RATE));
+    Assert.assertEquals(config.getDefaultPartitionMsgsInRate(), Integer.parseInt(CFG_PARTITION_MSGS_IN_RATE));
   }
 }

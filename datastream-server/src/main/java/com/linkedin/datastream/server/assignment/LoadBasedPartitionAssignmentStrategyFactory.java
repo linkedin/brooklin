@@ -38,12 +38,14 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
 
     PartitionThroughputProvider provider = constructPartitionThroughputProvider();
 
+    //TODO: Directly pass the config object.
     return new LoadBasedPartitionAssignmentStrategy(provider, _config.getMaxTasks(),
         _config.getImbalanceThreshold(), _config.getMaxPartitions(), enableElasticTaskAssignment,
         _config.getPartitionsPerTask(), _config.getPartitionFullnessThresholdPct(), config.getTaskCapacityMBps(),
         config.getTaskCapacityUtilizationPct(), config.getThroughputInfoFetchTimeoutMs(),
         config.getThroughputInfoFetchRetryPeriodMs(), zkClient, _config.getCluster(),
-        config.isEnableThroughputBasedPartitionAssignment(), config.isEnablePartitionNumBasedTaskCountEstimation());
+        config.isEnableThroughputBasedPartitionAssignment(), config.isEnablePartitionNumBasedTaskCountEstimation(),
+        config.getDefaultPartitionBytesInKBRate(), config.getDefaultPartitionMsgsInRate());
   }
 
   protected PartitionThroughputProvider constructPartitionThroughputProvider() {
