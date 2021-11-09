@@ -264,11 +264,13 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
         Config topicConfig = topicConfigMap.get(topicResource);
         ConfigEntry entry = topicConfig.get(TOPIC_RETENTION_MS);
         if (entry != null) {
+          LOG.info("Retention time for topic {} is {}", topicName, entry.value());
           return Duration.ofMillis(Long.parseLong(entry.value()));
         }
       } catch (ExecutionException e) {
         LOG.warn("Failed to retrieve config for topic {}.", topicName, e);
       }
+      LOG.warn("Failed to retrieve retention time for topic {}", topicName);
       return null;
     }, Objects::nonNull, GET_RETENTION_RETRY_PERIOD_MS, GET_RETENTION_RETRY_TIMEOUT_MS).orElse(null);
   }
