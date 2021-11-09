@@ -20,5 +20,5 @@ ext {
     testngVersion = "7.1.0"
     zkclientVersion = "0.11"
     zookeeperVersion = "3.4.13"
-    helixZkclientVersion = "1.0.1"
+    helixZkclientVersion = "1.0.2"
 }
