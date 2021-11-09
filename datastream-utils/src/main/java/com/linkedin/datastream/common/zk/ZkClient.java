@@ -6,19 +6,13 @@
 package com.linkedin.datastream.common.zk;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.Stack;
 
-import org.I0Itec.zkclient.ZkConnection;
-import org.I0Itec.zkclient.exception.ZkInterruptedException;
-import org.I0Itec.zkclient.exception.ZkMarshallingError;
-import org.I0Itec.zkclient.exception.ZkNoNodeException;
-import org.I0Itec.zkclient.exception.ZkNodeExistsException;
-import org.I0Itec.zkclient.serialize.ZkSerializer;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.data.Stat;
+import org.apache.helix.zookeeper.zkclient.exception.ZkMarshallingError;
+import org.apache.helix.zookeeper.zkclient.exception.ZkNodeExistsException;
+import org.apache.helix.zookeeper.zkclient.serialize.ZkSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 
 /**
- * ZKClient is a wrapper of {@link org.I0Itec.zkclient.ZkClient}. It provides the following
+ * ZKClient is a wrapper of {@link org.apache.helix.zookeeper.impl.client.ZkClient}. It provides the following
  * basic features:
  * <ol>
  *  <li>tolerate network reconnects so the caller doesn't have to handle the retries</li>
@@ -34,7 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
  *  <li>additional features like ensurePath to recursively create paths</li>
  * </ol>
  */
-public class ZkClient extends org.I0Itec.zkclient.ZkClient {
+public class ZkClient extends org.apache.helix.zookeeper.impl.client.ZkClient {
   public static final String ZK_PATH_SEPARATOR = "/";
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
@@ -86,71 +80,20 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     _zkSessionTimeoutMs = sessionTimeoutMs;
   }
 
-  @Override
-  public void close() throws ZkInterruptedException {
-    if (LOG.isTraceEnabled()) {
-      StackTraceElement[] calls = Thread.currentThread().getStackTrace();
-      LOG.trace("closing zkclient. callStack: {}", Arrays.asList(calls));
-    }
-    getEventLock().lock();
-    try {
-      if (_connection == null) {
-        return;
-      }
-      LOG.info("closing zkclient: {}", ((ZkConnection) _connection).getZookeeper());
-      super.close();
-    } catch (ZkInterruptedException e) {
-      /*
-       * Workaround for HELIX-264: calling ZkClient#disconnect() in its own eventThread context will
-       * throw ZkInterruptedException and skip ZkConnection#disconnect()
-       */
-      try {
-        /*
-         * ZkInterruptedException#construct() honors InterruptedException by calling
-         * Thread.currentThread().interrupt(); clear it first, so we can safely disconnect the
-         * zk-connection
-         */
-        Thread.interrupted();
-        _connection.close();
-        /*
-         * restore interrupted status of current thread
-         */
-        Thread.currentThread().interrupt();
-      } catch (InterruptedException e1) {
-        throw new ZkInterruptedException(e1);
-      }
-    } finally {
-      getEventLock().unlock();
-      LOG.info("closed zkclient");
-    }
-  }
-
+  /**
+   * Check if a zk path exists. Changes the access modified to public, its defined as protected in parent class.
+   */
   @Override
   public boolean exists(final String path, final boolean watch) {
-    long startT = System.nanoTime();
-
-    try {
-      return retryUntilConnected(() -> _connection.exists(path, watch));
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("exists, path: {}, time: {} ns", path, (endT - startT));
-      }
-    }
+    return super.exists(path, watch);
   }
 
+  /**
+   * Get all children of zk path. Changes the access modified to public, its defined as protected in parent class.
+   */
   @Override
   public List<String> getChildren(final String path, final boolean watch) {
-    long startT = System.nanoTime();
-
-    try {
-      return retryUntilConnected(() -> _connection.getChildren(path, watch));
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("getChildren, path: {}, time: {} ns", path, (endT - startT));
-      }
-    }
+    return super.getChildren(path, watch);
   }
 
   /**
@@ -210,80 +153,6 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
    */
   public String ensureReadData(final String path) {
     return ensureReadData(path, _zkSessionTimeoutMs);
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  protected <T extends Object> T readData(final String path, final Stat stat, final boolean watch) {
-    long startT = System.nanoTime();
-    try {
-      byte[] data = retryUntilConnected(() -> _connection.readData(path, stat, watch));
-      return (T) deserialize(data);
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("readData, path: {}, time: {} ns", path, (endT - startT));
-      }
-    }
-  }
-
-  @Override
-  public void writeData(final String path, Object data, final int expectedVersion) {
-    long startT = System.nanoTime();
-    try {
-      final byte[] bytes = serialize(data);
-
-      retryUntilConnected(() -> {
-        _connection.writeData(path, bytes, expectedVersion);
-        return null;
-      });
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("writeData, path: {}, time: {} ns", path, (endT - startT));
-      }
-    }
-  }
-
-  @Override
-  public String create(final String path, Object data, final CreateMode mode) throws RuntimeException {
-    if (path == null) {
-      throw new IllegalArgumentException("path must not be null.");
-    }
-
-    long startT = System.nanoTime();
-    try {
-      final byte[] bytes = data == null ? null : serialize(data);
-
-      return retryUntilConnected(() -> _connection.create(path, bytes, mode));
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("create, path: {}, time: {} ns", path, (endT - startT));
-      }
-    }
-  }
-
-  @Override
-  public boolean delete(final String path) {
-    long startT = System.nanoTime();
-    try {
-      try {
-        retryUntilConnected(() -> {
-          _connection.delete(path);
-          return null;
-        });
-
-        return true;
-      } catch (ZkNoNodeException e) {
-        return false;
-      }
-    } finally {
-      long endT = System.nanoTime();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("delete, path: {}, time: {} ns", path, (endT - startT));
-      }
-    }
   }
 
   /**
@@ -347,9 +216,12 @@ public class ZkClient extends org.I0Itec.zkclient.ZkClient {
     return (T) _zkSerializer.deserialize(data);
   }
 
+  /**
+   * Get Zk sessions session ID
+   */
   @VisibleForTesting
   public long getSessionId() {
-    return ((ZkConnection) _connection).getZookeeper().getSessionId();
+    return super.getSessionId();
   }
 
   private static class ZKStringSerializer implements ZkSerializer {
