@@ -165,11 +165,12 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         unassignedPartitions, datastreamPartitions);
     partitionSanityChecks(newAssignment, datastreamPartitions);
 
+    boolean needsAdjustment = false;
     // verify if the elastic task configurations need adjustment for the datastream.
     int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
     // if numTasks == maxTasks, the task configurations require readjustment from scale point of view.
     if (maxTasks > 0 && maxTasks == getTaskCountForDatastreamGroup(datastreamGroup.getTaskPrefix())) {
-      updateOrRegisterElasticTaskAssignmentMetrics(datastreamGroup.getTaskPrefix(), true);
+      needsAdjustment = true;
     }
 
     if (_enablePartitionNumBasedTaskCountEstimation) {
@@ -179,12 +180,13 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       for (Set<DatastreamTask> tasksSet : newAssignment.values()) {
         for (DatastreamTask task : tasksSet) {
           if (task.getTaskPrefix().equals(datastreamGroup.getTaskPrefix()) && task.getPartitionsV2().size() > partitionsPerTask) {
-            updateOrRegisterElasticTaskAssignmentMetrics(task.getTaskPrefix(), true);
+            needsAdjustment = true;
             break;
           }
         }
       }
     }
+    updateOrRegisterElasticTaskAssignmentMetrics(datastreamGroup.getTaskPrefix(), needsAdjustment);
     return newAssignment;
   }
 
