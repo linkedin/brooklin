@@ -13,9 +13,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.stream.Stream;
 
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -56,7 +58,7 @@ public class TestAbstractKafkaConnector {
   public void testConnectorRestartCalled() {
     Properties props = new Properties();
     props.setProperty("daemonThreadIntervalInSeconds", "1");
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, false);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, false, true);
     DatastreamTask datastreamTask = new DatastreamTaskImpl();
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
     connector.start(null);
@@ -84,7 +86,7 @@ public class TestAbstractKafkaConnector {
     props.setProperty("daemonThreadIntervalInSeconds", "2");
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, true, true);
     DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl();
     datastreamTask1.setTaskPrefix("testtask1");
     connector.onAssignmentChange(Collections.singletonList(datastreamTask1));
@@ -114,7 +116,7 @@ public class TestAbstractKafkaConnector {
     props.setProperty("daemonThreadIntervalInSeconds", "2");
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, true, true);
     DatastreamTaskImpl datastreamTask = new DatastreamTaskImpl();
     datastreamTask.setTaskPrefix("testtask1");
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
@@ -139,10 +141,35 @@ public class TestAbstractKafkaConnector {
   }
 
   @Test
+  public void testOnAssignmentChangeStopTaskFailure2() throws InterruptedException {
+    Properties props = new Properties();
+    // Reduce time interval between calls to restartDeadTasks to force invocation of stopTasks
+    props.setProperty("daemonThreadIntervalInSeconds", "2");
+    // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
+    // to fail the first time with InterruptedException and pass the second time.
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, false, false);
+    DatastreamTaskImpl datastreamTask = new DatastreamTaskImpl();
+    datastreamTask.setTaskPrefix("testtask1");
+    connector.onAssignmentChange(Collections.singletonList(datastreamTask));
+    connector.start(null);
+
+    datastreamTask = new DatastreamTaskImpl();
+    datastreamTask.setTaskPrefix("testtask2");
+    // AbstractKafkaBasedConnectorTask stop should fail on this onAssignmentChange call
+    connector.onAssignmentChange(Collections.singletonList(datastreamTask));
+    Assert.assertEquals(connector.getTasksToStopCount(), 1);
+    connector.stop();
+
+    // testtask1 & testtask2 both will be interrupted!
+    PollUtils.poll(() -> Objects.equals(connector.getTasksToStopInterrupted(), 2), Duration.ofSeconds(10).toMillis(),
+        Duration.ofSeconds(100).toMillis());
+  }
+
+  @Test
   public void testCalculateThreadStartDelay() {
     Properties props = new Properties();
     props.setProperty("daemonThreadIntervalInSeconds", "30");
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, false);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, false, true);
 
     // A delay of 5 minutes means that the delay should occur every 5 minutes after the hour (i.e. it should fire at
     // 6:00, 6:05, 6:10, 6:15, etc. but should not fire at 6:07)
@@ -180,7 +207,7 @@ public class TestAbstractKafkaConnector {
   public void testRestartThrowsException() {
     Properties props = new Properties();
     props.setProperty("daemonThreadIntervalInSeconds", "1");
-    TestKafkaConnector connector = new TestKafkaConnector(true, props, false);
+    TestKafkaConnector connector = new TestKafkaConnector(true, props, false, true);
     DatastreamTask datastreamTask = new DatastreamTaskImpl();
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
     connector.start(null);
@@ -196,9 +223,11 @@ public class TestAbstractKafkaConnector {
    */
   public class TestKafkaConnector extends AbstractKafkaConnector {
     private boolean _restartThrows;
-    private boolean _failStopTaskOnce;
+    private final boolean _failStopTaskOnce;
     private int _createTaskCalled = 0;
     private int _stopTaskCalled = 0;
+    private int _stopTaskInterrupted = 0;
+    private final boolean _awaitStopValue;
 
     /**
      * Constructor for TestKafkaConnector
@@ -206,12 +235,13 @@ public class TestAbstractKafkaConnector {
      *                      for the first time should throw a {@link RuntimeException}
      * @param props Configuration properties to use
      */
-    public TestKafkaConnector(boolean restartThrows, Properties props, boolean failStopTaskOnce) {
+    public TestKafkaConnector(boolean restartThrows, Properties props, boolean failStopTaskOnce, boolean awaitStopValue) {
       super("test", props, new KafkaGroupIdConstructor(
           Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())),
           "TestkafkaConnectorCluster"), "TestkafkaConnectorCluster", LOG);
       _restartThrows = restartThrows;
       _failStopTaskOnce = failStopTaskOnce;
+      _awaitStopValue = awaitStopValue;
     }
 
     @Override
@@ -219,9 +249,31 @@ public class TestAbstractKafkaConnector {
       _createTaskCalled++;
       AbstractKafkaBasedConnectorTask connectorTask = mock(AbstractKafkaBasedConnectorTask.class);
       try {
-        when(connectorTask.awaitStop(anyLong(), anyObject())).thenReturn(true);
+        // mocking run() call
+        Mockito.doAnswer(invocation -> {
+          try {
+            while (!Thread.currentThread().isInterrupted()) {
+              try {
+                Thread.sleep(10);
+              } catch (InterruptedException e) {
+                _stopTaskInterrupted += 1;
+                Thread.currentThread().interrupt();
+              }
+            }
+          } catch (Exception e) {
+            e.printStackTrace();
+          }
+          return null;
+        }).when(connectorTask).run();
+
+        // mocking awaitStop() call
+        when(connectorTask.awaitStop(anyLong(), anyObject())).thenReturn(_awaitStopValue);
+
+        // mocking stop() call
         if (_failStopTaskOnce) {
           doThrow(InterruptedException.class).doNothing().when(connectorTask).stop();
+        } else {
+          Mockito.doNothing().when(connectorTask).stop();
         }
       } catch (InterruptedException e) {
         e.printStackTrace();
@@ -255,6 +307,10 @@ public class TestAbstractKafkaConnector {
 
     public int getCreateTaskCalled() {
       return _createTaskCalled;
+    }
+
+    public int getTasksToStopInterrupted() {
+      return _stopTaskInterrupted;
     }
 
     public int getStopTaskCalled() {

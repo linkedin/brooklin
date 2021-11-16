@@ -388,7 +388,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       consumerSubscribe();
 
       ConsumerRecords<?, ?> records;
-      while (!_shutdown) {
+      while (!_shutdown && !Thread.currentThread().isInterrupted()) {
         // perform any pre-computations before poll()
         preConsumerPollHook();
 
