@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 
 import kafka.server.KafkaConfig;
@@ -122,7 +123,7 @@ public class EmbeddedKafkaCluster {
   }
 
   private KafkaServer startBroker(Properties props) {
-    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new SystemTime(),
+    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new EmbeddedSystemTime(),
         scala.Option.apply(""), scala.collection.JavaConversions.asScalaBuffer(Collections.emptyList()));
     server.startup();
     return server;
@@ -179,22 +180,7 @@ public class EmbeddedKafkaCluster {
     return sb.toString();
   }
 
-  static class SystemTime implements Time {
-    public long milliseconds() {
-      return System.currentTimeMillis();
-    }
-
-    public long nanoseconds() {
-      return System.nanoTime();
-    }
-
-    public void sleep(long ms) {
-      try {
-        Thread.sleep(ms);
-      } catch (InterruptedException e) {
-        // Ignore
-      }
-    }
+  static class EmbeddedSystemTime extends SystemTime implements Time {
 
     @Override
     public long hiResClockMs() {
