@@ -65,8 +65,11 @@ public class LoadBasedTaskCountEstimator {
         LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
     // total throughput in KB/sec
     int totalThroughput = allPartitions.stream()
-        .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))
-        .mapToInt(PartitionThroughputInfo::getBytesInKBRate)
+        .mapToInt(p ->  {
+          String wildcardTopicPartition = p.substring(0, p.lastIndexOf('-')) + "-" + "-1";
+          PartitionThroughputInfo defaultValue = throughputMap.getOrDefault(wildcardTopicPartition, defaultThroughputInfo);
+          return throughputMap.getOrDefault(p, defaultValue).getBytesInKBRate();
+        })
         .sum();
     LOG.info("Total throughput in all {} partitions: {}KB/sec", allPartitions.size(), totalThroughput);
 

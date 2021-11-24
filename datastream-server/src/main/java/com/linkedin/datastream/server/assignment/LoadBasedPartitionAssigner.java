@@ -95,7 +95,12 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
         LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
-          .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())
+          .mapToInt(p ->  {
+            // default partition will be -1.
+            String wildcardTopicPartition = p.substring(0, p.lastIndexOf('-')) + '-' + "-1";
+            PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(wildcardTopicPartition, defaultPartitionInfo);
+            return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
+          })
           .sum();
       taskThroughputMap.put(task, totalThroughput);
     });
