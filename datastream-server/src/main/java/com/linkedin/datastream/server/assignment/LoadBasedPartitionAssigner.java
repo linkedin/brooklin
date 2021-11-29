@@ -108,7 +108,15 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
-          .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())
+          .mapToInt(p ->  {
+            int index = p.lastIndexOf('-');
+            String topic = p;
+            if (index > -1) {
+              topic = p.substring(0, index);
+            }
+            PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(topic, defaultPartitionInfo);
+            return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
+          })
           .sum();
       taskThroughputMap.put(task, totalThroughput);
     });
