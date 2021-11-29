@@ -5,13 +5,13 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -187,67 +187,50 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    */
   private class CallbackStatus {
 
+    // the last record which is checkpoint-ed or is to be checkpoint-ed
     private T _currentCheckpoint = null;
-    private T _highWaterMark = null;
 
-    private final Queue<T> _acked = new PriorityQueue<>();
-    private final Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
+    // Deque to store all the messages which are inflight
+    private final Deque<T> _inFlight = new ArrayDeque<>();
+
+    // Hashset storing all the records for which the ack is received
+    private final Set<T> _acked = Collections.synchronizedSet(new HashSet<>());
 
     public T getAckCheckpoint() {
       return _currentCheckpoint;
     }
 
+    // Get the count of the records which are in flight
     public long getInFlightCount() {
       return _inFlight.size();
     }
 
+    // Get the count of the records which are all acked from the producer
     public long getAckMessagesPastCheckpointCount() {
       return _acked.size();
     }
 
     /**
-     * Registers the given checkpoint by adding it to the set of in-flight checkpoints.
+     * Registers the given checkpoint by adding it to the deque of in-flight checkpoints.
      * @param checkpoint the checkpoint to register
      */
     public synchronized void register(T checkpoint) {
-      _inFlight.add(checkpoint);
+      _inFlight.offerLast(checkpoint);
     }
 
     /**
-     * The checkpoint acknowledgement can be received out of order. In that case we need to keep track
-     * of the high watermark, and only update the ackCheckpoint when we are sure all events before it has
-     * been received.
+     * The checkpoint acknowledgement can be received out of order. So here, we track the checkpoints by adding
+     * them in the _acked set and only update the _currentCheckpoint if a contiguous sequence of offsets are ack-ed
+     * from the front of the queue.
      */
     public synchronized void ack(T checkpoint) {
-      if (!_inFlight.remove(checkpoint)) {
-        LOG.error("Internal state error; could not remove checkpoint {}", checkpoint);
-      }
       _acked.add(checkpoint);
 
-      if (_highWaterMark == null || _highWaterMark.compareTo(checkpoint) < 0) {
-        _highWaterMark = checkpoint;
-      }
+      while (!_inFlight.isEmpty() && !_acked.isEmpty() && _acked.contains(_inFlight.peekFirst())) {
+        _currentCheckpoint = _inFlight.pollFirst();
 
-      if (_inFlight.isEmpty()) {
-        // Queue is empty, update to high water mark.
-        _currentCheckpoint = _highWaterMark;
-        _acked.clear();
-      } else {
-        // Update the checkpoint to the largest acked message that is still smaller than the first in-flight message
-        T max = null;
-        T first = _inFlight.iterator().next();
-        while (!_acked.isEmpty() && _acked.peek().compareTo(first) < 0) {
-          max = _acked.poll();
-        }
-        if (max != null) {
-          if (_currentCheckpoint != null && max.compareTo(_currentCheckpoint) < 0) {
-            // max is less than current checkpoint, should not happen
-            LOG.error(
-                "Internal error: checkpoints should progress in increasing order. Resolved checkpoint as {} which is "
-                    + "less than current checkpoint of {}",
-                max, _currentCheckpoint);
-          }
-          _currentCheckpoint = max;
+        if (!_acked.remove(_currentCheckpoint)) {
+          LOG.error("Internal state error; could not remove checkpoint {}", _currentCheckpoint);
         }
       }
     }

@@ -74,6 +74,7 @@ public class TestFlushlessEventProducerHandler {
       Assert.assertTrue(ackOffset < minOffsetPending,
           "Not true that " + ackOffset + " is less than " + minOffsetPending);
     }
+    // event producer calls ack on the last element
     eventProducer.processOne();
 
     for (int par = 0; par < 10; par++) {
@@ -99,34 +100,38 @@ public class TestFlushlessEventProducerHandler {
     }
 
     // simulate callback for checkpoint 4
-    eventProducer.process(tp, 4); // inflight result: 0, 1, 2, 3
+    eventProducer.process(tp, 4); // inflight result: 0, 1, 2, 3, 4
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition), Optional.empty(),
         "Safe checkpoint should be empty");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 5, "Number of inflight messages should be 5");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 1);
 
     // simulate callback for checkpoint 2
-    eventProducer.process(tp, 2); // inflight result: 0, 1, 3
+    eventProducer.process(tp, 2); // inflight result: 0, 1, 2, 3, 4
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition), Optional.empty(),
         "Safe checkpoint should be empty");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 5, "Number of inflight messages should be 5");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 2);
 
 
     // simulate callback for checkpoint 0
-    eventProducer.process(tp, 0); // inflight result: 1, 3
+    eventProducer.process(tp, 0); // inflight result: 1, 2, 3, 4
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(0),
         "Safe checkpoint should be 0");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 4, "Number of inflight messages should be 4");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 2);
 
     // simulate callback for checkpoint 1
-    eventProducer.process(tp, 0); // inflight result: 3
+    eventProducer.process(tp, 0); // inflight result: 3, 4
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(2),
-        "Safe checkpoint should be 1");
+        "Safe checkpoint should be 2");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 2, "Number of inflight messages should be 2");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 1);
 
 
     // send another event with checkpoint 5
-    sendEvent(tp, handler, 5); // inflight result: 3, 5
-    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 2, "Number of inflight messages should be 2");
+    sendEvent(tp, handler, 5); // inflight result: 3, 4, 5
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 3, "Number of inflight messages should be 3");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 1);
 
 
@@ -134,6 +139,7 @@ public class TestFlushlessEventProducerHandler {
     eventProducer.process(tp, 0); // inflight result: 5
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(4),
         "Safe checkpoint should be 4");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 1, "Number of inflight messages should be 1");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 0);
 
     // simulate callback for checkpoint 5
