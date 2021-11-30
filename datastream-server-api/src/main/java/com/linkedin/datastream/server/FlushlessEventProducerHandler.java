@@ -185,31 +185,42 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     }
   }
 
-  private class CallbackStatus {
+  /**
+   * Abstract class to track the callback status of the inflight events.
+   */
+  private abstract class CallbackStatus {
 
-    // the last record which is checkpoint-ed or is to be checkpoint-ed
+    // the last checkpoint-ed record's offset
     protected T _currentCheckpoint = null;
 
     public T getAckCheckpoint() {
       return _currentCheckpoint;
     }
 
-    // Get the count of the records which are in flight
+    /**
+     * Get the count of the records which are in flight
+     */
     public long getInFlightCount() {
       return -1L;
     }
 
-    // Get the count of the records which are all acked from the producer
+    /**
+     * Get the count of the records which are all acked from the producer
+     */
     public long getAckMessagesPastCheckpointCount() {
       return -1L;
     }
 
     /**
-     * Registers the given checkpoint by adding it to the deque of in-flight checkpoints.
+     * Registers the given checkpoint.
      * @param checkpoint the checkpoint to register
      */
     public synchronized void register(T checkpoint) { }
 
+    /**
+     * The checkpoint acknowledgement maintains the last successfully checkpoint-ed entry with
+     * either comparing or without comparing the offsets.
+     */
     public synchronized void ack(T checkpoint) { }
   }
 
@@ -289,12 +300,10 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     // Hashset storing all the records for which the ack is received
     private final Set<T> _acked = Collections.synchronizedSet(new HashSet<>());
 
-    // Get the count of the records which are in flight
     public long getInFlightCount() {
       return _inFlight.size();
     }
 
-    // Get the count of the records which are all acked from the producer
     public long getAckMessagesPastCheckpointCount() {
       return _acked.size();
     }
