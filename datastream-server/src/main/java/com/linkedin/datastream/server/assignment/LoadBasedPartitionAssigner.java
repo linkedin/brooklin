@@ -51,6 +51,19 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
   private final Map<String, LoadBasedPartitionAssigner.PartitionAssignmentStats> _partitionAssignmentStatsMap =
       new ConcurrentHashMap<>();
+  private final int _defaultPartitionBytesInKBRate;
+  private final int _defaultPartitionMsgsInRate;
+
+  /**
+   * Constructor of LoadBasedPartitionAssigner
+   * @param defaultPartitionBytesInKBRate default bytesIn rate in KB for partition
+   * @param defaultPartitionMsgsInRate default msgsIn rate in KB for partition
+   */
+  public LoadBasedPartitionAssigner(int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate) {
+    _defaultPartitionBytesInKBRate = defaultPartitionBytesInKBRate;
+    _defaultPartitionMsgsInRate = defaultPartitionMsgsInRate;
+  }
+
   /**
    * Performs partition assignment based on partition throughput information.
    * <p>
@@ -90,12 +103,20 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     // sort the current assignment's tasks on total throughput
     Map<String, Integer> taskThroughputMap = new HashMap<>();
-    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
+    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
+        _defaultPartitionMsgsInRate, "");
+
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
-          .mapToInt(p -> partitionInfoMap.getOrDefault(p, defaultPartitionInfo).getBytesInKBRate())
+          .mapToInt(p ->  {
+            int index = p.lastIndexOf('-');
+            String topic = p;
+            if (index > -1) {
+              topic = p.substring(0, index);
+            }
+            PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(topic, defaultPartitionInfo);
+            return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
+          })
           .sum();
       taskThroughputMap.put(task, totalThroughput);
     });
@@ -194,7 +215,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     if (partitionInfoMap.isEmpty()) {
       stat.isThroughputRateLatest = false;
     } else {
-      stat.throughputRate = taskThroughputMap.get(task.getId());
+      stat.throughputRateInKBps = taskThroughputMap.get(task.getId());
       stat.isThroughputRateLatest = true;
     }
     stat.totalPartitions = partitionCount;
@@ -275,18 +296,18 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   }
 
   static class PartitionAssignmentStatPerTask {
-    private int throughputRate;
+    private int throughputRateInKBps;
     private int totalPartitions;
     private int partitionsWithUnknownThroughput;
     private boolean isThroughputRateLatest;
 
     //getters and setters required for fromJson and toJson
-    public int getThroughputRate() {
-      return throughputRate;
+    public int getThroughputRateInKBps() {
+      return throughputRateInKBps;
     }
 
-    public void setThroughputRate(int throughputRate) {
-      this.throughputRate = throughputRate;
+    public void setThroughputRateInKBps(int throughputRateInKBps) {
+      this.throughputRateInKBps = throughputRateInKBps;
     }
 
     public int getTotalPartitions() {

@@ -29,15 +29,22 @@ public class LoadBasedTaskCountEstimator {
   private static final Logger LOG = LoggerFactory.getLogger(LoadBasedTaskCountEstimator.class.getName());
   private final int _taskCapacityMBps;
   private final int _taskCapacityUtilizationPct;
+  private final int _defaultPartitionBytesInKBRate;
+  private final int _defaultPartitionMsgsInRate;
 
   /**
    * Creates an instance of {@link LoadBasedTaskCountEstimator}
    * @param taskCapacityMBps Task capacity in MB/sec
    * @param taskCapacityUtilizationPct Task capacity utilization percentage
+   * @param defaultPartitionBytesInKBRate Default bytesIn rate in KB for partition
+   * @param defaultPartitionMsgsInRate Default msgsIn rate for partition
    */
-  public LoadBasedTaskCountEstimator(int taskCapacityMBps, int taskCapacityUtilizationPct) {
+  public LoadBasedTaskCountEstimator(int taskCapacityMBps, int taskCapacityUtilizationPct,
+      int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate) {
     _taskCapacityMBps = taskCapacityMBps;
     _taskCapacityUtilizationPct = taskCapacityUtilizationPct;
+    _defaultPartitionBytesInKBRate = defaultPartitionBytesInKBRate;
+    _defaultPartitionMsgsInRate = defaultPartitionMsgsInRate;
   }
 
   /**
@@ -46,10 +53,11 @@ public class LoadBasedTaskCountEstimator {
    * @param throughputInfo Per-partition throughput information
    * @param assignedPartitions The list of assigned partitions
    * @param unassignedPartitions The list of unassigned partitions
+   * @param datastreamName Name of the datastream
    * @return The estimated number of tasks
    */
   public int getTaskCount(ClusterThroughputInfo throughputInfo, List<String> assignedPartitions,
-      List<String> unassignedPartitions) {
+      List<String> unassignedPartitions, String datastreamName) {
     Validate.notNull(throughputInfo, "null throughputInfo");
     Validate.notNull(assignedPartitions, "null assignedPartitions");
     Validate.notNull(unassignedPartitions, "null unassignedPartitions");
@@ -60,21 +68,30 @@ public class LoadBasedTaskCountEstimator {
     Set<String> allPartitions = new HashSet<>(assignedPartitions);
     allPartitions.addAll(unassignedPartitions);
 
-    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_BYTES_IN_KB_RATE,
-        LoadBasedPartitionAssignmentStrategyConfig.DEFAULT_PARTITION_MESSAGES_IN_RATE, "");
+    PartitionThroughputInfo defaultThroughputInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
+        _defaultPartitionMsgsInRate, "");
+
     // total throughput in KB/sec
     int totalThroughput = allPartitions.stream()
-        .map(p -> throughputMap.getOrDefault(p, defaultThroughputInfo))
-        .mapToInt(PartitionThroughputInfo::getBytesInKBRate)
+        .mapToInt(p ->  {
+          int index = p.lastIndexOf('-');
+          String topic = p;
+          if (index > -1) {
+            topic = p.substring(0, index);
+          }
+          PartitionThroughputInfo defaultValue = throughputMap.getOrDefault(topic, defaultThroughputInfo);
+          return throughputMap.getOrDefault(p, defaultValue).getBytesInKBRate();
+        })
         .sum();
-    LOG.info("Total throughput in all {} partitions: {}KB/sec", allPartitions.size(), totalThroughput);
+    LOG.info("Total throughput in all {} partitions for datastream {}: {}KB/sec, assigned partitions: {} "
+            + "unassigned partitions: {}", allPartitions.size(), datastreamName, totalThroughput,
+        assignedPartitions.size(), unassignedPartitions.size());
 
     double taskCapacityUtilizationCoefficient = _taskCapacityUtilizationPct / 100.0;
     int taskCountEstimate = (int) Math.ceil((double) totalThroughput /
         (_taskCapacityMBps * 1024 * taskCapacityUtilizationCoefficient));
     taskCountEstimate = Math.min(allPartitions.size(), taskCountEstimate);
-    LOG.info("Estimated number of tasks required to handle the throughput: {}", taskCountEstimate);
+    LOG.info("Estimated number of tasks for datastream {} required to handle the throughput: {}", datastreamName, taskCountEstimate);
     return taskCountEstimate;
   }
 }

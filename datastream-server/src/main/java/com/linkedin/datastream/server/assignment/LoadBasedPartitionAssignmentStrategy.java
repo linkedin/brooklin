@@ -55,6 +55,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private final boolean _enableThroughputBasedPartitionAssignment;
   private final boolean _enablePartitionNumBasedTaskCountEstimation;
   private final LoadBasedPartitionAssigner _assigner;
+  private final int _defaultPartitionBytesInKBRate;
+  private final int _defaultPartitionMsgsInRate;
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
@@ -63,7 +65,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       int imbalanceThreshold, int maxPartitionPerTask, boolean enableElasticTaskAssignment, int partitionsPerTask,
       int partitionFullnessFactorPct, int taskCapacityMBps, int taskCapacityUtilizationPct,
       int throughputInfoFetchTimeoutMs, int throughputInfoFetchRetryPeriodMs, ZkClient zkClient, String clusterName,
-      boolean enableThroughputBasedPartitionAssignment, boolean enablePartitionNumBasedTaskCountEstimation) {
+      boolean enableThroughputBasedPartitionAssignment, boolean enablePartitionNumBasedTaskCountEstimation,
+      int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
     _throughputProvider = throughputProvider;
@@ -73,13 +76,15 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     _throughputInfoFetchRetryPeriodMs = throughputInfoFetchRetryPeriodMs;
     _enableThroughputBasedPartitionAssignment = enableThroughputBasedPartitionAssignment;
     _enablePartitionNumBasedTaskCountEstimation = enablePartitionNumBasedTaskCountEstimation;
+    _defaultPartitionBytesInKBRate = defaultPartitionBytesInKBRate;
+    _defaultPartitionMsgsInRate = defaultPartitionMsgsInRate;
 
     LOG.info("Task capacity : {}MBps, task capacity utilization : {}%, Throughput info fetch timeout : {} ms, "
         + "throughput info fetch retry period : {} ms, throughput based partition assignment : {}, "
         + "partition num based task count estimation : {}", _taskCapacityMBps, _taskCapacityUtilizationPct,
         _throughputInfoFetchTimeoutMs, _throughputInfoFetchRetryPeriodMs, _enableThroughputBasedPartitionAssignment ?
             "enabled" : "disabled", _enablePartitionNumBasedTaskCountEstimation ? "enabled" : "disabled");
-    _assigner = new LoadBasedPartitionAssigner();
+    _assigner = new LoadBasedPartitionAssigner(defaultPartitionBytesInKBRate, defaultPartitionMsgsInRate);
   }
 
   /**
@@ -138,8 +143,10 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         numTasksNeeded = numTasksEstimateBasedOnPartitionCount;
       }
 
-      LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct);
-      int numTasksEstimateBasedOnLoad = estimator.getTaskCount(clusterThroughputInfo, assignedPartitions, unassignedPartitions);
+      LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(_taskCapacityMBps, _taskCapacityUtilizationPct,
+          _defaultPartitionBytesInKBRate, _defaultPartitionMsgsInRate);
+      int numTasksEstimateBasedOnLoad = estimator.getTaskCount(clusterThroughputInfo, assignedPartitions,
+          unassignedPartitions, datastreamGroupName);
       numTasksNeeded = Math.max(numTasksNeeded, numTasksEstimateBasedOnLoad);
 
       LOG.info("NumTask estimations for datastream {}: existingTasks: {}, PartitionCountBasedEstimate: {} "
@@ -158,11 +165,12 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         unassignedPartitions, datastreamPartitions);
     partitionSanityChecks(newAssignment, datastreamPartitions);
 
+    boolean needsAdjustment = false;
     // verify if the elastic task configurations need adjustment for the datastream.
     int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
     // if numTasks == maxTasks, the task configurations require readjustment from scale point of view.
     if (maxTasks > 0 && maxTasks == getTaskCountForDatastreamGroup(datastreamGroup.getTaskPrefix())) {
-      updateOrRegisterElasticTaskAssignmentMetrics(datastreamGroup.getTaskPrefix(), true);
+      needsAdjustment = true;
     }
 
     if (_enablePartitionNumBasedTaskCountEstimation) {
@@ -172,12 +180,13 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       for (Set<DatastreamTask> tasksSet : newAssignment.values()) {
         for (DatastreamTask task : tasksSet) {
           if (task.getTaskPrefix().equals(datastreamGroup.getTaskPrefix()) && task.getPartitionsV2().size() > partitionsPerTask) {
-            updateOrRegisterElasticTaskAssignmentMetrics(task.getTaskPrefix(), true);
+            needsAdjustment = true;
             break;
           }
         }
       }
     }
+    updateOrRegisterElasticTaskAssignmentMetrics(datastreamGroup.getTaskPrefix(), needsAdjustment);
     return newAssignment;
   }
 
