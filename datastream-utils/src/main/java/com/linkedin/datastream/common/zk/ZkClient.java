@@ -16,8 +16,6 @@ import org.apache.helix.zookeeper.zkclient.serialize.ZkSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-
 
 /**
  * ZKClient is a wrapper of {@link org.apache.helix.zookeeper.impl.client.ZkClient}. It provides the following
@@ -214,14 +212,6 @@ public class ZkClient extends org.apache.helix.zookeeper.impl.client.ZkClient {
       return null;
     }
     return (T) _zkSerializer.deserialize(data);
-  }
-
-  /**
-   * Get Zk sessions session ID
-   */
-  @VisibleForTesting
-  public long getSessionId() {
-    return super.getSessionId();
   }
 
   private static class ZKStringSerializer implements ZkSerializer {
