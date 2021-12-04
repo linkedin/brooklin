@@ -106,8 +106,8 @@ public class TestLoadBasedTaskCountEstimator {
     List<String> assignedPartitions = Collections.emptyList();
     List<String> unassignedPartitions = Arrays.asList("apple-0", "apple-1", "apple-2", "banana-0");
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
-        TASK_CAPACITY_UTILIZATION_PCT);
-    int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions);
+        TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
+    int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");
     Assert.assertEquals(taskCount, 4);
   }
 }
