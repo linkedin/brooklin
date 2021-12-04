@@ -80,7 +80,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       ClusterThroughputInfo throughputInfo, Map<String, Set<DatastreamTask>> currentAssignment,
       List<String> unassignedPartitions, DatastreamGroupPartitionsMetadata partitionMetadata, int maxPartitionsPerTask) {
     String datastreamGroupName = partitionMetadata.getDatastreamGroup().getName();
-    Map<String, PartitionThroughputInfo> partitionInfoMap = throughputInfo.getPartitionInfoMap();
+    Map<String, PartitionThroughputInfo> partitionInfoMap = new HashMap<>(throughputInfo.getPartitionInfoMap());
     Set<String> tasksWithChangedPartition = new HashSet<>();
 
     // filter out all the tasks for the current datastream group, and retain assignments in a map
@@ -109,11 +109,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     newPartitions.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
           .mapToInt(p ->  {
-            int index = p.lastIndexOf('-');
-            String topic = p;
-            if (index > -1) {
-              topic = p.substring(0, index);
-            }
+            String topic = extractTopicFromPartition(p);
             PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(topic, defaultPartitionInfo);
             return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
           })
@@ -127,7 +123,13 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       if (partitionInfoMap.containsKey(partition)) {
         recognizedPartitions.add(partition);
       } else {
-        unrecognizedPartitions.add(partition);
+        String topic = extractTopicFromPartition(partition);
+        if (partitionInfoMap.containsKey(topic)) {
+          partitionInfoMap.put(partition, partitionInfoMap.get(topic));
+          recognizedPartitions.add(partition);
+        } else {
+          unrecognizedPartitions.add(partition);
+        }
       }
     }
 
@@ -293,6 +295,15 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   void unregisterMetricsForDatastream(String datastream) {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MIN_PARTITIONS_ACROSS_TASKS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS);
+  }
+
+  public static String extractTopicFromPartition(String partition) {
+    String topic = partition;
+    int index = partition.lastIndexOf('-');
+    if (index > -1) {
+      topic = partition.substring(0, index);
+    }
+    return topic;
   }
 
   static class PartitionAssignmentStatPerTask {
