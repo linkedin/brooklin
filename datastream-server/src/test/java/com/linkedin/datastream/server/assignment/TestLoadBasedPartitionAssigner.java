@@ -192,7 +192,7 @@ public class TestLoadBasedPartitionAssigner {
     throughputInfoMap.put("P1", new PartitionThroughputInfo(5, 5, "P1"));
     throughputInfoMap.put("P2", new PartitionThroughputInfo(5, 5, "P2"));
     throughputInfoMap.put("P3", new PartitionThroughputInfo(50, 5, "P3"));
-    throughputInfoMap.put("P4", new PartitionThroughputInfo(20, 5, "P4"));
+    throughputInfoMap.put("P4", new PartitionThroughputInfo(20, 5, "P"));
     ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", throughputInfoMap);
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
