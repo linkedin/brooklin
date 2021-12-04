@@ -192,7 +192,7 @@ public class TestLoadBasedPartitionAssigner {
     throughputInfoMap.put("P1", new PartitionThroughputInfo(5, 5, "P1"));
     throughputInfoMap.put("P2", new PartitionThroughputInfo(5, 5, "P2"));
     throughputInfoMap.put("P3", new PartitionThroughputInfo(50, 5, "P3"));
-    throughputInfoMap.put("P4", new PartitionThroughputInfo(20, 5, "P"));
+    throughputInfoMap.put("P4", new PartitionThroughputInfo(20, 5, "P4"));
     ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", throughputInfoMap);
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
@@ -216,6 +216,45 @@ public class TestLoadBasedPartitionAssigner {
     // verify that task in instance1 got the new partition
     Assert.assertEquals(task3.getPartitionsV2().size(), 3);
     Assert.assertTrue(task3.getPartitionsV2().contains("P4"));
+  }
+
+  @Test
+  public void lightestTaskGetsNewPartitionWithTopicMetricsTest() {
+    List<String> unassignedPartitions = Arrays.asList("P-2", "P-3");
+    Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
+    throughputInfoMap.put("P-1", new PartitionThroughputInfo(5, 5, "P-1"));
+    throughputInfoMap.put("R", new PartitionThroughputInfo(5, 5, "R"));
+    throughputInfoMap.put("T", new PartitionThroughputInfo(50, 5, "T"));
+    throughputInfoMap.put("P", new PartitionThroughputInfo(40, 5, "P"));
+    ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", throughputInfoMap);
+
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
+    ds1.getSource().setPartitions(0);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
+    Map<String, Set<DatastreamTask>> currentAssignment = new HashMap<>();
+    DatastreamTask task1 = createTaskForDatastream(ds1, Arrays.asList("P-1", "R-1"));
+    DatastreamTask task2 = createTaskForDatastream(ds1, Collections.singletonList("T-1"));
+    currentAssignment.put("instance1", new HashSet<>(Collections.singletonList(task1)));
+    currentAssignment.put("instance2", new HashSet<>(Collections.singletonList(task2)));
+
+    DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(new DatastreamGroup(
+        Collections.singletonList(ds1)), Arrays.asList("P-1", "P-2", "P-3", "R-1", "T-1"));
+
+    LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner(5, 10);
+    Map<String, Set<DatastreamTask>> newAssignment = assigner.assignPartitions(throughputInfo, currentAssignment,
+        unassignedPartitions, metadata, Integer.MAX_VALUE);
+
+    DatastreamTask task3 = (DatastreamTask) newAssignment.get("instance1").toArray()[0];
+
+    // verify that task in instance1 got the new partition
+    Assert.assertEquals(task3.getPartitionsV2().size(), 3);
+    Assert.assertTrue(task3.getPartitionsV2().contains("P-3"));
+
+    DatastreamTask task4 = (DatastreamTask) newAssignment.get("instance2").toArray()[0];
+
+    // verify that task in instance1 got the new partition
+    Assert.assertEquals(task4.getPartitionsV2().size(), 2);
+    Assert.assertTrue(task4.getPartitionsV2().contains("P-2"));
   }
 
   @Test
