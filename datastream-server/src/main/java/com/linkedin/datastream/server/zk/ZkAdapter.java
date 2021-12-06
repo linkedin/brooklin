@@ -1837,7 +1837,7 @@ public class ZkAdapter {
     @Override
     public void handleNewSession(final String sessionId) {
       synchronized (_zkSessionLock) {
-        LOG.info("ZkStateChangeListener::A new session has been established.");
+        LOG.info("ZkStateChangeListener::A new session with ID {} has been established.", sessionId);
         if (_reinitOnNewSession) {
           onNewSession();
         }
