@@ -72,13 +72,8 @@ public class TestZkClient {
     String electionNodeName = electionPath + "/coordinator-";
 
     // now create this node with persistent mode
-    try {
-      zkClient.create(electionNodeName, "test", CreateMode.PERSISTENT_SEQUENTIAL);
-    } catch (ZkNoNodeException e) {
-      zkClient.close();
-      return;
-    }
-    throw new Exception("Test failed, expected ZkNoNodeException");
+    Assert.assertThrows(ZkNoNodeException.class,
+        () -> zkClient.create(electionNodeName, "test", CreateMode.PERSISTENT_SEQUENTIAL));
   }
 
   @Test
@@ -89,13 +84,8 @@ public class TestZkClient {
     String electionNodeName = electionPath + "/coordinator-";
 
     // now create this node with persistent mode
-    try {
-      zkClient.create(null, "test", CreateMode.PERSISTENT_SEQUENTIAL);
-    } catch (NullPointerException e) {
-      zkClient.close();
-      return;
-    }
-    throw new Exception("Test failed, expected NullPointerException");
+    Assert.assertThrows(NullPointerException.class,
+        () -> zkClient.create(null, "test", CreateMode.PERSISTENT_SEQUENTIAL));
   }
 
   @Test
