@@ -80,17 +80,17 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       ClusterThroughputInfo throughputInfo, Map<String, Set<DatastreamTask>> currentAssignment,
       List<String> unassignedPartitions, DatastreamGroupPartitionsMetadata partitionMetadata, int maxPartitionsPerTask) {
     String datastreamGroupName = partitionMetadata.getDatastreamGroup().getName();
-    Map<String, PartitionThroughputInfo> partitionInfoMap = throughputInfo.getPartitionInfoMap();
+    Map<String, PartitionThroughputInfo> partitionInfoMap = new HashMap<>(throughputInfo.getPartitionInfoMap());
     Set<String> tasksWithChangedPartition = new HashSet<>();
 
     // filter out all the tasks for the current datastream group, and retain assignments in a map
-    Map<String, Set<String>> newPartitions = new HashMap<>();
+    Map<String, Set<String>> newPartitionAssignmentMap = new HashMap<>();
     currentAssignment.values().forEach(tasks ->
         tasks.forEach(task -> {
           if (task.getTaskPrefix().equals(datastreamGroupName)) {
             Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
             retainedPartitions.retainAll(partitionMetadata.getPartitions());
-            newPartitions.put(task.getId(), retainedPartitions);
+            newPartitionAssignmentMap.put(task.getId(), retainedPartitions);
             if (retainedPartitions.size() != task.getPartitionsV2().size()) {
               tasksWithChangedPartition.add(task.getId());
             }
@@ -98,7 +98,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     }));
 
     int numPartitions = partitionMetadata.getPartitions().size();
-    int numTasks = newPartitions.size();
+    int numTasks = newPartitionAssignmentMap.size();
     validatePartitionCountAndThrow(datastreamGroupName, numTasks, numPartitions, maxPartitionsPerTask);
 
     // sort the current assignment's tasks on total throughput
@@ -106,14 +106,10 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
         _defaultPartitionMsgsInRate, "");
 
-    newPartitions.forEach((task, partitions) -> {
+    newPartitionAssignmentMap.forEach((task, partitions) -> {
       int totalThroughput = partitions.stream()
           .mapToInt(p ->  {
-            int index = p.lastIndexOf('-');
-            String topic = p;
-            if (index > -1) {
-              topic = p.substring(0, index);
-            }
+            String topic = extractTopicFromPartition(p);
             PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(topic, defaultPartitionInfo);
             return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
           })
@@ -127,7 +123,16 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       if (partitionInfoMap.containsKey(partition)) {
         recognizedPartitions.add(partition);
       } else {
-        unrecognizedPartitions.add(partition);
+        // If the partition level information is not found, try finding topic level information. It is always better
+        // than no information about the partition. Update the map with that information so that it can be used in later
+        // part of the code.
+        String topic = extractTopicFromPartition(partition);
+        if (partitionInfoMap.containsKey(topic)) {
+          partitionInfoMap.put(partition, partitionInfoMap.get(topic));
+          recognizedPartitions.add(partition);
+        } else {
+          unrecognizedPartitions.add(partition);
+        }
       }
     }
 
@@ -140,8 +145,8 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     // build a priority queue of tasks based on throughput
     // only add tasks that can accommodate more partitions in the queue
-    List<String> tasks = newPartitions.keySet().stream()
-        .filter(t -> newPartitions.get(t).size() < maxPartitionsPerTask)
+    List<String> tasks = newPartitionAssignmentMap.keySet().stream()
+        .filter(t -> newPartitionAssignmentMap.get(t).size() < maxPartitionsPerTask)
         .collect(Collectors.toList());
     PriorityQueue<String> taskQueue = new PriorityQueue<>(Comparator.comparing(taskThroughputMap::get));
     taskQueue.addAll(tasks);
@@ -151,10 +156,10 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
        String heaviestPartition = recognizedPartitions.remove(recognizedPartitions.size() - 1);
        int heaviestPartitionThroughput = partitionInfoMap.get(heaviestPartition).getBytesInKBRate();
        String lightestTask = taskQueue.poll();
-       newPartitions.get(lightestTask).add(heaviestPartition);
+       newPartitionAssignmentMap.get(lightestTask).add(heaviestPartition);
        taskThroughputMap.put(lightestTask, taskThroughputMap.get(lightestTask) + heaviestPartitionThroughput);
        tasksWithChangedPartition.add(lightestTask);
-       int currentNumPartitions = newPartitions.get(lightestTask).size();
+       int currentNumPartitions = newPartitionAssignmentMap.get(lightestTask).size();
        // don't put the task back in the queue if the number of its partitions is maxed out
        if (currentNumPartitions < maxPartitionsPerTask) {
          taskQueue.add(lightestTask);
@@ -166,9 +171,9 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     Collections.shuffle(unrecognizedPartitions);
     int index = 0;
     for (String partition : unrecognizedPartitions) {
-      index = findTaskWithRoomForAPartition(tasks, newPartitions, index, maxPartitionsPerTask);
+      index = findTaskWithRoomForAPartition(tasks, newPartitionAssignmentMap, index, maxPartitionsPerTask);
       String currentTask = tasks.get(index);
-      newPartitions.get(currentTask).add(partition);
+      newPartitionAssignmentMap.get(currentTask).add(partition);
       tasksWithChangedPartition.add(currentTask);
       index = (index + 1) % tasks.size();
       unrecognizedPartitionCountPerTask.put(currentTask, unrecognizedPartitionCountPerTask.getOrDefault(currentTask, 0) + 1);
@@ -182,13 +187,13 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       Set<DatastreamTask> oldTasks = currentAssignment.get(instance);
       Set<DatastreamTask> newTasks = oldTasks.stream()
           .map(task -> {
-            int partitionCount = newPartitions.containsKey(task.getId()) ? newPartitions.get(task.getId()).size() :
+            int partitionCount = newPartitionAssignmentMap.containsKey(task.getId()) ? newPartitionAssignmentMap.get(task.getId()).size() :
                 task.getPartitionsV2().size();
 
             minPartitionsAcrossTasks.set(Math.min(minPartitionsAcrossTasks.get(), partitionCount));
             maxPartitionsAcrossTasks.set(Math.max(maxPartitionsAcrossTasks.get(), partitionCount));
             if (tasksWithChangedPartition.contains(task.getId())) {
-              DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitions.get(task.getId()));
+              DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitionAssignmentMap.get(task.getId()));
               saveStats(partitionInfoMap, taskThroughputMap, unrecognizedPartitionCountPerTask, task, partitionCount, newTask);
               return newTask;
             }
@@ -293,6 +298,20 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   void unregisterMetricsForDatastream(String datastream) {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MIN_PARTITIONS_ACROSS_TASKS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS);
+  }
+
+  /**
+   *
+   * @param partition partition name
+   * @return topic name
+   */
+  static String extractTopicFromPartition(String partition) {
+    String topic = partition;
+    int index = partition.lastIndexOf('-');
+    if (index > -1) {
+      topic = partition.substring(0, index);
+    }
+    return topic;
   }
 
   static class PartitionAssignmentStatPerTask {
