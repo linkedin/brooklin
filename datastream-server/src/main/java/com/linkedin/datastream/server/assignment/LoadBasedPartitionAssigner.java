@@ -123,6 +123,9 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       if (partitionInfoMap.containsKey(partition)) {
         recognizedPartitions.add(partition);
       } else {
+        // If the partition level information is not found, try finding topic level information. It is always better
+        // than no information about the partition. Update the map with that information so that it can be used in later
+        // part of the code.
         String topic = extractTopicFromPartition(partition);
         if (partitionInfoMap.containsKey(topic)) {
           partitionInfoMap.put(partition, partitionInfoMap.get(topic));
