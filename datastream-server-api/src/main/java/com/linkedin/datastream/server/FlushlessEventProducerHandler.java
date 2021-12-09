@@ -200,28 +200,24 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     /**
      * Get the count of the records which are in flight
      */
-    public long getInFlightCount() {
-      return -1L;
-    }
+    public abstract long getInFlightCount();
 
     /**
      * Get the count of the records which are all acked from the producer
      */
-    public long getAckMessagesPastCheckpointCount() {
-      return -1L;
-    }
+    public abstract long getAckMessagesPastCheckpointCount();
 
     /**
      * Registers the given checkpoint.
      * @param checkpoint the checkpoint to register
      */
-    public synchronized void register(T checkpoint) { }
+    public abstract void register(T checkpoint);
 
     /**
      * The checkpoint acknowledgement maintains the last successfully checkpoint-ed entry with
      * either comparing or without comparing the offsets.
      */
-    public synchronized void ack(T checkpoint) { }
+    public abstract void ack(T checkpoint);
   }
 
   /**
