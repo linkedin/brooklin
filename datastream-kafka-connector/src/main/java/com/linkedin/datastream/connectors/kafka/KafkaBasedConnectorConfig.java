@@ -41,6 +41,7 @@ public class KafkaBasedConnectorConfig {
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
   public static final long MIN_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(1).toMillis();
 
+  public static final String CONFIG_OFFSET_CHECKPOINT_TRACKING_STRATEGY = "offsetCheckpointTrackingStrategy";
   private static final long DEFAULT_RETRY_SLEEP_DURATION_MILLIS = Duration.ofSeconds(5).toMillis();
   private static final long DEFAULT_PAUSE_ERROR_PARTITION_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
   private static final long DEFAULT_POLL_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
@@ -50,6 +51,8 @@ public class KafkaBasedConnectorConfig {
   private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
   private static final boolean DEFAULT_ENABLE_ADDITIONAL_METRICS = Boolean.TRUE;
   private static final boolean DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = Boolean.FALSE;
+  private static final String DEFAULT_OFFSET_CHECKPOINT_TRACKING_STRATEGY =
+      "com.linkedin.datastream.server.CallbackStatusWithComparableOffsets";
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
@@ -71,6 +74,8 @@ public class KafkaBasedConnectorConfig {
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
   private final boolean _enablePartitionAssignment;
+
+  private final String _offsetCheckpointTrackingStrategy;
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
@@ -109,7 +114,8 @@ public class KafkaBasedConnectorConfig {
     _includeDatastreamNameInConsumerClientId = verifiableProperties.getBoolean(
         INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
-
+    _offsetCheckpointTrackingStrategy = verifiableProperties.getString(CONFIG_OFFSET_CHECKPOINT_TRACKING_STRATEGY,
+        DEFAULT_OFFSET_CHECKPOINT_TRACKING_STRATEGY);
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
     _consumerFactory = ReflectionUtils.createInstance(factory);
@@ -196,5 +202,9 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnablePartitionAssignment() {
     return _enablePartitionAssignment;
+  }
+
+  public String getOffsetCheckpointTrackingStrategy() {
+    return _offsetCheckpointTrackingStrategy;
   }
 }
