@@ -93,7 +93,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected volatile long _lastPolledTimeMillis = System.currentTimeMillis();
   protected volatile long _lastPollCompletedTimeMillis = 0;
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
-  protected final CountDownLatch _stoppedLatch = new CountDownLatch(1);
+  private final CountDownLatch _stoppedLatch = new CountDownLatch(1);
   private final AtomicBoolean _metricDeregistered = new AtomicBoolean(false);
 
   // config
@@ -438,9 +438,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         }
       }
       postShutdownHook();
-      _stoppedLatch.countDown();
+      countDownStoppedLatch();
       _logger.info("{} stopped", _taskName);
     }
+  }
+
+  protected void countDownStoppedLatch() {
+    _stoppedLatch.countDown();
   }
 
   /**
@@ -1098,5 +1102,10 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @VisibleForTesting
   public String getConsumerAutoOffsetResetConfig() {
     return _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "");
+  }
+
+  @VisibleForTesting
+  public long getStoppedLatchCount() {
+    return _stoppedLatch.getCount();
   }
 }
