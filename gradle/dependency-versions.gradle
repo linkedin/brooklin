@@ -19,6 +19,6 @@ ext {
     scalaVersion = "2.11"
     slf4jVersion = "1.7.5"
     testngVersion = "7.1.0"
-    zookeeperVersion = "3.4.13"
+    zookeeperVersion = "3.6.2.3"
     helixZkclientVersion = "1.0.2"
 }
