@@ -3,12 +3,13 @@
  *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
  *  See the NOTICE file in the project root for additional information regarding copyright ownership.
  */
-package com.linkedin.datastream.server;
+package com.linkedin.datastream.server.callbackstatus;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -27,8 +28,11 @@ public class CallbackStatusWithNonComparableOffsets<T> extends CallbackStatus<T>
   // the last checkpoint-ed record's offset
   protected T _currentCheckpoint = null;
 
-  // Deque to store all the messages which are inflight
-  private final Deque<T> _inFlight = new ArrayDeque<>();
+  // Hashset storing all the records which are yet to be acked
+  private final Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
+
+  // Deque to store all the messages which are inflight until the last consumer checkpoint is made
+  private final Deque<T> _inFlightUntilLastConsumerCheckpoint = new ArrayDeque<>();
 
   // Hashset storing all the records for which the ack is received
   private final Set<T> _acked = Collections.synchronizedSet(new HashSet<>());
@@ -41,6 +45,13 @@ public class CallbackStatusWithNonComparableOffsets<T> extends CallbackStatus<T>
     return _inFlight.size();
   }
 
+  /**
+   * Get all the messages which are in flight until the last checkpoint at consumer
+   */
+  public long getinFlightUntilLastConsumerCheckpointCount() {
+    return _inFlight.size();
+  }
+
   public long getAckMessagesPastCheckpointCount() {
     return _acked.size();
   }
@@ -50,7 +61,8 @@ public class CallbackStatusWithNonComparableOffsets<T> extends CallbackStatus<T>
    * @param checkpoint the checkpoint to register
    */
   public synchronized void register(T checkpoint) {
-    _inFlight.offerLast(checkpoint);
+    _inFlight.add(checkpoint);
+    _inFlightUntilLastConsumerCheckpoint.offerLast(checkpoint);
   }
 
   /**
@@ -60,9 +72,9 @@ public class CallbackStatusWithNonComparableOffsets<T> extends CallbackStatus<T>
    */
   public synchronized void ack(T checkpoint) {
     _acked.add(checkpoint);
-
-    while (!_inFlight.isEmpty() && !_acked.isEmpty() && _acked.contains(_inFlight.peekFirst())) {
-      _currentCheckpoint = _inFlight.pollFirst();
+    _inFlight.remove(checkpoint);
+    while (!_inFlightUntilLastConsumerCheckpoint.isEmpty() && !_acked.isEmpty() && _acked.contains(_inFlightUntilLastConsumerCheckpoint.peekFirst())) {
+      _currentCheckpoint = _inFlightUntilLastConsumerCheckpoint.pollFirst();
 
       if (!_acked.remove(_currentCheckpoint)) {
         LOG.error("Internal state error; could not remove checkpoint {}", _currentCheckpoint);

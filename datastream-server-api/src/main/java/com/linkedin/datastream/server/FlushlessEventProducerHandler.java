@@ -14,8 +14,9 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatus;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusFactory;
 
 
 /**
@@ -31,24 +32,24 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlushlessEventProducerHandler.class);
 
-  private final String _offsetCheckpointTrackingStrategy;
+  private final CallbackStatusFactory<T> _callbackStatusFactory;
   private final DatastreamEventProducer _eventProducer;
   private final ConcurrentHashMap<SourcePartition, CallbackStatus<T>> _callbackStatusMap = new ConcurrentHashMap<>();
 
   /**
    * Constructor for FlushlessEventProducerHandler
    */
-  public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer, String offsetCheckpointTrackingStrategy) {
+  public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer, CallbackStatusFactory<T> callbackStatusFactory) {
     _eventProducer = eventProducer;
     _eventProducer.enablePeriodicFlushOnSend(false);
-    _offsetCheckpointTrackingStrategy = offsetCheckpointTrackingStrategy;
+    _callbackStatusFactory = callbackStatusFactory;
   }
 
   /**
    * Creating a new instance of the OffsetCheckpointTrackingStrategy to be used for checkpointing
    */
-  public CallbackStatus<T> createInstanceOffsetCheckpointTrackingStrategy() {
-    return ReflectionUtils.createInstance(_offsetCheckpointTrackingStrategy);
+  public CallbackStatus<T> createCallbackStatusInstance() {
+    return _callbackStatusFactory.createCallbackStatusStrategy();
   }
 
   /**
@@ -77,7 +78,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    */
   public void send(DatastreamProducerRecord record, String source, int sourcePartition, T sourceCheckpoint, SendCallback callback) {
     SourcePartition sp = new SourcePartition(source, sourcePartition);
-    CallbackStatus<T> status = _callbackStatusMap.computeIfAbsent(sp, d -> createInstanceOffsetCheckpointTrackingStrategy());
+    CallbackStatus<T> status = _callbackStatusMap.computeIfAbsent(sp, d -> createCallbackStatusInstance());
     status.register(sourceCheckpoint);
     _eventProducer.send(record, ((metadata, exception) -> {
       if (exception != null) {

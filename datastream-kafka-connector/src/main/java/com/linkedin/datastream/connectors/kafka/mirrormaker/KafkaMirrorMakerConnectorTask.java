@@ -162,7 +162,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     LOG.info("Destination topic prefix has been set to {}", _destinationTopicPrefix);
 
     if (_isFlushlessModeEnabled) {
-      _flushlessProducer = new FlushlessEventProducerHandler<>(_producer, config.getOffsetCheckpointTrackingStrategy());
+      _flushlessProducer = new FlushlessEventProducerHandler<>(_producer,
+          ReflectionUtils.createInstance(config.getCallbackStatusStrategy()));
       _flowControlEnabled = config.getConnectorProps().getBoolean(CONFIG_FLOW_CONTROL_ENABLED, false);
       _maxInFlightMessagesThreshold =
           config.getConnectorProps().getLong(CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD, DEFAULT_MAX_IN_FLIGHT_MSGS_THRESHOLD);
