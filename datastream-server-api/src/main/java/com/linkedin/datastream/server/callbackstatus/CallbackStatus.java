@@ -29,7 +29,7 @@ abstract public class CallbackStatus<T> {
 
   /**
    * Registers the given checkpoint.
-   * @param checkpoint the checkpoint to register
+   * @param checkpoint is the latest record acked by the producer of the underlying pub sub framework
    */
   abstract public void register(T checkpoint);
 

@@ -11,7 +11,8 @@ package com.linkedin.datastream.server.callbackstatus;
  */
 public interface CallbackStatusFactory<T> {
   /**
-   * Create a callback status strategy
-   * */
+   * Creates a callback status strategy that checkpoints the consumer offset on successful produce of that record
+   * @return CallbackStatus strategy construct
+   */
   CallbackStatus<T> createCallbackStatusStrategy();
 }

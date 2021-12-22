@@ -48,7 +48,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   /**
    * Creating a new instance of the OffsetCheckpointTrackingStrategy to be used for checkpointing
    */
-  public CallbackStatus<T> createCallbackStatusInstance() {
+  private CallbackStatus<T> createCallbackStatusInstance() {
     return _callbackStatusFactory.createCallbackStatusStrategy();
   }
 

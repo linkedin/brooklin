@@ -24,30 +24,44 @@ public class CallbackStatusWithComparableOffsets<T extends Comparable<T>> extend
 
   private static final Logger LOG = LoggerFactory.getLogger(CallbackStatusWithComparableOffsets.class);
 
+  private final Queue<T> _acked = new PriorityQueue<>();
+  private final Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
+
   private T _highWaterMark = null;
 
   // the last checkpoint-ed record's offset
   protected T _currentCheckpoint = null;
 
-  private final Queue<T> _acked = new PriorityQueue<>();
-  private final Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
-
+  /**
+   * Get the latest checkpoint to be acked
+   * @return <T> Type of the comparable checkpoint object internally used by the connector.
+   */
+  @Override
   public T getAckCheckpoint() {
     return _currentCheckpoint;
   }
 
+  /**
+   * Get the count of the records which are in flight
+   */
+  @Override
   public long getInFlightCount() {
     return _inFlight.size();
   }
 
+  /**
+   * Get the count of the records which are all acked from the producer
+   */
+  @Override
   public long getAckMessagesPastCheckpointCount() {
     return _acked.size();
   }
 
   /**
    * Registers the given checkpoint by adding it to the set of in-flight checkpoints.
-   * @param checkpoint the checkpoint to register
+   * @param checkpoint is the latest record acked by the producer of the underlying pub sub framework
    */
+  @Override
   public synchronized void register(T checkpoint) {
     _inFlight.add(checkpoint);
   }
@@ -57,6 +71,7 @@ public class CallbackStatusWithComparableOffsets<T extends Comparable<T>> extend
    * of the high watermark, and only update the ackCheckpoint when we are sure all events before it has
    * been received.
    */
+  @Override
   public synchronized void ack(T checkpoint) {
     if (!_inFlight.remove(checkpoint)) {
       LOG.error("Internal state error; could not remove checkpoint {}", checkpoint);

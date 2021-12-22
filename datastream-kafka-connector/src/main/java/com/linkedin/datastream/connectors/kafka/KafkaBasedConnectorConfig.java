@@ -13,6 +13,7 @@ import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusFactory;
 import com.linkedin.datastream.server.callbackstatus.CallbackStatusWithComparableOffsetsFactory;
 
 /**
@@ -74,7 +75,8 @@ public class KafkaBasedConnectorConfig {
   private final long _nonGoodStateThresholdMillis;
   private final boolean _enablePartitionAssignment;
 
-  private final String _callbackStatusStrategy;
+  // Kafka based pub sub framework uses Long as their offset type, hence instantiating a Long parameterized factory
+  private final CallbackStatusFactory<Long> _callbackStatusStrategyFactory;
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
@@ -114,8 +116,12 @@ public class KafkaBasedConnectorConfig {
         INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
 
-    _callbackStatusStrategy = verifiableProperties.getString(CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS,
+    String callbackStatusStrategyFactoryClass = verifiableProperties.getString(CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS,
         CallbackStatusWithComparableOffsetsFactory.class.getName());
+    _callbackStatusStrategyFactory = ReflectionUtils.createInstance(callbackStatusStrategyFactoryClass);
+    if (_callbackStatusStrategyFactory == null) {
+      throw new DatastreamRuntimeException("Unable to instantiate factory class: " + callbackStatusStrategyFactoryClass);
+    }
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -205,7 +211,7 @@ public class KafkaBasedConnectorConfig {
     return _enablePartitionAssignment;
   }
 
-  public String getCallbackStatusStrategy() {
-    return _callbackStatusStrategy;
+  public CallbackStatusFactory<Long> getCallbackStatusStrategyFactory() {
+    return _callbackStatusStrategyFactory;
   }
 }
