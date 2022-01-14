@@ -5,14 +5,9 @@
  */
 package com.linkedin.datastream.server;
 
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.PriorityQueue;
-import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -20,7 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.server.api.transport.SendCallback;
-
+import com.linkedin.datastream.server.callbackstatus.CallbackStatus;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusFactory;
 
 
 /**
@@ -36,15 +32,24 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlushlessEventProducerHandler.class);
 
+  private final CallbackStatusFactory<T> _callbackStatusFactory;
   private final DatastreamEventProducer _eventProducer;
-  private final ConcurrentHashMap<SourcePartition, CallbackStatus> _callbackStatusMap = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<SourcePartition, CallbackStatus<T>> _callbackStatusMap = new ConcurrentHashMap<>();
 
   /**
    * Constructor for FlushlessEventProducerHandler
    */
-  public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer) {
+  public FlushlessEventProducerHandler(DatastreamEventProducer eventProducer, CallbackStatusFactory<T> callbackStatusFactory) {
     _eventProducer = eventProducer;
     _eventProducer.enablePeriodicFlushOnSend(false);
+    _callbackStatusFactory = callbackStatusFactory;
+  }
+
+  /**
+   * Creating a new instance of the OffsetCheckpointTrackingStrategy to be used for checkpointing
+   */
+  private CallbackStatus<T> createCallbackStatusInstance() {
+    return _callbackStatusFactory.createCallbackStatusStrategy();
   }
 
   /**
@@ -73,7 +78,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    */
   public void send(DatastreamProducerRecord record, String source, int sourcePartition, T sourceCheckpoint, SendCallback callback) {
     SourcePartition sp = new SourcePartition(source, sourcePartition);
-    CallbackStatus status = _callbackStatusMap.computeIfAbsent(sp, d -> new CallbackStatus());
+    CallbackStatus<T> status = _callbackStatusMap.computeIfAbsent(sp, d -> createCallbackStatusInstance());
     status.register(sourceCheckpoint);
     _eventProducer.send(record, ((metadata, exception) -> {
       if (exception != null) {
@@ -92,7 +97,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    * acknowledged.
    */
   public Optional<T> getAckCheckpoint(String source, int sourcePartition) {
-    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
+    CallbackStatus<T> status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
     return Optional.ofNullable(status).map(CallbackStatus::getAckCheckpoint);
   }
 
@@ -100,7 +105,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    * Get the in-flight count of messages yet to be acknowledged for a given source and sourcePartition
    */
   public long getInFlightCount(String source, int sourcePartition) {
-    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
+    CallbackStatus<T> status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
     return status != null ? status.getInFlightCount() : 0;
   }
 
@@ -117,7 +122,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
    * Get the in-flight count of messages yet to be acknowledged for a given source and sourcePartition
    */
   public long getAckMessagesPastCheckpointCount(String source, int sourcePartition) {
-    CallbackStatus status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
+    CallbackStatus<T> status = _callbackStatusMap.get(new SourcePartition(source, sourcePartition));
     return status != null ? status.getAckMessagesPastCheckpointCount() : 0;
   }
 
@@ -141,7 +146,7 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
   public Optional<T> getAckCheckpoint(T currentCheckpoint, Comparator<T> checkpointComparator) {
     T lowWaterMark = null;
 
-    for (CallbackStatus status : _callbackStatusMap.values()) {
+    for (CallbackStatus<T> status : _callbackStatusMap.values()) {
       if (status.getInFlightCount() > 0) {
         T checkpoint = status.getAckCheckpoint();
         if (checkpoint == null) {
@@ -179,77 +184,6 @@ public class FlushlessEventProducerHandler<T extends Comparable<T>> {
     @Override
     public String toString() {
       return getSource() + "-" + getPartition();
-    }
-  }
-
-  /**
-   * Helper class to store the callback status of the inflight events.
-   */
-  private class CallbackStatus {
-
-    private T _currentCheckpoint = null;
-    private T _highWaterMark = null;
-
-    private final Queue<T> _acked = new PriorityQueue<>();
-    private final Set<T> _inFlight = Collections.synchronizedSet(new LinkedHashSet<>());
-
-    public T getAckCheckpoint() {
-      return _currentCheckpoint;
-    }
-
-    public long getInFlightCount() {
-      return _inFlight.size();
-    }
-
-    public long getAckMessagesPastCheckpointCount() {
-      return _acked.size();
-    }
-
-    /**
-     * Registers the given checkpoint by adding it to the set of in-flight checkpoints.
-     * @param checkpoint the checkpoint to register
-     */
-    public synchronized void register(T checkpoint) {
-      _inFlight.add(checkpoint);
-    }
-
-    /**
-     * The checkpoint acknowledgement can be received out of order. In that case we need to keep track
-     * of the high watermark, and only update the ackCheckpoint when we are sure all events before it has
-     * been received.
-     */
-    public synchronized void ack(T checkpoint) {
-      if (!_inFlight.remove(checkpoint)) {
-        LOG.error("Internal state error; could not remove checkpoint {}", checkpoint);
-      }
-      _acked.add(checkpoint);
-
-      if (_highWaterMark == null || _highWaterMark.compareTo(checkpoint) < 0) {
-        _highWaterMark = checkpoint;
-      }
-
-      if (_inFlight.isEmpty()) {
-        // Queue is empty, update to high water mark.
-        _currentCheckpoint = _highWaterMark;
-        _acked.clear();
-      } else {
-        // Update the checkpoint to the largest acked message that is still smaller than the first in-flight message
-        T max = null;
-        T first = _inFlight.iterator().next();
-        while (!_acked.isEmpty() && _acked.peek().compareTo(first) < 0) {
-          max = _acked.poll();
-        }
-        if (max != null) {
-          if (_currentCheckpoint != null && max.compareTo(_currentCheckpoint) < 0) {
-            // max is less than current checkpoint, should not happen
-            LOG.error(
-                "Internal error: checkpoints should progress in increasing order. Resolved checkpoint as {} which is "
-                    + "less than current checkpoint of {}",
-                max, _currentCheckpoint);
-          }
-          _currentCheckpoint = max;
-        }
-      }
     }
   }
 }

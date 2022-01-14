@@ -13,7 +13,8 @@ import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactory;
 import com.linkedin.datastream.kafka.factory.KafkaConsumerFactoryImpl;
-
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusFactory;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusWithComparableOffsetsFactory;
 
 /**
  * Configs for Kafka-based connectors.
@@ -36,6 +37,8 @@ public class KafkaBasedConnectorConfig {
   public static final String DAEMON_THREAD_INTERVAL_SECONDS = "daemonThreadIntervalInSeconds";
   public static final String NON_GOOD_STATE_THRESHOLD_MILLIS = "nonGoodStateThresholdMs";
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
+  private static final String CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS = "callbackStatusStrategyFactoryClass";
+
   // config value to enable Kafka partition management for KafkaMirrorConnector
   public static final String ENABLE_PARTITION_ASSIGNMENT = "enablePartitionAssignment";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
@@ -71,6 +74,9 @@ public class KafkaBasedConnectorConfig {
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
   private final boolean _enablePartitionAssignment;
+
+  // Kafka based pub sub framework uses Long as their offset type, hence instantiating a Long parameterized factory
+  private final CallbackStatusFactory<Long> _callbackStatusStrategyFactory;
 
   /**
    * Constructor for KafkaBasedConnectorConfig.
@@ -109,6 +115,13 @@ public class KafkaBasedConnectorConfig {
     _includeDatastreamNameInConsumerClientId = verifiableProperties.getBoolean(
         INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
+
+    String callbackStatusStrategyFactoryClass = verifiableProperties.getString(CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS,
+        CallbackStatusWithComparableOffsetsFactory.class.getName());
+    _callbackStatusStrategyFactory = ReflectionUtils.createInstance(callbackStatusStrategyFactoryClass);
+    if (_callbackStatusStrategyFactory == null) {
+      throw new DatastreamRuntimeException("Unable to instantiate factory class: " + callbackStatusStrategyFactoryClass);
+    }
 
     String factory =
         verifiableProperties.getString(CONFIG_CONSUMER_FACTORY_CLASS, KafkaConsumerFactoryImpl.class.getName());
@@ -196,5 +209,9 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnablePartitionAssignment() {
     return _enablePartitionAssignment;
+  }
+
+  public CallbackStatusFactory<Long> getCallbackStatusStrategyFactory() {
+    return _callbackStatusStrategyFactory;
   }
 }
