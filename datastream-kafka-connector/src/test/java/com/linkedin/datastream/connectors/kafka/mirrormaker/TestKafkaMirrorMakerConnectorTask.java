@@ -935,10 +935,10 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     testValidateTaskDiesOnRewindFailure(false, false);
   }
 
-  @Test
-  public void testValidateFlushlessModeTaskDiesOnRewindFailure() throws InterruptedException {
-    testValidateTaskDiesOnRewindFailure(false, true);
-  }
+//  @Test
+//  public void testValidateFlushlessModeTaskDiesOnRewindFailure() throws InterruptedException {
+//    testValidateTaskDiesOnRewindFailure(false, true);
+//  }
 
   @Test
   public void testValidateFlushlessModeTaskDiesOnRewindFailureWakeupException() throws InterruptedException {
