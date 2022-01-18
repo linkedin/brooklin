@@ -227,6 +227,10 @@
     "donut" : {
       "BostonCreme-1" : "bytesInKB: 5000, msgIn:200",
       "BostonCreme-2" : "bytesInKB: 5000, msgIn:200"
+    },
+    "fruit" : {
+      "apple" : "bytesInKB: 10000, msgIn:300",
+      "apple-2" : "bytesInKb: 8000, msgIn:200"
     }
   }
 }

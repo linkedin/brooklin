@@ -181,6 +181,7 @@ public class EmbeddedKafkaCluster {
   }
 
   static class EmbeddedSystemTime extends SystemTime implements Time {
+<<<<<<< HEAD
     public long milliseconds() {
       return System.currentTimeMillis();
     }
@@ -196,6 +197,8 @@ public class EmbeddedKafkaCluster {
         // Ignore
       }
     }
+=======
+>>>>>>> 0ac0603d3455b99ee37303c0c1917710d0f19001
 
     @Override
     public long hiResClockMs() {

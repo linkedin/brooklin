@@ -18,8 +18,12 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
+import com.linkedin.datastream.common.ReflectionUtils;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusFactory;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusWithComparableOffsetsFactory;
+import com.linkedin.datastream.server.callbackstatus.CallbackStatusWithNonComparableOffsetsFactory;
 
 import static com.linkedin.datastream.server.FlushlessEventProducerHandler.SourcePartition;
 
@@ -32,11 +36,18 @@ public class TestFlushlessEventProducerHandler {
   private static final String TOPIC = "MyTopic";
   private static final Random RANDOM = new Random();
 
-  @Test
-  public void testSingleRecord() {
-    RandomEventProducer eventProducer = new RandomEventProducer();
-    FlushlessEventProducerHandler<Long> handler = new FlushlessEventProducerHandler<>(eventProducer);
+  private static final CallbackStatusFactory<Long> OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_NON_COMPARABLE_OFFSETS =
+      ReflectionUtils.createInstance(CallbackStatusWithNonComparableOffsetsFactory.class.getName());
 
+  private static final CallbackStatusFactory<Long> OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_COMPARABLE_OFFSETS =
+      ReflectionUtils.createInstance(CallbackStatusWithComparableOffsetsFactory.class.getName());
+
+  /**
+   * Helper function to test the scenario of sending single record for both comparable and non comparable offsets
+   * @param eventProducer is the interface for Connectors to send events to the designated destination
+   * @param handler is the flushless producer handler that does offset checkpoint management
+   */
+  private void testSingleRecordWithGivenHandler(DatastreamEventProducer eventProducer, FlushlessEventProducerHandler<Long> handler) {
     long checkpoint = 1;
     DatastreamProducerRecord record = getDatastreamProducerRecord(checkpoint, TOPIC, 1);
 
@@ -54,11 +65,28 @@ public class TestFlushlessEventProducerHandler {
   }
 
   @Test
-  public void testMultipleSends() {
+  public void testSingleRecordWithComparableOffsets() {
     RandomEventProducer eventProducer = new RandomEventProducer();
-    FlushlessEventProducerHandler<Long> handler = new FlushlessEventProducerHandler<>(eventProducer);
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_COMPARABLE_OFFSETS);
+    testSingleRecordWithGivenHandler(eventProducer, handler);
+  }
 
-    // Send 1000 messages to 100 partitions
+  @Test
+  public void testSingleRecordWithNonComparableOffsets() {
+    RandomEventProducer eventProducer = new RandomEventProducer();
+    FlushlessEventProducerHandler<Long> handler = new FlushlessEventProducerHandler<>(eventProducer,
+        OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_NON_COMPARABLE_OFFSETS);
+    testSingleRecordWithGivenHandler(eventProducer, handler);
+  }
+
+  @Test
+  public void testMultipleSendsWithComparableOffsets() {
+    RandomEventProducer eventProducer = new RandomEventProducer();
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_COMPARABLE_OFFSETS);
+
+    // Send 1000 messages to 10 partitions
     for (int i = 0; i < 10; i++) {
       SourcePartition tp = new SourcePartition(TOPIC, i);
       for (int j = 0; j < 100; j++) {
@@ -74,6 +102,7 @@ public class TestFlushlessEventProducerHandler {
       Assert.assertTrue(ackOffset < minOffsetPending,
           "Not true that " + ackOffset + " is less than " + minOffsetPending);
     }
+    // event producer calls ack on the last element
     eventProducer.processOne();
 
     for (int par = 0; par < 10; par++) {
@@ -86,10 +115,35 @@ public class TestFlushlessEventProducerHandler {
   }
 
   @Test
-  public void testOutOfOrderAck() {
+  public void testMultipleSendsWithNonComparableOffsets() {
     RandomEventProducer eventProducer = new RandomEventProducer();
-    FlushlessEventProducerHandler<Long> handler = new FlushlessEventProducerHandler<>(eventProducer);
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_NON_COMPARABLE_OFFSETS);
 
+    // Send 1000 messages to 10 partitions
+    for (int i = 0; i < 10; i++) {
+      SourcePartition tp = new SourcePartition(TOPIC, i);
+      for (int j = 0; j < 100; j++) {
+        sendEvent(tp, handler, j);
+      }
+    }
+
+    for (int i = 0; i < 1000; i++) {
+      eventProducer.processOne();
+    }
+
+    for (int par = 0; par < 10; par++) {
+      Assert.assertEquals(handler.getInFlightCount(TOPIC, par), 0);
+    }
+  }
+
+  /**
+   * Helper function to test the scenario of sending multiple records for both comparable and non comparable offsets
+   * and validating acking behaviors
+   * @param eventProducer is the interface for Connectors to send events to the designated destination
+   * @param handler is the flushless producer handler that does offset checkpoint management
+   */
+  private void testOutOfOrderAckForGivenHandler(RandomEventProducer eventProducer, FlushlessEventProducerHandler<Long> handler) {
     int partition = 0;
     SourcePartition tp = new SourcePartition(TOPIC, partition);
 
@@ -102,12 +156,14 @@ public class TestFlushlessEventProducerHandler {
     eventProducer.process(tp, 4); // inflight result: 0, 1, 2, 3
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition), Optional.empty(),
         "Safe checkpoint should be empty");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 4, "Number of inflight messages should be 4");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 1);
 
     // simulate callback for checkpoint 2
     eventProducer.process(tp, 2); // inflight result: 0, 1, 3
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition), Optional.empty(),
         "Safe checkpoint should be empty");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 3, "Number of inflight messages should be 3");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 2);
 
 
@@ -115,12 +171,14 @@ public class TestFlushlessEventProducerHandler {
     eventProducer.process(tp, 0); // inflight result: 1, 3
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(0),
         "Safe checkpoint should be 0");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 2, "Number of inflight messages should be 2");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 2);
 
     // simulate callback for checkpoint 1
     eventProducer.process(tp, 0); // inflight result: 3
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(2),
         "Safe checkpoint should be 1");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 1, "Number of inflight messages should be 1");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 1);
 
 
@@ -134,15 +192,15 @@ public class TestFlushlessEventProducerHandler {
     eventProducer.process(tp, 0); // inflight result: 5
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(4),
         "Safe checkpoint should be 4");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 1, "Number of inflight messages should be 1");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 0);
 
     // simulate callback for checkpoint 5
     eventProducer.process(tp, 0); // inflight result: empty
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(5),
         "Safe checkpoint should be 5");
-    Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 0);
-
     Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 0, "Number of inflight messages should be 0");
+    Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 0);
 
     // send another event with checkpoint 6
     sendEvent(tp, handler, 6);
@@ -153,14 +211,32 @@ public class TestFlushlessEventProducerHandler {
     eventProducer.process(tp, 0); // inflight result: empty
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(6),
         "Safe checkpoint should be 6");
+    Assert.assertEquals(handler.getInFlightCount(TOPIC, partition), 0, "Number of inflight messages should be 0");
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, partition), 0);
   }
 
   @Test
-  public void testBackwardsOrderAck() {
+  public void testOutOfOrderAckForComparableOffsets() {
     RandomEventProducer eventProducer = new RandomEventProducer();
-    FlushlessEventProducerHandler<Long> handler = new FlushlessEventProducerHandler<>(eventProducer);
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_COMPARABLE_OFFSETS);
+    testOutOfOrderAckForGivenHandler(eventProducer, handler);
+  }
 
+  @Test
+  public void testOutOfOrderAckForNonComparableOffsets() {
+    RandomEventProducer eventProducer = new RandomEventProducer();
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_NON_COMPARABLE_OFFSETS);
+    testOutOfOrderAckForGivenHandler(eventProducer, handler);
+  }
+
+  /**
+   * Helper function to test the behavior of backwards order record acking for both comparable and non comparable offsets
+   * @param randomEventProducer is the event producer to send records to randomized topic partition
+   * @param handler is the flushless producer handler that does offset checkpoint management
+   */
+  private void testBackwardsOrderAckWithGivenHandler(RandomEventProducer randomEventProducer, FlushlessEventProducerHandler<Long> handler) {
     int partition = 0;
     SourcePartition tp = new SourcePartition(TOPIC, partition);
 
@@ -171,17 +247,33 @@ public class TestFlushlessEventProducerHandler {
 
     // acknowledge the checkpoints in backward (descending order) to simulate worst case scenario
     for (int i = 999; i > 0; i--) {
-      eventProducer.process(tp, i);
+      randomEventProducer.process(tp, i);
       // validate that checkpoint has to be empty because oldest message was not yet acknowledged
       Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition), Optional.empty(),
           "Safe checkpoint should be empty");
     }
 
     // finally process the oldest message
-    eventProducer.process(tp, 0);
+    randomEventProducer.process(tp, 0);
     // validate that the checkpoint was finally updated to 999
     Assert.assertEquals(handler.getAckCheckpoint(TOPIC, partition).get(), Long.valueOf(999),
         "Safe checkpoint should be 999");
+  }
+
+  @Test
+  public void testBackwardsOrderAckWithComparableOffsets() {
+    RandomEventProducer eventProducer = new RandomEventProducer();
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_COMPARABLE_OFFSETS);
+    testBackwardsOrderAckWithGivenHandler(eventProducer, handler);
+  }
+
+  @Test
+  public void testBackwardsOrderAckWithNonComparableOffsets() {
+    RandomEventProducer eventProducer = new RandomEventProducer();
+    FlushlessEventProducerHandler<Long> handler =
+        new FlushlessEventProducerHandler<>(eventProducer, OFFSET_CHECKPOINT_TRACKING_STRATEGY_WITH_NON_COMPARABLE_OFFSETS);
+    testBackwardsOrderAckWithGivenHandler(eventProducer, handler);
   }
 
   private void sendEvent(SourcePartition tp, FlushlessEventProducerHandler<Long> handler, long checkpoint) {

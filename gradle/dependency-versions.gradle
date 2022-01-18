@@ -16,7 +16,7 @@ ext {
     mockitoVersion = "1.10.19"
     parseqVersion = "2.6.31"
     pegasusVersion = "29.14.0"
-    scalaVersion = "2.11"
+    scalaVersion = "2.12"
     slf4jVersion = "1.7.5"
     testngVersion = "7.1.0"
     zkclientVersion = "0.11"
