@@ -274,10 +274,6 @@ public class ZkAdapter {
       _leaderElectionListener = new ZkLeaderElectionListener();
     }
 
-    if (_liveInstancesProvider == null) {
-      _liveInstancesProvider = new ZkBackedLiveInstanceListProvider();
-    }
-
     // create a globally unique instance name and create a live instance node in ZooKeeper
     _instanceName = createLiveInstanceNode();
 
@@ -353,16 +349,16 @@ public class ZkAdapter {
         _zkclient.unsubscribeDataChanges(KeyBuilder.liveInstance(_cluster, _currentSubscription), _leaderElectionListener);
         _currentSubscription = null;
       }
-
-      if (_liveInstancesProvider != null) {
-        _liveInstancesProvider.close();
-        _liveInstancesProvider = null;
-      }
     }
 
     if (_datastreamList != null) {
       _datastreamList.close();
       _datastreamList = null;
+    }
+
+    if (_liveInstancesProvider != null) {
+      _liveInstancesProvider.close();
+      _liveInstancesProvider = null;
     }
 
     if (_targetAssignmentProvider != null) {
