@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 
 import kafka.server.KafkaConfig;
@@ -123,7 +122,7 @@ public class EmbeddedKafkaCluster {
   }
 
   private KafkaServer startBroker(Properties props) {
-    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new EmbeddedSystemTime(),
+    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new SystemTime(),
         scala.Option.apply(""), scala.collection.JavaConversions.asScalaBuffer(Collections.emptyList()));
     server.startup();
     return server;
@@ -180,8 +179,12 @@ public class EmbeddedKafkaCluster {
     return sb.toString();
   }
 
+<<<<<<< HEAD
   static class EmbeddedSystemTime extends SystemTime implements Time {
 <<<<<<< HEAD
+=======
+  static class SystemTime implements Time {
+>>>>>>> parent of 99fc8ec2 (Lkc10 upgrade with kafka)
     public long milliseconds() {
       return System.currentTimeMillis();
     }
