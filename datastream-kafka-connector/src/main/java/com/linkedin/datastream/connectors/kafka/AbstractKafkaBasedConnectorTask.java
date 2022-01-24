@@ -435,10 +435,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     } finally {
       if (null != _consumer) {
         try {
-          _logger.error("Before consumer close");
           _consumer.close();
-          _logger.error("After consumer close and resetting failure flag");
-          _failure = false;
         } catch (Exception e) {
           _logger.warn(String.format("Got exception on consumer close for task %s.", _taskName), e);
         }
