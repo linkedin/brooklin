@@ -830,7 +830,7 @@ public class TestZkAdapter {
     Assert.assertNotNull(adapter2.getLeaderElectionListener());
     Assert.assertNotNull(adapter2.getAssignmentListProvider());
     Assert.assertNotNull(adapter2.getStateChangeListener());
-    Assert.assertNotNull(adapter2.getLiveInstancesProvider());
+    Assert.assertNull(adapter2.getLiveInstancesProvider());
     Assert.assertNull(adapter2.getDatastreamList());
     Assert.assertNull(adapter2.getTargetAssignmentProvider());
   }
