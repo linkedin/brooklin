@@ -141,7 +141,7 @@ project(':datastream-common') {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
-    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
+    compile "com.linkedin.kafka:kafka-clients:$kafkaVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
@@ -150,7 +150,6 @@ project(':datastream-server-api') {
   dependencies {
     compile project(':datastream-common')
     compile project(':datastream-utils')
-    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
   }
 }
 
@@ -189,7 +188,6 @@ project(':datastream-directory') {
 project(":datastream-kafka_$scalaSuffix") {
   dependencies {
     compile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
-    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
 
     compile project(':datastream-server')
@@ -214,7 +212,6 @@ project(":datastream-kafka_$scalaSuffix") {
 project(':datastream-kafka-factory-impl') {
   dependencies {
     compile project(':datastream-kafka-connector')
-    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
 
     testCompile project(":datastream-kafka_$scalaSuffix")
   }
@@ -225,7 +222,6 @@ project(':datastream-kafka-connector') {
     compile project(':datastream-server-api')
     compile project(':datastream-common')
     compile project(":datastream-kafka_$scalaSuffix")
-    compile "com.linkedin.kafka.clients:li-apache-kafka-clients:$LIKafkaVersion"
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
     compile "org.apache.commons:commons-lang3:$commonslang3Version"
