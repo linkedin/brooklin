@@ -819,7 +819,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
       taskImpl.setCheckpoints(checkpoints);
     } catch (Exception e) {
-      _log.warn("Failed to initialize {} task", task.getDatastreamTaskName());
+      _log.error("Failed to initialize task: " + task.getDatastreamTaskName(), e);
       if (retryAndSaveError) {
         _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(e)));
         failedDatastreamTasks.add(task);
