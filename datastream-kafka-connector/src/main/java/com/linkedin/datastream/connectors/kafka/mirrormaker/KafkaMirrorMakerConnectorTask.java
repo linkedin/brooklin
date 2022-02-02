@@ -370,6 +370,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
 
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+    //Do not remove super.onPartitionsRevoked call or refactor the code to take care of the kafka 2.4 changes.
+    //Prior to this version, consumer close was not calling onPartitionsRevoked.
     super.onPartitionsRevoked(partitions);
     _topicManager.onPartitionsRevoked(partitions);
   }

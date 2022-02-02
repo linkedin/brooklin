@@ -769,6 +769,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
     _kafkaTopicPartitionTracker.onPartitionsRevoked(topicPartitions);
+    //_failure flag is used to address 2.4 kafka version behavior changes for onPartitionRevoked calls.Prior to this version, consumer close was not calling onPartitionsRevoked.
     if (!_shutdown && !topicPartitions.isEmpty() && !_failure) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
