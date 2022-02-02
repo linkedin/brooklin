@@ -358,6 +358,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         LOG.error(String.format("Failed to acquire lock for datastreamTask %s", _datastreamTask), ex);
         _dynamicMetricsManager.createOrUpdateMeter(generateMetricsPrefix(_connectorName, CLASS_NAME), _datastreamName,
             TASK_LOCK_ACQUIRE_ERROR_RATE, 1);
+        // This exception should not be swallowed as it is fatal and can cause multiple instances
+        // to work on the same task concurrently
         throw ex;
       }
     }
