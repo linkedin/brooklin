@@ -801,7 +801,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         new MockDatastreamEventProducer((r) -> new String((byte[]) r.getEvents().get(0).key().get()).equals("key-2"));
     task.setEventProducer(datastreamProducer);
 
-    Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
+    Properties consumerProps = new Properties();
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task,
@@ -884,7 +884,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         new MockDatastreamEventProducer((r) -> new String((byte[]) r.getEvents().get(0).key().get()).equals("key-2"));
     task.setEventProducer(datastreamProducer);
 
-    Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
+    Properties consumerProps = new Properties();
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaMirrorMakerConnectorTask connectorTask =
         KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task,
@@ -960,7 +960,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     createAndConnectZkAdapter(task);
 
-    Properties consumerProps = KafkaMirrorMakerConnectorTestUtils.getKafkaConsumerProperties();
+    Properties consumerProps = new Properties();
     consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     KafkaBasedConnectorConfig connectorConfig = KafkaMirrorMakerConnectorTestUtils
         .getKafkaBasedConnectorConfigBuilder()
