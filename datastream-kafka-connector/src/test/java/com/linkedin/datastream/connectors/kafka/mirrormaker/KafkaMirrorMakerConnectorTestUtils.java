@@ -27,8 +27,6 @@ import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfig;
 import com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorConfigBuilder;
 import com.linkedin.datastream.connectors.kafka.LiKafkaConsumerFactory;
-import com.linkedin.datastream.connectors.kafka.NoOpAuditor;
-import com.linkedin.datastream.connectors.kafka.NoOpSegmentDeserializer;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
@@ -163,22 +161,8 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static KafkaBasedConnectorConfigBuilder getKafkaBasedConnectorConfigBuilder() {
     return new KafkaBasedConnectorConfigBuilder()
-        .setConsumerProps(getKafkaConsumerProperties())
         .setPausePartitionOnError(true)
         .setPauseErrorPartitionDuration(Duration.ofSeconds(5));
-  }
-
-  /**
-   * Returns properties that will be used to configure Kafka consumer in BMM.
-   * Right now it returns No Op Segment Deserializer and No Op Auditor, as BMM doesn't need to assemble/disassemble
-   * any message, it just needs to do byte-byte copying.
-   * @return Properties to be used by Kafka consumer in BMM.
-   */
-  static Properties getKafkaConsumerProperties() {
-    Properties props = new Properties();
-    props.put("segment.deserializer.class", NoOpSegmentDeserializer.class.getCanonicalName());
-    props.put("auditor.class", NoOpAuditor.class.getCanonicalName());
-    return props;
   }
 
   /**
