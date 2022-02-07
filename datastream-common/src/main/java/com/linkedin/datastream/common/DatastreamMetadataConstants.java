@@ -130,4 +130,9 @@ public class DatastreamMetadataConstants {
    * Datastream metadata that represents number of tasks
    */
   public static final String NUM_TASKS = "numTasks";
+
+  /**
+   * Datastream metadata that represents the source allowlist
+   */
+  public static final String REGEX_SOURCE_ALLOWLIST = "system.source.allowlist";
 }
