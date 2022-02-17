@@ -90,7 +90,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   // lifecycle
   private volatile Thread _connectorTaskThread;
   protected volatile boolean _shutdown = false;
-  private volatile boolean _failure = false;
+  private volatile boolean _skipOnPartitionsRevoked = false;
   protected volatile long _lastPolledTimeMillis = System.currentTimeMillis();
   protected volatile long _lastPollCompletedTimeMillis = 0;
   protected final CountDownLatch _startedLatch = new CountDownLatch(1);
@@ -257,6 +257,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   /**
+   * Exposing the flag for overridden classes
+   */
+  protected Boolean getSkipOnPartitionsRevoked() {
+    return _skipOnPartitionsRevoked;
+  }
+
+  /**
    * Translate the Kafka consumer records if necessary and send the batch of records to destination.
    * @param records the Kafka consumer records
    * @param readTime the instant the records were successfully polled from the Kafka source
@@ -304,8 +311,6 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     } catch (Exception e) {
       // Seek to last checkpoint failed. Throw an exception to avoid any data loss scenarios where the consumed
       // offset can be committed even though the send for that offset has failed.
-      // This flag is used to address 2.4 kafka version behavior changes for onPartitionRevoked calls
-      _failure = true;
       String errorMessage = String.format("Partition rewind for %s failed due to ", srcTopicPartition);
       throw new DatastreamRuntimeException(errorMessage, e);
     }
@@ -435,6 +440,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     } finally {
       if (null != _consumer) {
         try {
+          _skipOnPartitionsRevoked = true;
           _consumer.close();
         } catch (Exception e) {
           _logger.warn(String.format("Got exception on consumer close for task %s.", _taskName), e);
@@ -767,9 +773,13 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
 
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
+    if (_skipOnPartitionsRevoked) {
+      _logger.warn("Skipping commit in onPartitionsRevoked due to an exception.");
+      return;
+    }
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
     _kafkaTopicPartitionTracker.onPartitionsRevoked(topicPartitions);
-    if (!_shutdown && !topicPartitions.isEmpty() && !_failure) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
+    if (!_shutdown && !topicPartitions.isEmpty()) { // there is a commit at the end of the run method, skip extra commit in shouldDie mode.
       try {
         maybeCommitOffsets(_consumer, true); // happens inline as part of poll
       } catch (Exception e) {
