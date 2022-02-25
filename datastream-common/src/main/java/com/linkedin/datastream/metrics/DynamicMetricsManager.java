@@ -346,6 +346,37 @@ public class DynamicMetricsManager {
   }
 
   /**
+   * Set the Gauge (or creates it if it does not exist) for the specified key/metricName pair to the given value.
+   * A Gauge used in this way should not have an explicit supplier.
+   * @param classSimpleName the simple name of the underlying class
+   * @param key the key (i.e. topic or partition) for the metric
+   * @param metricName the metric name
+   * @param value amount to increment the counter by (use negative value to decrement)
+   */
+  @SuppressWarnings("unchecked")
+  public <T> void createOrUpdateGauge(String classSimpleName, String key, String metricName, T value) {
+    validateArguments(classSimpleName, metricName);
+    // create and register the metric if it does not exist
+    ResettableGauge<T> gauge = (ResettableGauge<T>) checkCache(classSimpleName, key, metricName).orElseGet(() -> {
+      ResettableGauge<T> newGauge = (ResettableGauge<T>) _metricRegistry.gauge(
+        MetricRegistry.name(classSimpleName, key, metricName), () -> new ResettableGauge<>(() -> value));
+      updateCache(classSimpleName, key, metricName, newGauge);
+      return newGauge;
+    });
+    gauge.setSupplier(() -> value);
+  }
+
+  /**
+   * Update the counter (or creates it if it does not exist) for the specified metricName.
+   * @param classSimpleName the simple name of the underlying class
+   * @param metricName the metric name
+   * @param value amount to increment the counter by (use negative value to decrement)
+   */
+  public <T> void createOrUpdateGauge(String classSimpleName, String metricName, T value) {
+    createOrUpdateGauge(classSimpleName, null, metricName, value);
+  }
+
+  /**
    * Update the histogram (or creates it if it does not exist) for the specified key/metricName pair by the given value.
    * If the histogram does not exist, create one using {@link SlidingTimeWindowArrayReservoir} with the specified window
    * time in ms. This can be useful for certain metrics that don't want to use the
