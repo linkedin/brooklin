@@ -11,13 +11,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
@@ -49,8 +47,6 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   private static final String MIN_PARTITIONS_ACROSS_TASKS = "minPartitionsAcrossTasks";
   private static final String MAX_PARTITIONS_ACROSS_TASKS = "maxPartitionsAcrossTasks";
 
-  private final Map<String, LoadBasedPartitionAssigner.PartitionAssignmentStats> _partitionAssignmentStatsMap =
-      new ConcurrentHashMap<>();
   private final int _defaultPartitionBytesInKBRate;
   private final int _defaultPartitionMsgsInRate;
 
@@ -179,36 +175,31 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       unrecognizedPartitionCountPerTask.put(currentTask, unrecognizedPartitionCountPerTask.getOrDefault(currentTask, 0) + 1);
     }
 
-    AtomicInteger minPartitionsAcrossTasks = new AtomicInteger(Integer.MAX_VALUE);
-    AtomicInteger maxPartitionsAcrossTasks = new AtomicInteger(0);
     // build the new assignment using the new partitions for the affected datastream's tasks
-    Map<String, Set<DatastreamTask>> newAssignments = new HashMap<>();
-    currentAssignment.keySet().forEach(instance -> {
-      Set<DatastreamTask> oldTasks = currentAssignment.get(instance);
-      Set<DatastreamTask> newTasks = oldTasks.stream()
-          .map(task -> {
-            int partitionCount = newPartitionAssignmentMap.containsKey(task.getId()) ? newPartitionAssignmentMap.get(task.getId()).size() :
-                task.getPartitionsV2().size();
-
-            minPartitionsAcrossTasks.set(Math.min(minPartitionsAcrossTasks.get(), partitionCount));
-            maxPartitionsAcrossTasks.set(Math.max(maxPartitionsAcrossTasks.get(), partitionCount));
-            if (tasksWithChangedPartition.contains(task.getId())) {
-              DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newPartitionAssignmentMap.get(task.getId()));
-              saveStats(partitionInfoMap, taskThroughputMap, unrecognizedPartitionCountPerTask, task, partitionCount, newTask);
-              return newTask;
-            }
+    Map<String, Set<DatastreamTask>> newAssignments = currentAssignment.entrySet().stream()
+      .collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().stream()
+        .map(task -> {
+          if (tasksWithChangedPartition.contains(task.getId())) {
+            Set<String> newAssignment = newPartitionAssignmentMap.get(task.getId());
+            DatastreamTaskImpl newTask = new DatastreamTaskImpl((DatastreamTaskImpl) task, newAssignment);
+            saveStats(partitionInfoMap, taskThroughputMap, unrecognizedPartitionCountPerTask, task, newAssignment.size(), newTask);
+            return newTask;
+          } else {
             return task;
-          }).collect(Collectors.toSet());
-      newAssignments.put(instance, newTasks);
-    });
+          }
+        })
+        .collect(Collectors.toSet())));
+
+    IntSummaryStatistics stats = newAssignments.values().stream()
+      .flatMap(x -> x.stream()) // flatten
+      .collect(Collectors.summarizingInt(x -> x.getPartitionsV2().size()));
 
     // update metrics
-    PartitionAssignmentStats stats = new PartitionAssignmentStats(minPartitionsAcrossTasks.get(),
-        maxPartitionsAcrossTasks.get());
     String taskPrefix = partitionMetadata.getDatastreamGroup().getTaskPrefix();
-    updateMetricsForDatastream(taskPrefix, stats);
+    DYNAMIC_METRICS_MANAGER.createOrUpdateGauge(CLASS_NAME, taskPrefix, MIN_PARTITIONS_ACROSS_TASKS, stats.getMin());
+    DYNAMIC_METRICS_MANAGER.createOrUpdateGauge(CLASS_NAME, taskPrefix, MAX_PARTITIONS_ACROSS_TASKS, stats.getMax());
     LOG.info("Assignment stats for {}. Min partitions across tasks: {}, max partitions across tasks: {}", taskPrefix,
-        stats.getMinPartitionsAcrossTasks(), stats.getMaxPartitionsAcrossTasks());
+        stats.getMin(), stats.getMax());
 
     return newAssignments;
   }
@@ -257,25 +248,6 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     throw new DatastreamRuntimeException("No tasks found that can host an additional partition");
   }
 
-  void updateMetricsForDatastream(String datastream, PartitionAssignmentStats stats) {
-    if (!_partitionAssignmentStatsMap.containsKey(datastream)) {
-      registerLoadBasedPartitionAssignmentMetrics(datastream);
-    }
-    _partitionAssignmentStatsMap.put(datastream, stats);
-  }
-
-  private void registerLoadBasedPartitionAssignmentMetrics(String datastream) {
-    Supplier<Integer> minPartitionsAcrossTasksSupplier = () -> _partitionAssignmentStatsMap
-        .getOrDefault(datastream, PartitionAssignmentStats.DEFAULT).getMinPartitionsAcrossTasks();
-    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, datastream, MIN_PARTITIONS_ACROSS_TASKS,
-        minPartitionsAcrossTasksSupplier);
-
-    Supplier<Integer> maxPartitionsAcrossTasksSupplier = () -> _partitionAssignmentStatsMap
-        .getOrDefault(datastream, PartitionAssignmentStats.DEFAULT).getMaxPartitionsAcrossTasks();
-    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS,
-        maxPartitionsAcrossTasksSupplier);
-  }
-
   /**
    * {@inheritDoc}
    */
@@ -288,11 +260,6 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     metricInfos.add(new BrooklinGaugeInfo(prefix + MAX_PARTITIONS_ACROSS_TASKS));
 
     return Collections.unmodifiableList(metricInfos);
-  }
-
-  void cleanupMetrics() {
-    _partitionAssignmentStatsMap.keySet().forEach(this::unregisterMetricsForDatastream);
-    _partitionAssignmentStatsMap.clear();
   }
 
   void unregisterMetricsForDatastream(String datastream) {
@@ -371,41 +338,6 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
      */
     public String toJson() throws IOException {
       return JsonUtils.toJson(this);
-    }
-  }
-  /**
-   * Encapsulates assignment metrics for a single datastream group
-   */
-  private static class PartitionAssignmentStats {
-    private final int _minPartitionsAcrossTasks;
-    private final int _maxPartitionsAcrossTasks;
-
-    public static final PartitionAssignmentStats DEFAULT = new PartitionAssignmentStats(0, 0);
-
-    /**
-     * Creates an instance of {@link PartitionAssignmentStats}
-     * @param minPartitionsAcrossTasks Minimum number of partitions across tasks
-     * @param maxPartitionsAcrossTasks Maximum number of partitions across tasks
-     */
-    public PartitionAssignmentStats(int minPartitionsAcrossTasks, int maxPartitionsAcrossTasks) {
-      _minPartitionsAcrossTasks = minPartitionsAcrossTasks;
-      _maxPartitionsAcrossTasks = maxPartitionsAcrossTasks;
-    }
-
-    /**
-     * Gets the minimum number of partitions across tasks
-     * @return Minimum number of partitions across tasks
-     */
-    public int getMinPartitionsAcrossTasks() {
-      return _minPartitionsAcrossTasks;
-    }
-
-    /**
-     * Gets the maximum number of partitions across tasks
-     * @return Maximum number of partitions across tasks
-     */
-    public int getMaxPartitionsAcrossTasks() {
-      return _maxPartitionsAcrossTasks;
     }
   }
 }
