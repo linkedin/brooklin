@@ -346,12 +346,12 @@ public class DynamicMetricsManager {
   }
 
   /**
-   * Set the Gauge (or creates it if it does not exist) for the specified key/metricName pair to the given value.
+   * Updates the Gauge (or creates it if it does not exist) for the specified key/metricName pair to the given value.
    * A Gauge used in this way should not have an explicit supplier.
    * @param classSimpleName the simple name of the underlying class
    * @param key the key (i.e. topic or partition) for the metric
    * @param metricName the metric name
-   * @param value amount to increment the counter by (use negative value to decrement)
+   * @param value the new value
    */
   @SuppressWarnings("unchecked")
   public <T> void createOrUpdateGauge(String classSimpleName, String key, String metricName, T value) {
@@ -367,10 +367,10 @@ public class DynamicMetricsManager {
   }
 
   /**
-   * Update the counter (or creates it if it does not exist) for the specified metricName.
+   * Updates the Gauge (or creates it if it does not exist) for the specified metricName to the given value.
    * @param classSimpleName the simple name of the underlying class
    * @param metricName the metric name
-   * @param value amount to increment the counter by (use negative value to decrement)
+   * @param value the new value
    */
   public <T> void createOrUpdateGauge(String classSimpleName, String metricName, T value) {
     createOrUpdateGauge(classSimpleName, null, metricName, value);
