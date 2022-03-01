@@ -98,14 +98,14 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void newAssignmentRetainsTasksFromOtherDatastreamsTest() {
-    List<String> assignedPartitions = Arrays.asList("P1", "P2");
+    List<String> assignedPartitions = Arrays.asList("P1", "P2", "P5", "P6", "P7");
     List<String> unassignedPartitions = Collections.singletonList("P3");
     List<String> allPartitions = new ArrayList<>(assignedPartitions);
     allPartitions.addAll(unassignedPartitions);
     ClusterThroughputInfo throughputInfo = getDummyClusterThroughputInfo(allPartitions);
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
-    ds1.getSource().setPartitions(2);
+    ds1.getSource().setPartitions(5);
     ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds1));
 
     Datastream ds2 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds2")[0];
@@ -113,18 +113,33 @@ public class TestLoadBasedPartitionAssigner {
     ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(ds2));
 
     Map<String, Set<DatastreamTask>> currentAssignment = new HashMap<>();
-    DatastreamTask datastream1Task1 = createTaskForDatastream(ds1, Collections.singletonList("P1"));
-    DatastreamTask datastream1Task2 = createTaskForDatastream(ds1, Collections.singletonList("P2"));
+    DatastreamTask datastream1Task1 = createTaskForDatastream(ds1, Arrays.asList("P1", "P5", "P7"));
+    DatastreamTask datastream1Task2 = createTaskForDatastream(ds1, Arrays.asList("P2", "P6"));
     DatastreamTask datastream2Task1 = createTaskForDatastream(ds2);
     currentAssignment.put("instance1", new HashSet<>(Arrays.asList(datastream1Task1, datastream2Task1)));
     currentAssignment.put("instance2", new HashSet<>(Collections.singletonList(datastream1Task2)));
 
     DatastreamGroupPartitionsMetadata metadata = new DatastreamGroupPartitionsMetadata(new DatastreamGroup(
+        Collections.singletonList(ds1)), Arrays.asList("P1", "P2", "P5", "P6", "P7"));
+
+    DatastreamGroupPartitionsMetadata metadata2 = new DatastreamGroupPartitionsMetadata(new DatastreamGroup(
         Collections.singletonList(ds2)), Collections.singletonList("P3"));
 
     LoadBasedPartitionAssigner assigner = new LoadBasedPartitionAssigner(5, 10);
+    //for ds1
     Map<String, Set<DatastreamTask>> newAssignment = assigner.assignPartitions(throughputInfo, currentAssignment,
-        unassignedPartitions, metadata, Integer.MAX_VALUE);
+        Collections.emptyList(), metadata, Integer.MAX_VALUE);
+
+    //assertMetricEquals("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", 2);
+    //assertMetricEquals("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", 3);
+
+    //for ds2
+    newAssignment = assigner.assignPartitions(throughputInfo, newAssignment, unassignedPartitions, metadata2, Integer.MAX_VALUE);
+
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", 2);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", 3);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds2.minPartitionsAcrossTasks", 1);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds2.minPartitionsAcrossTasks", 1);
 
     Set<DatastreamTask> allTasks = new HashSet<>();
     allTasks.add((DatastreamTask) newAssignment.get("instance1").toArray()[0]);
