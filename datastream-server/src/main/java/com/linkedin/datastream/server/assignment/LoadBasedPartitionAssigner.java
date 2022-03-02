@@ -192,6 +192,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     IntSummaryStatistics stats = newAssignments.values().stream()
       .flatMap(x -> x.stream()) // flatten
+      .filter(x -> x.getTaskPrefix().equals(datastreamGroupName))
       .collect(Collectors.summarizingInt(x -> x.getPartitionsV2().size()));
 
     // update metrics
