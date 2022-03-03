@@ -11,17 +11,19 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.kafka.common.TopicPartition;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.Version;
-import org.codehaus.jackson.annotate.JsonPropertyOrder;
-import org.codehaus.jackson.map.DeserializationConfig;
-import org.codehaus.jackson.map.DeserializationContext;
-import org.codehaus.jackson.map.JsonDeserializer;
-import org.codehaus.jackson.map.KeyDeserializer;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.annotate.JsonSerialize;
-import org.codehaus.jackson.map.module.SimpleModule;
-import org.codehaus.jackson.map.ser.ToStringSerializer;
+
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.Version;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.KeyDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
@@ -106,7 +108,7 @@ public class KafkaDatastreamStatesResponse {
     simpleModule.addDeserializer(TopicPartition.class, TopicPartitionDeserializer.getInstance());
     ObjectMapper mapper = new ObjectMapper();
     mapper.registerModule(simpleModule);
-    mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     return JsonUtils.fromJson(json, KafkaDatastreamStatesResponse.class, mapper);
   }
 
@@ -195,7 +197,7 @@ public class KafkaDatastreamStatesResponse {
     @Override
     public TopicPartition deserialize(JsonParser jp, DeserializationContext ctxt)
         throws IOException {
-      String topicPartition = jp.getCodec().readTree(jp).getTextValue();
+      String topicPartition = ((JsonNode) jp.getCodec().readTree(jp)).asText();
       return topicPartitionFromString(topicPartition);
     }
   }
