@@ -8,7 +8,7 @@ package com.linkedin.datastream.connectors.kafka;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.codehaus.jackson.annotate.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 
 /**

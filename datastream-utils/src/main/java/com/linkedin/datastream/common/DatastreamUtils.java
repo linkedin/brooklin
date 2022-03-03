@@ -21,7 +21,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
-import org.codehaus.jackson.type.TypeReference;
+
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import com.linkedin.data.template.GetMode;
 import com.linkedin.data.template.StringMap;

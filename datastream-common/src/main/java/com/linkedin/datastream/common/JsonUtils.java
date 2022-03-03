@@ -5,23 +5,25 @@
  */
 package com.linkedin.datastream.common;
 
+
 import java.io.IOException;
 import java.io.StringWriter;
 import java.time.Instant;
 
 import org.apache.commons.lang.Validate;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.annotate.JsonIgnore;
-import org.codehaus.jackson.map.DeserializationConfig;
-import org.codehaus.jackson.map.DeserializationContext;
-import org.codehaus.jackson.map.JsonDeserializer;
-import org.codehaus.jackson.map.JsonSerializer;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.SerializerProvider;
-import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
 
 
 /**
@@ -34,12 +36,11 @@ public final class JsonUtils {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   static {
-    MAPPER.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    final DeserializationConfig config = MAPPER.getDeserializationConfig();
-    config.addMixInAnnotations(Datastream.class, IgnoreDatastreamSetPausedMixIn.class);
-    config.addMixInAnnotations(DatastreamSource.class, IgnoreDatastreamSourceSetPartitionsMixIn.class);
-    config.addMixInAnnotations(DatastreamDestination.class, IgnoreDatastreamDestinationSetPartitionsMixIn.class);
+    MAPPER.addMixIn(Datastream.class, IgnoreDatastreamSetPausedMixIn.class);
+    MAPPER.addMixIn(DatastreamSource.class, IgnoreDatastreamSourceSetPartitionsMixIn.class);
+    MAPPER.addMixIn(DatastreamDestination.class, IgnoreDatastreamDestinationSetPartitionsMixIn.class);
   }
 
   /**
