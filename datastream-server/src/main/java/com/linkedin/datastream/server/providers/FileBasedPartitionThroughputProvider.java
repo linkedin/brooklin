@@ -14,9 +14,10 @@ import java.util.Iterator;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
@@ -87,7 +88,7 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
     try {
       JsonNode root = mapper.readTree(file);
       JsonNode allStats = root.get(ROOT_NODE_NAME);
-      Iterator<String> clusterNames = allStats.getFieldNames();
+      Iterator<String> clusterNames = allStats.fieldNames();
 
       while (clusterNames.hasNext()) {
         String key = clusterNames.next();
@@ -127,7 +128,7 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
     HashMap<String, PartitionThroughputInfo> partitionInfoMap = new HashMap<>();
 
     try {
-      HashMap<String, String> partitionStats = mapper.readValue(clusterStats, mapTypeRef);
+      HashMap<String, String> partitionStats = mapper.readValue(clusterStats.toString(), mapTypeRef);
       for (String partition : partitionStats.keySet()) {
         String value = partitionStats.get(partition);
         String[] tokens = StringUtils.split(value, ",");
