@@ -13,9 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.avro.Schema;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.google.common.base.CaseFormat;
 
