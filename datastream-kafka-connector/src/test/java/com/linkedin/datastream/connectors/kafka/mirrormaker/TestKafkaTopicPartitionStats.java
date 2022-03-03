@@ -15,10 +15,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.codehaus.jackson.type.TypeReference;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableSet;
 
 import com.linkedin.datastream.common.Datastream;

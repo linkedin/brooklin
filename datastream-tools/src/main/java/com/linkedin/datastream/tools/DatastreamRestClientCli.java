@@ -18,8 +18,9 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.lang.StringUtils;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.DatastreamRestClient;
@@ -63,7 +64,7 @@ public class DatastreamRestClientCli {
         String jsonValue = DatastreamUtils.toJSON(s);
         if (!noformat) {
           Object json = mapper.readValue(jsonValue, Object.class);
-          jsonValue = mapper.defaultPrettyPrintingWriter().writeValueAsString(json);
+          jsonValue = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
         }
 
         System.out.println(jsonValue);

@@ -19,10 +19,11 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
-import org.codehaus.jackson.annotate.JsonIgnore;
 import org.jetbrains.annotations.TestOnly;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamDestination;
