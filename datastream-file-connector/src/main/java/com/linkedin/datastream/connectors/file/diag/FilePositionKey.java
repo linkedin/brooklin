@@ -8,10 +8,11 @@ package com.linkedin.datastream.connectors.file.diag;
 import java.time.Instant;
 import java.util.Objects;
 
-import org.codehaus.jackson.annotate.JsonProperty;
-import org.codehaus.jackson.map.annotate.JsonDeserialize;
-import org.codehaus.jackson.map.annotate.JsonSerialize;
 import org.jetbrains.annotations.NotNull;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import com.linkedin.datastream.common.JsonUtils.InstantDeserializer;
 import com.linkedin.datastream.common.JsonUtils.InstantSerializer;
