@@ -371,7 +371,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
     if (getSkipOnPartitionsRevoked()) {
-      _logger.warn("Skipping commit in onPartitionsRevoked due to exception.");
+      _logger.info("Skipping commit in onPartitionsRevoked during consumer.close().");
       return;
     }
     super.onPartitionsRevoked(partitions);

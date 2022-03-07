@@ -774,7 +774,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     if (_skipOnPartitionsRevoked) {
-      _logger.warn("Skipping commit in onPartitionsRevoked due to an exception.");
+      _logger.info("Skipping commit in onPartitionsRevoked during consumer.close().");
       return;
     }
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
