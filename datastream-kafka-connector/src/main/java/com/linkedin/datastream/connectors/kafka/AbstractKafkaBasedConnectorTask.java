@@ -259,7 +259,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   /**
    * Exposing the flag for overridden classes
    */
-  protected Boolean getSkipOnPartitionsRevoked() {
+  protected boolean getSkipOnPartitionsRevoked() {
     return _skipOnPartitionsRevoked;
   }
 
@@ -774,7 +774,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   @Override
   public void onPartitionsRevoked(Collection<TopicPartition> topicPartitions) {
     if (_skipOnPartitionsRevoked) {
-      _logger.info("Skipping commit in onPartitionsRevoked during consumer.close().");
+      _logger.info("Skipping commit in onPartitionsRevoked during consumer.close()");
       return;
     }
     _logger.info("Partition ownership revoked for {}, checkpointing.", topicPartitions);
