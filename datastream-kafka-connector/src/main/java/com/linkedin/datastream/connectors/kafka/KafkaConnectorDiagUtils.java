@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
-import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
+
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import com.linkedin.datastream.common.JsonUtils;
 

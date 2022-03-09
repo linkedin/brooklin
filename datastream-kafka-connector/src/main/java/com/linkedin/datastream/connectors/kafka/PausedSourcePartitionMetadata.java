@@ -11,7 +11,8 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
-import org.codehaus.jackson.annotate.JsonPropertyOrder;
+
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 
 /**
