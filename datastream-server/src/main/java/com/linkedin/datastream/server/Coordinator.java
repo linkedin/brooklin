@@ -1005,6 +1005,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // Get the list of all datastreams
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true);
+    // List of active streams that are not expired or deleted. Used for checking for a duplicate stream when deciding
+    // whether to delete a datastream tasks and topic or not.
+    List<Datastream> activeStreams = allStreams.stream().filter(ds -> !isDeletingOrExpired(ds)).collect(Collectors.toList());
 
     // do nothing if there are zero datastreams
     if (allStreams.isEmpty()) {
@@ -1036,7 +1039,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _log.info("Trying to hard delete datastream {} (reason={})", ds,
             ds.getStatus() == DatastreamStatus.DELETING ? "deleting" : "expired");
 
-        hardDeleteDatastream(ds, allStreams);
+        hardDeleteDatastream(ds, activeStreams);
       }
     }
 
@@ -1059,7 +1062,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
   }
 
-  private void hardDeleteDatastream(Datastream ds, List<Datastream> allStreams) {
+  private void hardDeleteDatastream(Datastream ds, List<Datastream> activeStreams) {
     String taskPrefix;
     if (DatastreamUtils.containsTaskPrefix(ds)) {
       taskPrefix = DatastreamUtils.getTaskPrefix(ds);
@@ -1067,7 +1070,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       taskPrefix = DatastreamTaskImpl.getTaskPrefix(ds);
     }
 
-    Optional<Datastream> duplicateStream = allStreams.stream()
+    Optional<Datastream> duplicateStream = activeStreams.stream()
         .filter(DatastreamUtils::containsTaskPrefix)
         .filter(x -> !x.getName().equals(ds.getName()) && DatastreamUtils.getTaskPrefix(x).equals(taskPrefix))
         .findFirst();
