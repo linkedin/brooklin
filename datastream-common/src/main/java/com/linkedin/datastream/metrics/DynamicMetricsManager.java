@@ -213,6 +213,14 @@ public class DynamicMetricsManager {
   }
 
   /**
+   * Explicitly set the Supplier for a Gauge.
+   */
+  public <T> void setGauge(Gauge<T> gauge, Supplier<T> supplier) {
+    Validate.isTrue(gauge instanceof ResettableGauge, "Unsupported Gauge impl.");
+    ((ResettableGauge<T>) gauge).setSupplier(supplier);
+  }
+
+  /**
    * Unregister the metric for the specified key/metricName pair by the given value; if it has
    * never been registered, do nothing
    * @param simpleName the simple name of the underlying class

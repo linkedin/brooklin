@@ -16,11 +16,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.codahale.metrics.Gauge;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -49,6 +52,8 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
   private final int _defaultPartitionBytesInKBRate;
   private final int _defaultPartitionMsgsInRate;
+
+  private final Map<String, DatastreamMetrics> _metricsForDatastream = new ConcurrentHashMap<>();
 
   /**
    * Constructor of LoadBasedPartitionAssigner
@@ -197,12 +202,17 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     // update metrics
     String taskPrefix = partitionMetadata.getDatastreamGroup().getTaskPrefix();
-    DYNAMIC_METRICS_MANAGER.createOrUpdateGauge(CLASS_NAME, taskPrefix, MIN_PARTITIONS_ACROSS_TASKS, stats.getMin());
-    DYNAMIC_METRICS_MANAGER.createOrUpdateGauge(CLASS_NAME, taskPrefix, MAX_PARTITIONS_ACROSS_TASKS, stats.getMax());
+    DatastreamMetrics metrics = metricsForDatastream(taskPrefix);
+    metrics.minPartitionsAcrossTasks(stats.getMin());
+    metrics.maxPartitionsAcrossTasks(stats.getMax());
     LOG.info("Assignment stats for {}. Min partitions across tasks: {}, max partitions across tasks: {}", taskPrefix,
         stats.getMin(), stats.getMax());
 
     return newAssignments;
+  }
+
+  private DatastreamMetrics metricsForDatastream(String taskPrefix) {
+    return _metricsForDatastream.computeIfAbsent(taskPrefix, (x) -> new DatastreamMetrics(x));
   }
 
   private void saveStats(Map<String, PartitionThroughputInfo> partitionInfoMap, Map<String, Integer> taskThroughputMap,
@@ -263,9 +273,18 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     return Collections.unmodifiableList(metricInfos);
   }
 
+  void cleanupMetrics() {
+    _metricsForDatastream.keySet().forEach(this::unregisterMetricsForDatastream);
+  }
+
   void unregisterMetricsForDatastream(String datastream) {
-    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MIN_PARTITIONS_ACROSS_TASKS);
-    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastream, MAX_PARTITIONS_ACROSS_TASKS);
+    // cleanup existing DatastreamMetrics object, then remove it
+    _metricsForDatastream.compute(datastream, (k, v) -> {
+      if (v != null) {
+        v.cleanup();
+      }
+      return null;
+    });
   }
 
   /**
@@ -339,6 +358,33 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
      */
     public String toJson() throws IOException {
       return JsonUtils.toJson(this);
+    }
+  }
+
+  private static class DatastreamMetrics {
+    private final String taskPrefix;
+    private final Gauge<Integer> minPartitionsAcrossTasks;
+    private final Gauge<Integer> maxPartitionsAcrossTasks;
+
+    DatastreamMetrics(String taskPrefix) {
+      this.taskPrefix = taskPrefix;
+      minPartitionsAcrossTasks = DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix,
+          MIN_PARTITIONS_ACROSS_TASKS, () -> 0);
+      maxPartitionsAcrossTasks = DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix,
+          MAX_PARTITIONS_ACROSS_TASKS, () -> 0);
+    }
+
+    void cleanup() {
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, taskPrefix, MIN_PARTITIONS_ACROSS_TASKS);
+      DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, taskPrefix, MAX_PARTITIONS_ACROSS_TASKS);
+    }
+
+    void minPartitionsAcrossTasks(int min) {
+      DYNAMIC_METRICS_MANAGER.setGauge(minPartitionsAcrossTasks, () -> min);
+    }
+
+    void maxPartitionsAcrossTasks(int max) {
+      DYNAMIC_METRICS_MANAGER.setGauge(maxPartitionsAcrossTasks, () -> max);
     }
   }
 }

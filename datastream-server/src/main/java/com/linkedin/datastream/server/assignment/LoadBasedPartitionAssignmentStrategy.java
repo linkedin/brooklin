@@ -233,6 +233,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
    */
   @Override
   public void cleanupStrategy() {
+    _assigner.cleanupMetrics();
     super.cleanupStrategy();
   }
 
