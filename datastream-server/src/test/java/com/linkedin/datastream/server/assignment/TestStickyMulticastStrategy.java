@@ -7,9 +7,11 @@ package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -497,6 +499,62 @@ public class TestStickyMulticastStrategy {
       Set<DatastreamTask> newassignmentTasks = newAssignment.get(instance);
       Assert.assertEquals(newassignmentTasks.size(), 4 * 5);
     }
+  }
+
+  @Test
+  public void testReBalancingTasksWithThreshold() {
+    String[] instances = new String[]{"instance1", "instance2", "instance3"};
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9, 9, 13}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9, 9, 13}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9, 9, 13}, 3);
+
+    reBalancingTasksWithThresholdHelper(instances, new int[]{1, 10, 20}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{1, 10, 20}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{1, 10, 20}, 3);
+
+    reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5, 5}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5, 5}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5, 5}, 3);
+  }
+
+  // this helper function tests the rebalancing of tasks with an imbalance threshold across the instances
+  // with StickyMulticastStrategy
+  private void reBalancingTasksWithThresholdHelper(String[] instances, int[] taskDistribution, int imbalanceThreshold) {
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 1);
+    StickyMulticastStrategy strategy = new StickyMulticastStrategy(Optional.empty(), imbalanceThreshold);
+
+    // create a dummy current assignment following the parameterized task distribution; based on which the
+    // new assignment will be generated.
+    HashMap<String, Set<DatastreamTask>> currentDummyAssignment = new HashMap<>();
+    for (int index = 0; index < instances.length; index += 1) {
+      currentDummyAssignment.put(instances[index],
+          getDummyTasksSet(taskDistribution[index], datastreams.get(0).getDatastreams()));
+    }
+
+    int totalNumberTasks = currentDummyAssignment.values().stream().mapToInt(Collection::size).sum();
+    // setting the total count of tasks as the max tasks for our single datastream, so that the new assignment
+    // distribution looks similar to the current assignment.
+    datastreams.get(0).getDatastreams().get(0).getMetadata().put(CFG_MAX_TASKS, Integer.toString(totalNumberTasks));
+
+    Map<String, Set<DatastreamTask>> assignment =
+        strategy.assign(datastreams, Arrays.asList(instances), currentDummyAssignment);
+
+    Arrays.sort(instances, Comparator.comparing(x -> assignment.get(x).size()));
+
+    int minTasksAssignedToInstance = assignment.get(instances[0]).size();
+    int maxTasksAssignedToInstance = assignment.get(instances[instances.length - 1]).size();
+
+    Assert.assertTrue(maxTasksAssignedToInstance - minTasksAssignedToInstance <= imbalanceThreshold);
+  }
+
+  // returns a dummy set with #numTasks tasks
+  private HashSet<DatastreamTask> getDummyTasksSet(int numTasks, List<Datastream> datastreams) {
+    HashSet<DatastreamTask> assignedTasks = new HashSet<>();
+    while (numTasks > 0) {
+      assignedTasks.add(new DatastreamTaskImpl(datastreams));
+      numTasks -= 1;
+    }
+    return assignedTasks;
   }
 
   private static String assignmentToString(Map<String, Set<DatastreamTask>> assignment) {
