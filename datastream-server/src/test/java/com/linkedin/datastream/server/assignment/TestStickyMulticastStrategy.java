@@ -515,6 +515,24 @@ public class TestStickyMulticastStrategy {
     reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5, 5}, 1);
     reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5, 5}, 2);
     reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5, 5}, 3);
+
+    instances = new String[]{"instance1", "instance2"};
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9, 13}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9, 13}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9, 13}, 3);
+
+    reBalancingTasksWithThresholdHelper(instances, new int[]{1, 10}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{1, 10}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{1, 10}, 3);
+
+    reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{5, 5}, 3);
+
+    instances = new String[]{"instance1"};
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9}, 1);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9}, 2);
+    reBalancingTasksWithThresholdHelper(instances, new int[]{9}, 3);
   }
 
   // this helper function tests the rebalancing of tasks with an imbalance threshold across the instances
