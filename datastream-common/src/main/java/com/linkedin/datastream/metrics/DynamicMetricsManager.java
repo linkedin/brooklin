@@ -129,6 +129,7 @@ public class DynamicMetricsManager {
    */
   @SuppressWarnings("unchecked")
   private <T extends Metric> T getMetric(String name, Class<T> clazz) {
+    Validate.notNull(clazz, "metric class argument is null.");
     if (clazz.equals(Counter.class)) {
       return (T) _metricRegistry.counter(name);
     } else if (clazz.equals(Meter.class)) {
@@ -136,53 +137,23 @@ public class DynamicMetricsManager {
     } else if (clazz.equals(Histogram.class)) {
       return (T) _metricRegistry.histogram(name);
     } else if (clazz.equals(Gauge.class)) {
-      return (T) new ResettableGauge<>();
+      throw new IllegalArgumentException("This method doesn't work with Gauges.");
     } else if (clazz.equals(Timer.class)) {
-      return (T) new Timer();
+      return (T) _metricRegistry.timer(name);
     } else {
       throw new IllegalArgumentException("Invalid metric type: " + clazz);
     }
   }
 
-  /**
-   * Internal method to create and register a metric with the registry. If the metric with the same
-   * name has already been registered before, it will be returned instead of creating a new one as
-   * metric registry forbids duplicate registrations. For an existing Gauge metric, we replace its
-   * value supplier with the new supplier passed in.
-   * @param simpleName namespace of the metric
-   * @param key optional key for the metric (eg. source name)
-   * @param metricName actual name of the metric
-   * @param metricClass class of the metric type
-   * @param supplier optional supplier for Gauge metric (not used for non-Gauge metrics)
-   * @param <T> metric type
-   * @param <V> value type for the supplier
-   */
-  @SuppressWarnings("unchecked")
-  private <T extends Metric, V> T doRegisterMetric(String simpleName, String key, String metricName,
-      Class<T> metricClass, Supplier<V> supplier) {
-    validateArguments(simpleName, metricName);
-    Validate.notNull(metricClass, "metric class argument is null.");
-
-    String fullMetricName = MetricRegistry.name(simpleName, key, metricName);
-
-    Metric metric = getMetric(fullMetricName, metricClass);
+  private void countReference(String fullMetricName) {
     _registeredMetricRefCount.compute(fullMetricName, (localKey, val) -> (val == null) ? 1 : val + 1);
-    if (metric instanceof ResettableGauge) {
-      Validate.notNull(supplier, "null supplier to Gauge");
-      ((ResettableGauge) metric).setSupplier(supplier);
-
-      try {
-        // Gauge needs explicit registration
-        _metricRegistry.register(fullMetricName, metric);
-      } catch (IllegalArgumentException e) {
-        // This can happen with parallel unit tests
-      }
-    }
-
     // _indexedMetrics update is left to the createOrUpdate APIs which is only needed
     // if the same metrics are accessed through both registerMetric and createOrUpdate.
+  }
 
-    return (T) metric;
+  private String formatName(String simpleName, String key, String metricName) {
+    validateArguments(simpleName, metricName);
+    return MetricRegistry.name(simpleName, key, metricName);
   }
 
   /**
@@ -196,8 +167,12 @@ public class DynamicMetricsManager {
    */
   @SuppressWarnings("unchecked")
   public <T extends Metric> T registerMetric(String simpleName, String key, String metricName, Class<T> metricClass) {
-    Validate.isTrue(!metricClass.equals(Gauge.class), "please call registerGauge() to register a Gauge metric.");
-    return doRegisterMetric(simpleName, key, metricName, metricClass, null);
+    if (Gauge.class.isAssignableFrom(metricClass)) {
+      throw new IllegalArgumentException("Cannot register Gauges; use registerGauge");
+    }
+    String name = formatName(simpleName, key, metricName);
+    countReference(name);
+    return getMetric(name, metricClass);
   }
 
   /**
@@ -221,7 +196,9 @@ public class DynamicMetricsManager {
    */
   @SuppressWarnings("unchecked")
   public <T> Gauge<T> registerGauge(String simpleName, String key, String metricName, Supplier<T> supplier) {
-    return doRegisterMetric(simpleName, key, metricName, Gauge.class, supplier);
+    String name = formatName(simpleName, key, metricName);
+    countReference(name);
+    return _metricRegistry.gauge(name, () -> new ResettableGauge<T>(supplier));
   }
 
   /**
@@ -231,9 +208,16 @@ public class DynamicMetricsManager {
    * @param supplier value supplier for the Gauge
    * @return the metric just registered or previously registered one
    */
-  @SuppressWarnings("unchecked")
   public <T> Gauge<T> registerGauge(String simpleName, String metricName, Supplier<T> supplier) {
-    return doRegisterMetric(simpleName, null, metricName, Gauge.class, supplier);
+    return registerGauge(simpleName, null, metricName, supplier);
+  }
+
+  /**
+   * Explicitly set the Supplier for a Gauge.
+   */
+  public <T> void setGauge(Gauge<T> gauge, Supplier<T> supplier) {
+    Validate.isTrue(gauge instanceof ResettableGauge, "Unsupported Gauge impl.");
+    ((ResettableGauge<T>) gauge).setSupplier(supplier);
   }
 
   /**
