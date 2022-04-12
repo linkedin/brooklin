@@ -102,7 +102,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   // multiple concurrent threads. If access is required to both maps then the order of synchronization must be
   // _runningTasks followed by _tasksToStop to prevent deadlocks.
   private final Map<DatastreamTask, ConnectorTaskEntry> _runningTasks = new HashMap<>();
-  private final Map<DatastreamTask, ConnectorTaskEntry> _tasksToStop = new HashMap<>();
+
+  // _tasksPendingStop contains the tasks that are pending stop across various assignment changes. The periodic health
+  // check call will attempt to stop these tasks until they are not stopped / are stuck somewhere in stop path.
+  private final Map<DatastreamTask, ConnectorTaskEntry> _tasksPendingStop = new HashMap<>();
 
   // A daemon executor to constantly check whether all tasks are running and restart them if not.
   private final ScheduledExecutorService _daemonThreadExecutorService =
@@ -154,23 +157,25 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _logger.info("onAssignmentChange called with tasks {}", tasks);
 
     synchronized (_runningTasks) {
+      Map<DatastreamTask, ConnectorTaskEntry> runningTasksToStop = new HashMap<>();
       Set<DatastreamTask> toCancel = new HashSet<>(_runningTasks.keySet());
       tasks.forEach(toCancel::remove);
 
       if (toCancel.size() > 0) {
         // Mark the connector task as stopped so that, in case stopping the task here fails for any reason in
         // restartDeadTasks the task is not restarted
-        synchronized (_tasksToStop) {
+        synchronized (_tasksPendingStop) {
           toCancel.forEach(task -> {
-            _tasksToStop.put(task, _runningTasks.get(task));
+            runningTasksToStop.put(task, _runningTasks.get(task));
+            _tasksPendingStop.put(task, _runningTasks.get(task));
             _runningTasks.remove(task);
           });
         }
-        stopUnassignedTasks();
+        scheduleTasksToStop(runningTasksToStop);
       }
 
       boolean toCallRestartDeadTasks = false;
-      synchronized (_tasksToStop) {
+      synchronized (_tasksPendingStop) {
         for (DatastreamTask task : tasks) {
           ConnectorTaskEntry connectorTaskEntry = _runningTasks.get(task);
           if (connectorTaskEntry != null) {
@@ -180,16 +185,17 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
             // This is necessary because DatastreamTaskImpl.hashCode() does not take into account all the
             // fields/properties of the DatastreamTask (e.g. dependencies).
             _runningTasks.remove(task);
-            _runningTasks.put(task, connectorTaskEntry);
           } else {
-            if (_tasksToStop.containsKey(task)) {
+            // If a pending stop task is reassigned to this host, we'd have to ensure to restart the
+            // task or replace the connectorTaskEntry for that task in the restartDeadTasks function.
+            if (_tasksPendingStop.containsKey(task)) {
               toCallRestartDeadTasks = true;
-              connectorTaskEntry = _tasksToStop.remove(task);
+              connectorTaskEntry = _tasksPendingStop.remove(task);
             } else {
               connectorTaskEntry = createKafkaConnectorTask(task);
             }
-            _runningTasks.put(task, connectorTaskEntry);
           }
+          _runningTasks.put(task, connectorTaskEntry);
         }
       }
       // If any tasks pending stop were re-assigned to this host we explicitly call restartDeadTasks to ensure
@@ -293,8 +299,8 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    * Returns the number of tasks yet to be stopped.
    */
   int getTasksToStopCount() {
-    synchronized (_tasksToStop) {
-      return _tasksToStop.size();
+    synchronized (_tasksPendingStop) {
+      return _tasksPendingStop.size();
     }
   }
 
@@ -308,44 +314,50 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
   }
 
   /**
-   * Attempt to stop the unassigned tasks.
+   * Attempt to stop the unassigned tasks from the _tasksToStop map.
    */
   private void stopUnassignedTasks() {
-    synchronized (_tasksToStop) {
-      if (_tasksToStop.size() == 0) {
-        _logger.info("No tasks to stop");
-        return;
-      }
+    scheduleTasksToStop(_tasksPendingStop);
+  }
 
-      // Spawn a separate thread to attempt stopping the connectorTask. The connectorTask will be canceled if it
-      // does not stop within a certain amount of time. This will force cleanup of connectorTasks which take too long
-      // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
-      // requires that this step completely because we call this from onAssignmentChange() (assignment thread gets
-      // killed if it takes too long) and restartDeadTasks which must complete quickly.
-      List<Future<DatastreamTask>> stopTaskFutures = _tasksToStop.keySet().stream()
-          .map(task -> asyncStopTask(task, _tasksToStop.get(task)))
-          .collect(Collectors.toList());
-
-      _shutdownExecutorService.submit(() -> {
-        List<DatastreamTask> toRemoveTasks = stopTaskFutures.stream().map(stopTaskFuture -> {
-          try {
-            return stopTaskFuture.get(CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT).toMillis(), TimeUnit.MILLISECONDS);
-          } catch (ExecutionException | InterruptedException | TimeoutException e) {
-            _logger.warn("Stop task future failed with exception", e);
-          }
-          return null;
-        }).filter(Objects::nonNull).collect(Collectors.toList());
-
-        if (toRemoveTasks.size() > 0) {
-          synchronized (_tasksToStop) {
-            // Its possible that while stopping the task was pending there was another onAssignmentChange event
-            // which reassigned the task back to this host and the task was moved back to _runningTasks. In this
-            // case the remove operation here will be a no-op.
-            toRemoveTasks.forEach(_tasksToStop::remove);
-          }
-        }
-      });
+  /**
+   * Attempt to stop the unassigned tasks from the argument map.
+   */
+  private void scheduleTasksToStop(Map<DatastreamTask, ConnectorTaskEntry> tasks) {
+    if (tasks.size() == 0) {
+      _logger.info("No tasks to stop");
+      return;
     }
+
+    // Spawn a separate thread to attempt stopping the connectorTask. The connectorTask will be canceled if it
+    // does not stop within a certain amount of time. This will force cleanup of connectorTasks which take too long
+    // to stop, or are stuck indefinitely. A separate thread is spawned to handle this because the Coordinator
+    // requires that this step completely because we call this from onAssignmentChange() (assignment thread gets
+    // killed if it takes too long) and restartDeadTasks which must complete quickly.
+    List<Future<DatastreamTask>> stopTaskFutures = tasks.keySet().stream()
+        .map(task -> asyncStopTask(task, tasks.get(task)))
+        .collect(Collectors.toList());
+
+    _shutdownExecutorService.submit(() -> {
+      List<DatastreamTask> toRemoveTasks = stopTaskFutures.stream().map(stopTaskFuture -> {
+        try {
+          return stopTaskFuture.get(CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT).toMillis(),
+              TimeUnit.MILLISECONDS);
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
+          _logger.warn("Stop task future failed with exception", e);
+        }
+        return null;
+      }).filter(Objects::nonNull).collect(Collectors.toList());
+
+      if (toRemoveTasks.size() > 0) {
+        synchronized (_tasksPendingStop) {
+          // Its possible that while stopping the task was pending there was another onAssignmentChange event
+          // which reassigned the task back to this host and the task was moved back to _runningTasks. In this
+          // case the remove operation here will be a no-op.
+          toRemoveTasks.forEach(_tasksPendingStop::remove);
+        }
+      }
+    });
   }
 
   @NotNull
@@ -420,10 +432,10 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _runningTasks.forEach(this::asyncStopTask);
       _runningTasks.clear();
     }
-    synchronized (_tasksToStop) {
+    synchronized (_tasksPendingStop) {
       // Try to stop the tasks
-      _tasksToStop.forEach(this::asyncStopTask);
-      _tasksToStop.clear();
+      _tasksPendingStop.forEach(this::asyncStopTask);
+      _tasksPendingStop.clear();
     }
     _logger.info("Start to shut down the shutdown executor and wait up to {} ms.",
         SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
