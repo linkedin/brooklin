@@ -13,12 +13,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
@@ -34,6 +37,7 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.PartitionThroughputInfo;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
+import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Matchers.anyString;
 
@@ -94,6 +98,11 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertEquals(statObj.getTotalPartitions(), 1);
     Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 0);
     Assert.assertEquals(statObj.getThroughputRateInKBps(), 5);
+
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", 1);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", 1);
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -163,6 +172,13 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertEquals(statObj.getTotalPartitions(), 1);
     Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 0);
     Assert.assertEquals(statObj.getThroughputRateInKBps(), 5);
+
+    assertMetric("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", (Integer x) -> x > 0);
+    assertMetric("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", (Integer x) -> x <= 3);
+    assertMetric("LoadBasedPartitionAssigner.ds2.minPartitionsAcrossTasks", (Integer x) -> x > 0);
+    assertMetric("LoadBasedPartitionAssigner.ds2.maxPartitionsAcrossTasks", (Integer x) -> x <= 3);
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -198,6 +214,11 @@ public class TestLoadBasedPartitionAssigner {
     Assert.assertEquals(statObj.getTotalPartitions(), 2);
     Assert.assertEquals(statObj.getPartitionsWithUnknownThroughput(), 2);
     Assert.assertEquals(statObj.getThroughputRateInKBps(), 0);
+
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", 2);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", 2);
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -231,6 +252,11 @@ public class TestLoadBasedPartitionAssigner {
     // verify that task in instance1 got the new partition
     Assert.assertEquals(task3.getPartitionsV2().size(), 3);
     Assert.assertTrue(task3.getPartitionsV2().contains("P4"));
+
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", 1);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", 3);
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -270,7 +296,10 @@ public class TestLoadBasedPartitionAssigner {
     // verify that task in instance1 got the new partition
     Assert.assertEquals(task4.getPartitionsV2().size(), 2);
     Assert.assertTrue(task4.getPartitionsV2().contains("P-2"));
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
+
 
   @Test
   public void throwsExceptionWhenNotEnoughRoomForAllPartitionsTest() {
@@ -328,6 +357,11 @@ public class TestLoadBasedPartitionAssigner {
     // verify that task in instance2 got the new partition
     Assert.assertEquals(task3.getPartitionsV2().size(), 2);
     Assert.assertTrue(task3.getPartitionsV2().contains("P4"));
+
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.minPartitionsAcrossTasks", 2);
+    assertMetricEquals("LoadBasedPartitionAssigner.ds1.maxPartitionsAcrossTasks", 2);
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
 
   @Test
@@ -357,6 +391,8 @@ public class TestLoadBasedPartitionAssigner {
     partitionsMap2.get("T3").add("P2");
     index2 = assigner.findTaskWithRoomForAPartition(tasks2, partitionsMap2, 1, 1);
     Assert.assertEquals(index2, 0);
+
+    MetricsTestUtils.verifyMetrics(assigner, DynamicMetricsManager.getInstance());
   }
 
   private DatastreamTask createTaskForDatastream(Datastream datastream) {
@@ -381,5 +417,21 @@ public class TestLoadBasedPartitionAssigner {
           new PartitionThroughputInfo(bytesInRate, messagesInRate, partitionName));
     }
     return new ClusterThroughputInfo("dummy", partitionThroughputMap);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> void assertMetric(String name, Predicate<T> predicate) {
+   Metric metric = DynamicMetricsManager.getInstance().getMetric(name);
+    Assert.assertNotNull(metric);
+    if (metric instanceof Gauge) {
+      T value = ((Gauge<T>) metric).getValue();
+      Assert.assertTrue(predicate.test(value), "(value " + value.toString() + ")");
+    } else {
+      Assert.fail("unexpected metric type " + metric.getClass().getSimpleName());
+    }
+  }
+
+  private <T> void assertMetricEquals(String name, T value) {
+    assertMetric(name, Predicate.isEqual(value));
   }
 }

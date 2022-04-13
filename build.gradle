@@ -142,6 +142,9 @@ project(':datastream-common') {
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
     compile "com.linkedin.kafka:kafka-clients:$kafkaVersion"
+    compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
@@ -316,8 +319,9 @@ project(':datastream-server') {
 
   dependencies {
     compile "com.101tec:zkclient:$zkclientVersion"
-    compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
-    compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
 
     compile project(':datastream-server-api')
     compile project(':datastream-common')
@@ -352,8 +356,9 @@ project(':datastream-server-restli') {
     compile "com.linkedin.pegasus:r2-jetty:$pegasusVersion"
     compile "com.linkedin.parseq:parseq:$parseqVersion"
     compile "com.101tec:zkclient:$zkclientVersion"
-    compile "org.codehaus.jackson:jackson-core-asl:$jacksonVersion"
-    compile "org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     compile "org.apache.commons:commons-lang3:$commonslang3Version"
 
     compile project(':datastream-server')

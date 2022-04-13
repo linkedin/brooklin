@@ -14,6 +14,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -139,6 +143,51 @@ public class TestAbstractKafkaConnector {
   }
 
   @Test
+  public void testOnAssignmentChangeMultipleReassignments() throws InterruptedException {
+    Properties props = new Properties();
+    // Reduce time interval between calls to restartDeadTasks to force invocation of stopTasks
+    props.setProperty("daemonThreadIntervalInSeconds", "2");
+    // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
+    // to fail the first time with InterruptedException and pass the second time.
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
+
+    // first task assignment assigns task 1
+    List<DatastreamTask> firstTaskAssignment = getTaskListInRange(1, 2);
+    connector.onAssignmentChange(firstTaskAssignment);
+    connector.start(null);
+    Assert.assertEquals(connector.getRunningTasksCount(), 1);
+
+    // second task assignment assigns task 2,3,4,5 and takes out task 1
+    List<DatastreamTask> secondTaskAssignment = getTaskListInRange(2, 6);
+
+    // during the assignment, the _taskToStop map count need to be less than 1, as only task 1 would be taken out.
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    executor.execute(() -> connector.onAssignmentChange(secondTaskAssignment));
+    executor.execute(() -> Assert.assertTrue(connector.getTasksToStopCount() <= 1));
+
+    awaitForExecution(executor, 50L);
+    Assert.assertTrue(connector.getTasksToStopCount() >= 1); // the count of the _taskToStopTracker
+    Assert.assertEquals(connector.getRunningTasksCount(), 4);
+
+    // second task assignment keeps task 5, assigns task 6,7,8 and takes out task 2,3,4
+    List<DatastreamTask> thirdTaskAssignment = getTaskListInRange(5, 9);
+
+    // during the assignment, the _taskToStop map count need to be less than 4, as task 2,3,4 would be taken out and task 1 if not already stopped.
+    executor = Executors.newFixedThreadPool(2);
+    executor.execute(() -> connector.onAssignmentChange(thirdTaskAssignment));
+    executor.execute(() -> Assert.assertTrue(connector.getTasksToStopCount() <= 4));
+
+    awaitForExecution(executor, 50L);
+    Assert.assertTrue(connector.getTasksToStopCount() >= 3); // the count of the _taskToStopTracker
+
+    // Wait for restartDeadTasks to be called to attempt another stopTasks call
+    PollUtils.poll(() -> connector.getCreateTaskCalled() >= 3, Duration.ofSeconds(1).toMillis(),
+        Duration.ofSeconds(10).toMillis());
+    Assert.assertEquals(connector.getRunningTasksCount(), 4);
+    connector.stop();
+  }
+
+  @Test
   public void testCalculateThreadStartDelay() {
     Properties props = new Properties();
     props.setProperty("daemonThreadIntervalInSeconds", "30");
@@ -189,6 +238,26 @@ public class TestAbstractKafkaConnector {
     Assert.assertTrue(connector.getCreateTaskCalled() >= 3);
 
     connector.stop();
+  }
+
+  // helper method to generate the tasks in a range for assignment
+  private List<DatastreamTask> getTaskListInRange(int start, int end) {
+    List<DatastreamTask> taskAssignmentList = new ArrayList<>();
+    IntStream.range(start, end).forEach(index -> {
+      DatastreamTaskImpl dt = new DatastreamTaskImpl();
+      dt.setTaskPrefix("testtask" + index);
+      taskAssignmentList.add(dt);
+    });
+    return taskAssignmentList;
+  }
+
+  // helper method to await on the executor for the given timeout period
+  private void awaitForExecution(ExecutorService executor, Long timeUnitMs) throws InterruptedException {
+    try {
+      executor.awaitTermination(timeUnitMs, TimeUnit.MILLISECONDS);
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   /**

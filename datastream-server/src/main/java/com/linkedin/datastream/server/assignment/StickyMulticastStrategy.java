@@ -205,7 +205,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       int minTasksPerInstance = tasksTotal / instances.size();
 
       // some rebalance to increase the task count in instances below the minTasksPerInstance
-      while (newAssignment.get(instancesBySize.get(0)).size() < minTasksPerInstance) {
+      while (newAssignment.get(instancesBySize.get(0)).size() + _imbalanceThreshold < newAssignment.get(
+          instancesBySize.get(instancesBySize.size() - 1)).size()) {
         String smallInstance = instancesBySize.get(0);
         String largeInstance = instancesBySize.get(instancesBySize.size() - 1);
 

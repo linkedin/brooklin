@@ -2533,6 +2533,68 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testMultipleDatastreamDeleteUponTTLExpire() throws Exception {
+    TestSetup setup = createTestCoordinator();
+
+    String[] streamNames = {"TestDatastreamTTLExpire1", "TestDatastreamTTLExpire2", "TestDatastreamTTLExpire3"};
+    Datastream[] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
+    streams[0].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    streams[1].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    streams[2].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+
+    streams[0].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MyPrefix");
+    streams[1].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MyPrefix");
+    streams[2].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MyPrefix3");
+
+    // stream1 and stream2 expire in 1 minute from now and should get deleted when stream3 is created
+    long createTime = Instant.now().toEpochMilli();
+    long expireTTL = Duration.ofMinutes(1).toMillis();
+
+    streams[0].getMetadata().put(CREATION_MS, String.valueOf(createTime));
+    streams[0].getMetadata().put(TTL_MS, String.valueOf(expireTTL));
+    streams[1].getMetadata().put(CREATION_MS, String.valueOf(createTime));
+    streams[1].getMetadata().put(TTL_MS, String.valueOf(expireTTL));
+
+    // Creation should go through as TTL is not considered for freshly created streams (INITIALIZING)
+    CreateResponse createResponse = setup._resource.create(streams[0]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+    createResponse = setup._resource.create(streams[1]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Sleep for 1 minute to wait for stream1 and stream2 to expire.
+    Thread.sleep(Duration.ofMinutes(1).toMillis());
+
+    // Creating a stream3 which should trigger stream1 to be deleted
+    createResponse = setup._resource.create(streams[2]);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Poll up to 30s for stream1 to get deleted
+    PollUtils.poll(() -> {
+      try {
+        setup._resource.get(streams[0].getName());
+        return false;
+      } catch (RestLiServiceException e) {
+        Assert.assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
+        return true;
+      }
+    }, 200, Duration.ofSeconds(30).toMillis());
+
+    // Poll up to 30s for stream2 to get deleted
+    PollUtils.poll(() -> {
+      try {
+        setup._resource.get(streams[1].getName());
+        return false;
+      } catch (RestLiServiceException e) {
+        Assert.assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
+        return true;
+      }
+    }, 200, Duration.ofSeconds(30).toMillis());
+  }
+
+  @Test
   public void testDoNotAssignExpiredStreams() throws Exception {
     TestSetup setup = createTestCoordinator();
 
