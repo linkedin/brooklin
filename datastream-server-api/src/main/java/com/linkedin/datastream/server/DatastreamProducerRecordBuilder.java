@@ -30,6 +30,7 @@ public class DatastreamProducerRecordBuilder {
   private long _eventsSourceTimestamp;
   private Optional<String> _partitionKey = Optional.empty();
   private Optional<String> _destination = Optional.empty();
+  private boolean _isBroadcastRecord = false;
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. If the partition is not set, TransportProvider
@@ -84,6 +85,10 @@ public class DatastreamProducerRecordBuilder {
     _eventsSourceTimestamp = eventsSourceTimestamp;
   }
 
+  public void setIsBroadcastRecord(boolean isBroadcastRecord) {
+    _isBroadcastRecord = isBroadcastRecord;
+  }
+
   /**
    * Build the DatastreamProducerRecord.
    * @return
@@ -91,6 +96,6 @@ public class DatastreamProducerRecordBuilder {
    */
   public DatastreamProducerRecord build() {
     return new DatastreamProducerRecord(_events, _partition, _partitionKey, _destination, _sourceCheckpoint,
-        _eventsSourceTimestamp);
+        _eventsSourceTimestamp, _isBroadcastRecord);
   }
 }

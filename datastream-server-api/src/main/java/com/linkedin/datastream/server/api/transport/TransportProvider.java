@@ -38,4 +38,12 @@ public interface TransportProvider {
    * Flush to make sure that the current set of events that are in the buffer gets flushed to the server.
    */
   void flush();
+
+  /**
+   * Broadcast to ensure sending the record to all consumers. For e.g., for Kafka this means sending the record to all
+   * topic partitions.
+   */
+  default void broadcast(String destination, DatastreamProducerRecord record, SendBroadcastCallback onComplete) {
+    throw new UnsupportedOperationException("Transport Provider does not support broadcast");
+  }
 }

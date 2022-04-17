@@ -12,8 +12,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.lang3.Validate;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -32,7 +34,9 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
+import com.linkedin.datastream.server.Pair;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
+import com.linkedin.datastream.server.api.transport.SendBroadcastCallback;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 
@@ -59,6 +63,8 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
 
+  private final Properties _transportProviderProperties;
+
   private boolean _isUnassigned;
 
   /**
@@ -83,6 +89,7 @@ public class KafkaTransportProvider implements TransportProvider {
       String errorMessage = "Bootstrap servers are not set";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
+    _transportProviderProperties = props;
     _isUnassigned = false;
 
     // initialize metrics
@@ -134,6 +141,39 @@ public class KafkaTransportProvider implements TransportProvider {
   private int getSourcePartitionFromEvent(BrooklinEnvelope event) {
     return Integer.parseInt(
         event.getMetadata().getOrDefault(BrooklinEnvelopeMetadataConstants.SOURCE_PARTITION, "-1"));
+  }
+
+  @Override
+  public void broadcast(String destinationUri, DatastreamProducerRecord record, SendBroadcastCallback onSendComplete) {
+    Validate.isTrue(record.isBroadcastRecord(), "Trying to broadcast a non-broadcast type record.");
+
+    Properties adminClientProps = new Properties();
+    adminClientProps.putAll(_transportProviderProperties);
+    AdminClient adminClient = AdminClient.create(adminClientProps);
+    String topicName = KafkaTransportProviderUtils.getTopicName(destinationUri);
+    int partitionCount;
+    List<Pair<Optional<DatastreamRecordMetadata>, Exception>> failedToSendRecords = new ArrayList<>();
+
+    try {
+      // Extract partition count from the topic using AdminClient
+      partitionCount =
+          adminClient.describeTopics(Collections.singleton(topicName)).all().get().get(topicName).partitions().size();
+    } catch (ExecutionException | InterruptedException ex) {
+      LOG.error("Failed to parse partition count for topic {} required for broadcast", topicName);
+      failedToSendRecords.add(new Pair<>(Optional.empty(), ex));
+      onSendComplete.onCompletion(failedToSendRecords);
+      return;
+    }
+
+    LOG.debug("Broadcasting record {} to all {} partitions of destination {}", record, partitionCount, destinationUri);
+    for (int i = 0; i < partitionCount; i++) {
+      record.setPartition(i);
+      send(destinationUri, record, ((metadata, exception) -> {
+        LOG.debug("Failed to broadcast record {} to partition {}", record, metadata.getPartition());
+        failedToSendRecords.add(new Pair<>(Optional.of(metadata), exception));
+      }));
+    }
+    onSendComplete.onCompletion(failedToSendRecords);
   }
 
   @Override

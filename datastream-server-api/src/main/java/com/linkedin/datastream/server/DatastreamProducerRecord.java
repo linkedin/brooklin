@@ -20,11 +20,12 @@ import com.linkedin.datastream.serde.SerDeSet;
  * List of brooklin events that need to be sent to the {@link com.linkedin.datastream.server.api.transport.TransportProvider}
  */
 public class DatastreamProducerRecord {
-  private final Optional<Integer> _partition;
+  private Optional<Integer> _partition;
   private final Optional<String> _partitionKey;
   private final Optional<String> _destination;
   private final String _checkpoint;
   private final long _eventsSourceTimestamp;
+  private final boolean _isBroadcastRecord;
 
   private final List<BrooklinEnvelope> _events;
 
@@ -36,11 +37,16 @@ public class DatastreamProducerRecord {
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
-    this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp);
+    this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp, false);
   }
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       Optional<String> destination, String checkpoint, long eventsSourceTimestamp) {
+    this(events, partition, partitionKey, destination, checkpoint, eventsSourceTimestamp, false);
+  }
+
+  DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
+      Optional<String> destination, String checkpoint, long eventsSourceTimestamp, boolean isBroadcastRecord) {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
     Validate.isTrue(eventsSourceTimestamp > 0, "events source timestamp is invalid");
@@ -51,6 +57,7 @@ public class DatastreamProducerRecord {
     _checkpoint = checkpoint;
     _eventsSourceTimestamp = eventsSourceTimestamp;
     _destination = destination;
+    _isBroadcastRecord = isBroadcastRecord;
   }
 
   /**
@@ -115,6 +122,18 @@ public class DatastreamProducerRecord {
    */
   public Optional<Integer> getPartition() {
     return _partition;
+  }
+
+  /**
+   * Set partition for the record. Can be used to set partition for broadcast record each time before sending.
+   * @param partition Topic partition to send the record to.
+   */
+  public void setPartition(int partition) {
+    _partition = Optional.of(partition);
+  }
+
+  public boolean isBroadcastRecord() {
+    return _isBroadcastRecord;
   }
 
   @Override
