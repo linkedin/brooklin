@@ -33,6 +33,7 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
+import com.linkedin.datastream.server.api.transport.SendBroadcastCallback;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 import com.linkedin.datastream.server.api.transport.SendFailedException;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
@@ -200,13 +201,23 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
+  @Override
+  public void broadcast(DatastreamProducerRecord record, SendBroadcastCallback callback) {
+    helperSendOrBroadcast(record, null, callback, true);
+  }
+
+  @Override
+  public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
+    helperSendOrBroadcast(record, sendCallback, null, false);
+  }
+
   /**
    * Send the event onto the underlying transport.
    * @param record the datastream event
    * @param sendCallback the callback to be invoked after the event is sent to the destination
    */
-  @Override
-  public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
+  public void helperSendOrBroadcast(DatastreamProducerRecord record, SendCallback sendCallback,
+      SendBroadcastCallback broadcastCallback, boolean isBroadcast) {
     try {
       validateEventRecord(record);
 
@@ -231,9 +242,16 @@ public class EventProducer implements DatastreamEventProducer {
       record.setEventsSendTimestamp(System.currentTimeMillis());
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
-      _transportProvider.send(destination, record,
-          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, recordEventsSourceTimestamp,
-              recordEventsSendTimestamp));
+      if (isBroadcast) {
+        _transportProvider.broadcast(destination, record, (listMetadataExceptionPair, partitionCount) -> {
+          onBroadcastCallback(listMetadataExceptionPair, partitionCount, recordEventsSourceTimestamp,
+              recordEventsSendTimestamp, broadcastCallback);
+        });
+      } else {
+        _transportProvider.send(destination, record,
+            (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, recordEventsSourceTimestamp,
+                recordEventsSendTimestamp));
+      }
     } catch (Exception e) {
       String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
@@ -367,6 +385,30 @@ public class EventProducer implements DatastreamEventProducer {
     }
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
+  }
+
+  private void onBroadcastCallback(List<Pair<DatastreamRecordMetadata, Exception>> records,
+      int partitionCount, long eventSourceTimestamp, long eventSendTimestamp, SendBroadcastCallback sendBroadcastCallback) {
+    List<Pair<DatastreamRecordMetadata, Exception>> listMetadataAndException = new ArrayList<>();
+    SendFailedException sendFailedException;
+
+    // partitionCount is -1 in case transport provider failed to query partition count for broadcast.
+    if (partitionCount < 0) {
+      sendFailedException = createSendFailedException(records.get(0).getValue());
+      listMetadataAndException.add(new Pair<>(null, sendFailedException));
+    } else {
+      for (Pair<DatastreamRecordMetadata, Exception> pairMetadataException : records) {
+        sendFailedException = null;
+        if (pairMetadataException.getValue() != null) {
+          sendFailedException = createSendFailedException(pairMetadataException.getValue());
+        } else {
+          checkpoint(pairMetadataException.getKey().getPartition(), pairMetadataException.getKey().getCheckpoint());
+          reportMetrics(pairMetadataException.getKey(), eventSourceTimestamp, eventSendTimestamp);
+        }
+        listMetadataAndException.add(new Pair<>(pairMetadataException.getKey(), sendFailedException));
+      }
+    }
+    sendBroadcastCallback.onCompletion(listMetadataAndException, partitionCount);
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,

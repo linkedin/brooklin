@@ -6,7 +6,6 @@
 package com.linkedin.datastream.server.api.transport;
 
 import java.util.List;
-import java.util.Optional;
 
 import com.linkedin.datastream.server.Pair;
 
@@ -16,9 +15,14 @@ import com.linkedin.datastream.server.Pair;
  */
 public interface SendBroadcastCallback {
   /**
-   * Callback method that needs to be called when broadcast completes. Datastream record metadata will be empty
-   * if we fail to extract partition count.
-   * @param failedToSendRecord List of Pair of datastream record metadata and exception
+   * Callback method that needs to be called when broadcast completes.
+   *
+   * If partition count is -1 it indicates that transport provider failed to query partition count. In that case
+   * listMetadataExceptionPair contains only one entry with record metadata as null and exception indicating
+   * reason for failing to query patition count.
+   *
+   * @param listMetadataExceptionPair List of Pair of datastream record metadata and exception
+   * @param partitionCount Number of topic partitions. -1 when transport provider failed to query partition count.
    */
-  void onCompletion(List<Pair<Optional<DatastreamRecordMetadata>, Exception>> failedToSendRecord);
+  void onCompletion(List<Pair<DatastreamRecordMetadata, Exception>> listMetadataExceptionPair, int partitionCount);
 }

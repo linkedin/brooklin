@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.server.api.transport.SendBroadcastCallback;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
@@ -46,5 +47,16 @@ public interface DatastreamEventProducer {
    * @param enableFlushOnSend Whether to enable flushing on send or not
    */
   default void enablePeriodicFlushOnSend(boolean enableFlushOnSend) {
+  }
+
+  /**
+   * Broadcast event onto the transport. Broadcast callback.onComplete should be reasonably fast
+   * for the same reason as in send.
+   *
+   * @param event
+   * @param callback
+   */
+  default void broadcast(DatastreamProducerRecord event, SendBroadcastCallback callback) {
+    throw new UnsupportedOperationException("Broadcast not supported by event producer");
   }
 }

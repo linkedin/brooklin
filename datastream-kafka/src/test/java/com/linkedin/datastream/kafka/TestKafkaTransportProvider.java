@@ -312,15 +312,15 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     final Integer[] callbackCalled = {0};
     for (DatastreamProducerRecord event : datastreamEvents) {
       if (isBroadcast) {
-        transportProvider.broadcast(destinationUri, event, ((listMetadataExceptionPair) -> {
+        transportProvider.broadcast(destinationUri, event, ((listMetadataExceptionPair, paritionCount) -> {
           //List<Pair<Optional<DatastreamRecordMetadata>, Exception>> failedToSendEvents = listMetadataExceptionPair;
-          listMetadataExceptionPair.stream().forEach(pair -> {
-            if (pair.getKey().isPresent()) {
-              LOG.error("Failed to send event {} because of {}", pair.getKey().get(), pair.getValue());
-            } else {
-              LOG.error("Failed to query partition count for topic {}", topicName);
-            }
-          });
+          if (paritionCount < 0) {
+            LOG.error("Failed to query partition count for topic {}", topicName);
+          } else {
+            listMetadataExceptionPair.stream().forEach(pair -> {
+              LOG.error("Failed to send event {} because of {}", pair.getKey(), pair.getValue());
+            });
+          }
           callbackCalled[0]++;
         }));
       } else {

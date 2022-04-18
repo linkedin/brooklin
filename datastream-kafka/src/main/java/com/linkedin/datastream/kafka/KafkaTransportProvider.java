@@ -151,8 +151,8 @@ public class KafkaTransportProvider implements TransportProvider {
     adminClientProps.putAll(_transportProviderProperties);
     AdminClient adminClient = AdminClient.create(adminClientProps);
     String topicName = KafkaTransportProviderUtils.getTopicName(destinationUri);
-    int partitionCount;
-    List<Pair<Optional<DatastreamRecordMetadata>, Exception>> failedToSendRecords = new ArrayList<>();
+    int partitionCount = -1;
+    List<Pair<DatastreamRecordMetadata, Exception>> listMetadataExceptionPair = new ArrayList<>();
 
     try {
       // Extract partition count from the topic using AdminClient
@@ -160,8 +160,8 @@ public class KafkaTransportProvider implements TransportProvider {
           adminClient.describeTopics(Collections.singleton(topicName)).all().get().get(topicName).partitions().size();
     } catch (ExecutionException | InterruptedException ex) {
       LOG.error("Failed to parse partition count for topic {} required for broadcast", topicName);
-      failedToSendRecords.add(new Pair<>(Optional.empty(), ex));
-      onSendComplete.onCompletion(failedToSendRecords);
+      listMetadataExceptionPair.add(new Pair<>(null, ex));
+      onSendComplete.onCompletion(listMetadataExceptionPair, partitionCount);
       return;
     }
 
@@ -169,11 +169,10 @@ public class KafkaTransportProvider implements TransportProvider {
     for (int i = 0; i < partitionCount; i++) {
       record.setPartition(i);
       send(destinationUri, record, ((metadata, exception) -> {
-        LOG.debug("Failed to broadcast record {} to partition {}", record, metadata.getPartition());
-        failedToSendRecords.add(new Pair<>(Optional.of(metadata), exception));
+        listMetadataExceptionPair.add(new Pair<>(metadata, exception));
       }));
     }
-    onSendComplete.onCompletion(failedToSendRecords);
+    onSendComplete.onCompletion(listMetadataExceptionPair, partitionCount);
   }
 
   @Override
