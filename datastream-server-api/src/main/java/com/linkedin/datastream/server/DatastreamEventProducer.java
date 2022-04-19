@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.server.api.transport.SendBroadcastCallback;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
@@ -56,7 +55,7 @@ public interface DatastreamEventProducer {
    * @param event
    * @param callback
    */
-  default void broadcast(DatastreamProducerRecord event, SendBroadcastCallback callback) {
+  default void broadcast(DatastreamProducerRecord event, SendCallback callback) {
     throw new UnsupportedOperationException("Broadcast not supported by event producer");
   }
 }

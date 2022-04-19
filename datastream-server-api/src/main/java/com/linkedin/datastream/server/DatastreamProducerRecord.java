@@ -138,7 +138,8 @@ public class DatastreamProducerRecord {
 
   @Override
   public String toString() {
-    return String.format("%s @ partitionKey=%s partition=%d", _events, _partitionKey.orElse(null), _partition.orElse(-1));
+    return String.format("%s @ partitionKey=%s partition=%d isBroadcastRecord=%s",
+        _events, _partitionKey.orElse(null), _partition.orElse(-1), _isBroadcastRecord);
   }
 
   @Override
