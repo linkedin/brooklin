@@ -285,6 +285,7 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     testEventSendOrBroadcast(1, 3, -1, true, true, "broadcast", true);
   }
 
+  // Helper method.
   private void testEventSendOrBroadcast(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
       boolean includeValue, String metricsPrefix, boolean isBroadcast) throws Exception {
     String topicName = getUniqueTopicName();
@@ -312,24 +313,21 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     final Integer[] callbackCalled = {0};
     for (DatastreamProducerRecord event : datastreamEvents) {
       if (isBroadcast) {
-        transportProvider.broadcast(destinationUri, event, ((metadata, exception) -> {
-          //List<Pair<Optional<DatastreamRecordMetadata>, Exception>> failedToSendEvents = listMetadataExceptionPair;
-          if (exception != null) {
-            LOG.error("Failed to send event to all {} partitions of topic {}. Sent to only {} partitions",
-                metadata.getPartitionCount(), topicName, metadata.getSentToPartitions());
-          } else {
-            LOG.info("Broadcasted events to all {} partitions of topic {}", metadata.getPartitionCount(), topicName);
-          }
-          callbackCalled[0]++;
-        }), null);
+        transportProvider.broadcast(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
       } else {
         transportProvider.send(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
       }
     }
 
-    // wait until all messages were acked, to ensure all events were successfully sent to the topic
-    Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == datastreamEvents.size(), 1000, 10000),
-        "Send callback was not called; likely topic was not created in time");
+    if (isBroadcast) {
+      // wait until all messages were acked, to ensure all events were successfully sent to the topic
+      Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == (datastreamEvents.size() * numberOfPartitions), 1000, 10000),
+          "Send callback was not called; likely topic was not created in time");
+    } else {
+      // wait until all messages were acked, to ensure all events were successfully sent to the topic
+      Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == datastreamEvents.size(), 1000, 10000),
+          "Send callback was not called; likely topic was not created in time");
+    }
 
     LOG.info(String.format("Trying to read events from the topicName %s partition %d", topicName, partition));
 

@@ -141,8 +141,7 @@ public class KafkaTransportProvider implements TransportProvider {
   }
 
   @Override
-  public void broadcast(String destinationUri, DatastreamProducerRecord record,
-      SendCallback onBroadcastComplete, SendCallback onEventComplete) {
+  public DatastreamRecordMetadata broadcast(String destinationUri, DatastreamProducerRecord record, SendCallback onEventComplete) {
     Validate.isTrue(record.isBroadcastRecord(), "Trying to broadcast a non-broadcast type record.");
 
     // Currently destination topic partition count will be queried from datastream destination metadata. This implies
@@ -161,16 +160,16 @@ public class KafkaTransportProvider implements TransportProvider {
             LOG.error("Failed to broadcast record {} to partition {}", record, metadata.getPartition());
           } else {
             LOG.debug("Sent broadcast record {} to partition {}", record, metadata.getPartition());
-            onEventComplete.onCompletion(metadata, exception);
           }
+          onEventComplete.onCompletion(metadata, exception);
         }));
         sentToPartitions.add(partition);
       }
-      doOnBroadcastCallback(record, onBroadcastComplete, sentToPartitions, topicName, partitionCount, null);
+      return new DatastreamRecordMetadata(record.getCheckpoint(), topicName, sentToPartitions, true, partitionCount);
     } catch (DatastreamRuntimeException ex) {
       LOG.error("Broadcast send failed for record {} at partition {}/{} because of exception: {} ",
           record, partition, partitionCount, ex);
-      doOnBroadcastCallback(record, onBroadcastComplete, sentToPartitions, topicName, partitionCount, ex);
+      throw ex;
     }
   }
 
@@ -252,15 +251,6 @@ public class KafkaTransportProvider implements TransportProvider {
 
   void setUnassigned() {
     _isUnassigned = true;
-  }
-
-  private void doOnBroadcastCallback(DatastreamProducerRecord record, SendCallback onComplete,
-      List<Integer> sentToPartitions, String topic, int partitionCount, Exception exception) {
-    if (onComplete != null) {
-      onComplete.onCompletion(
-          new DatastreamRecordMetadata(record.getCheckpoint(), topic, sentToPartitions, true, partitionCount),
-          exception);
-    }
   }
 
   private void doOnSendCallback(DatastreamProducerRecord record, SendCallback onComplete, RecordMetadata metadata,

@@ -201,26 +201,28 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   @Override
-  public void broadcast(DatastreamProducerRecord record, SendCallback sendBroadcastCallback) {
-    helperSendOrBroadcast(record, sendBroadcastCallback, null, true);
+  public DatastreamRecordMetadata broadcast(DatastreamProducerRecord record, SendCallback sendEventCallback) {
+    return helperSendOrBroadcast(record, sendEventCallback, true);
   }
 
   @Override
   public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
-    helperSendOrBroadcast(record, null, sendCallback, false);
+    helperSendOrBroadcast(record, sendCallback, false);
   }
 
   /**
    * Send the event onto the underlying transport.
    * @param record the datastream event
-   * @param sendBroadcastCallback the callback to be invoked after the event is broadcasted to the destination
    * @param sendEventCallback the callback to be invoked after the event is sent to the destination
+   *
+   * @return For broadcast return DatastreamRecordMetadata got from transport provider broadcast, null for send
    */
-  public void helperSendOrBroadcast(DatastreamProducerRecord record, SendCallback sendBroadcastCallback,
+  private DatastreamRecordMetadata helperSendOrBroadcast(DatastreamProducerRecord record,
       SendCallback sendEventCallback, boolean isBroadcast) {
+    DatastreamRecordMetadata broadcastMetadata = null;
+
     try {
       validateEventRecord(record);
-
       try {
         record.serializeEvents(_datastreamTask.getDestinationSerDes());
       } catch (Exception e) {
@@ -231,7 +233,10 @@ public class EventProducer implements DatastreamEventProducer {
           _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(),
               DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
           _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
-          return;
+          if (isBroadcast) {
+            broadcastMetadata = new DatastreamRecordMetadata(true);
+          }
+          return broadcastMetadata;
         }
         throw e;
       }
@@ -243,14 +248,14 @@ public class EventProducer implements DatastreamEventProducer {
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
       if (isBroadcast) {
-        _transportProvider.broadcast(destination, record, (metadata, exception) -> {
-          onBroadcastCallback(metadata, exception, sendBroadcastCallback);
-        }, ((metadata, exception) -> {
-          if (exception == null) {
-            checkpoint(metadata.getPartition(), metadata.getCheckpoint());
-            reportMetrics(metadata, recordEventsSourceTimestamp, recordEventsSendTimestamp);
-          }
-        }));
+        broadcastMetadata = _transportProvider.broadcast(destination, record,
+            (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
+                recordEventsSendTimestamp));
+        _logger.info("Broadcast completed with {}", broadcastMetadata);
+        if (broadcastMetadata.isMessageSerializationError()) {
+          _logger.warn("Broadcast of record {} to destination {} failed because of serialization error.",
+              record, destination);
+        }
       } else {
         _transportProvider.send(destination, record,
             (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
@@ -267,6 +272,7 @@ public class EventProducer implements DatastreamEventProducer {
     if (_enableFlushOnSend && Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
       flush();
     }
+    return broadcastMetadata;
   }
 
   // Report SLA metrics for aggregate, connector and task

@@ -42,24 +42,21 @@ public interface TransportProvider {
   /**
    * Broadcast to ensure sending the record to all consumers/endpoints. Broadcast could involve invoking send to multiple
    * endpoints. Broadcast is a best-effort strategy, there is no guarantee that the record will be sent to endpoints.
-   * onEventComplete will be called on completion of record send to each endpoint. onBroadcastComplete will be called
-   * when attempt to send record to all endpoint completes.
+   * onEventComplete will be called on completion of record send to each endpoint. DatastreamRecordMetadata will be
+   * returned after send is called to each partition. This will contain total partition count and which partitions event
+   * was sent to.
    *
    * For e.g., for Kafka this means sending the record to all topic partitions (i.e. partition each partition
-   * is the broadcast endpoint for Kafka). When attempt to send record to all partitions complete onBroadcastComplete
-   * will be invoked. When record send to each partition completes onEventComplete will be invoked if provided.
+   * is the broadcast endpoint for Kafka). When record send to each partition completes onEventComplete will be
+   * invoked if provided.
    *
    * @param destination the destination topic to which the record should be broadcasted.
    * @param record DatastreamEvent that needs to be broadcasted to the stream.
-   * @param onBroadcastComplete Callback that needs to be called when the broadcast attempt is complete. Any exception
-   *                            during broadcast attempt will be reported through callback. A callback must be called at
-   *                            the end of broadcast attempt
    * @param onEventComplete Callback that will be called at send completion to each endpoint. This is an optional
    *                        callback. For e.g., for Kafka this callback would be invoked when send to each partition
    *                        completes.
    */
-  default void broadcast(String destination, DatastreamProducerRecord record, SendCallback onBroadcastComplete,
-      SendCallback onEventComplete) {
+  default DatastreamRecordMetadata broadcast(String destination, DatastreamProducerRecord record, SendCallback onEventComplete) {
     throw new UnsupportedOperationException("Transport Provider does not support broadcast");
   }
 }

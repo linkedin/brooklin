@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
@@ -52,10 +53,10 @@ public interface DatastreamEventProducer {
    * Broadcast event onto the transport. Broadcast callback.onComplete should be reasonably fast
    * for the same reason as in send.
    *
-   * @param event
-   * @param callback
+   * @param event event to broadcast
+   * @param callback callback to be called on completion of each send
    */
-  default void broadcast(DatastreamProducerRecord event, SendCallback callback) {
+  default DatastreamRecordMetadata broadcast(DatastreamProducerRecord event, SendCallback callback) {
     throw new UnsupportedOperationException("Broadcast not supported by event producer");
   }
 }
