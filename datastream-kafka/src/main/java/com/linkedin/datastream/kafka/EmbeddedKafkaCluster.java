@@ -17,7 +17,7 @@ import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 
 import kafka.server.KafkaConfig;
-import kafka.server.KafkaServer;
+import kafka.server.KafkaServerStartable;
 
 import com.linkedin.datastream.common.FileUtils;
 import com.linkedin.datastream.common.NetworkUtils;
@@ -33,7 +33,7 @@ public class EmbeddedKafkaCluster {
 
   private final String _brokers;
 
-  private final List<KafkaServer> _brokerList;
+  private final List<KafkaServerStartable> _brokerList;
   private final List<File> _logDirs;
 
   /**
@@ -115,16 +115,15 @@ public class EmbeddedKafkaCluster {
       properties.setProperty("log.cleaner.enable", Boolean.FALSE.toString()); //to save memory
       properties.setProperty("offsets.topic.num.partitions", "1");
 
-      KafkaServer broker = startBroker(properties);
+      KafkaServerStartable broker = startBroker(properties);
 
       _brokerList.add(broker);
       _logDirs.add(logDir);
     }
   }
 
-  private KafkaServer startBroker(Properties props) {
-    KafkaServer server = new KafkaServer(KafkaConfig.fromProps(props), new EmbeddedSystemTime(),
-        scala.Option.apply(""), scala.collection.JavaConversions.asScalaBuffer(Collections.emptyList()));
+  private KafkaServerStartable startBroker(Properties props) {
+    KafkaServerStartable server = new KafkaServerStartable(KafkaConfig.fromProps(props));
     server.startup();
     return server;
   }
@@ -156,7 +155,7 @@ public class EmbeddedKafkaCluster {
    * Shut down the Kafka cluster
    */
   public void shutdown() {
-    for (KafkaServer broker : _brokerList) {
+    for (KafkaServerStartable broker : _brokerList) {
       try {
         broker.shutdown();
       } catch (Exception e) {

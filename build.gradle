@@ -161,8 +161,8 @@ project(':datastream-utils') {
     compile project(':datastream-common')
     compile "com.101tec:zkclient:$zkclientVersion"
     compile "com.google.guava:guava:$guavaVersion"
-    testCompile project(":datastream-kafka_$scalaSuffix")
-    testCompile project(":datastream-testcommon_$scalaSuffix")
+    testCompile project(":datastream-kafka")
+    testCompile project(":datastream-testcommon")
   }
 }
 
@@ -172,7 +172,7 @@ project(':datastream-file-connector') {
     compile project(':datastream-common')
     compile project(':datastream-utils')
     testCompile project(':datastream-server')
-    testCompile project(":datastream-testcommon_$scalaSuffix")
+    testCompile project(":datastream-testcommon")
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
@@ -188,7 +188,7 @@ project(':datastream-directory') {
   }
 }
 
-project(":datastream-kafka_$scalaSuffix") {
+project(":datastream-kafka") {
   dependencies {
     compile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
     compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
@@ -197,7 +197,7 @@ project(":datastream-kafka_$scalaSuffix") {
     compile project(':datastream-server-api')
     compile project(':datastream-utils')
 
-    testCompile project(":datastream-testcommon_$scalaSuffix")
+    testCompile project(":datastream-testcommon")
     testCompile "org.mockito:mockito-core:$mockitoVersion"
 
     tasks.create(name: "copyDependentLibs", type: Copy) {
@@ -216,7 +216,7 @@ project(':datastream-kafka-factory-impl') {
   dependencies {
     compile project(':datastream-kafka-connector')
 
-    testCompile project(":datastream-kafka_$scalaSuffix")
+    testCompile project(":datastream-kafka")
   }
 }
 
@@ -224,23 +224,23 @@ project(':datastream-kafka-connector') {
   dependencies {
     compile project(':datastream-server-api')
     compile project(':datastream-common')
-    compile project(":datastream-kafka_$scalaSuffix")
+    compile project(":datastream-kafka")
     compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
     compile "commons-validator:commons-validator:$commonsValidatorVersion"
     compile "org.apache.commons:commons-lang3:$commonslang3Version"
     compile "javax.xml.bind:jaxb-api:2.3.1"
 
-    testCompile project(":datastream-kafka_$scalaSuffix")
-    testCompile project(":datastream-testcommon_$scalaSuffix")
+    testCompile project(":datastream-kafka")
+    testCompile project(":datastream-testcommon")
     testCompile project(':datastream-kafka-factory-impl')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
-project(":datastream-testcommon_$scalaSuffix") {
+project(":datastream-testcommon") {
   dependencies {
     compile project(':datastream-server-api')
-    compile project(":datastream-kafka_$scalaSuffix")
+    compile project(":datastream-kafka")
     compile project(':datastream-common')
     compile project(':datastream-utils')
     compile project(':datastream-server')
@@ -261,7 +261,7 @@ project(':datastream-tools') {
     compile project(':datastream-common')
     compile project(':datastream-client')
     compile project(':datastream-server')
-    compile project(":datastream-testcommon_$scalaSuffix")
+    compile project(":datastream-testcommon")
     compile "commons-cli:commons-cli:$commonsCliVersion"
   }
 
@@ -284,12 +284,12 @@ project(':datastream-tools') {
     from(project(':datastream-file-connector').configurations.runtime) { into("libs/") }
     from(project(':datastream-directory').jar) { into("libs/") }
     from(project(':datastream-directory').configurations.runtime) { into("libs/") }
-    from(project(":datastream-testcommon_$scalaSuffix").jar) { into("libs/") }
-    from(project(":datastream-testcommon_$scalaSuffix").configurations.runtime) { into("libs/") }
+    from(project(":datastream-testcommon").jar) { into("libs/") }
+    from(project(":datastream-testcommon").configurations.runtime) { into("libs/") }
     from(project(':datastream-common').jar) { into("libs/") }
     from(project(':datastream-common').configurations.runtime) { into("libs/") }
-    from(project(":datastream-kafka_$scalaSuffix").jar) { into("libs/") }
-    from(project(":datastream-kafka_$scalaSuffix").configurations.runtime) { into("libs/") }
+    from(project(":datastream-kafka").jar) { into("libs/") }
+    from(project(":datastream-kafka").configurations.runtime) { into("libs/") }
     from(project(':datastream-kafka-connector').jar) { into("libs/") }
     from(project(':datastream-kafka-connector').configurations.runtime) { into("libs/") }
     duplicatesStrategy 'exclude'
@@ -308,8 +308,8 @@ project(':datastream-client') {
     compile project(':datastream-common')
     compile project(':datastream-utils')
 
-    testCompile project(":datastream-testcommon_$scalaSuffix")
-    testCompile project(":datastream-kafka_$scalaSuffix")
+    testCompile project(":datastream-testcommon")
+    testCompile project(":datastream-kafka")
     testCompile project(':datastream-server')
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
@@ -328,10 +328,10 @@ project(':datastream-server') {
     compile project(':datastream-utils')
     compile project(':datastream-client')
 
-    testCompile project(":datastream-kafka_$scalaSuffix")
+    testCompile project(":datastream-kafka")
     testCompile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
     testCompile project(':datastream-client')
-    testCompile project(":datastream-testcommon_$scalaSuffix")
+    testCompile project(":datastream-testcommon")
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 
@@ -364,11 +364,11 @@ project(':datastream-server-restli') {
     compile project(':datastream-server')
     compile project(':datastream-common')
 
-    testCompile project(":datastream-kafka_$scalaSuffix")
+    testCompile project(":datastream-kafka")
     testCompile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
     testCompile project(':datastream-client')
     testCompile project(':datastream-file-connector')
-    testCompile project(":datastream-testcommon_$scalaSuffix")
+    testCompile project(":datastream-testcommon")
     testCompile "org.mockito:mockito-core:$mockitoVersion"
   }
 

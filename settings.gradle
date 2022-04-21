@@ -11,18 +11,5 @@ include 'datastream-server-api'
 include 'datastream-server-restli'
 include 'datastream-tools'
 include 'datastream-utils'
-
-def scalaModules = [
-    'datastream-kafka',
-    'datastream-testcommon'
-] as HashSet
-
-scalaModules.each {
-  include it
-}
-
-rootProject.children.each {
-  if (scalaModules.contains(it.name)) {
-    it.name = it.name + "_" + scalaSuffix
-  }
-}
+include 'datastream-testcommon'
+include 'datastream-kafka'
