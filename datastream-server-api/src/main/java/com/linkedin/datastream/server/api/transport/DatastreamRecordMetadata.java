@@ -83,7 +83,6 @@ public class DatastreamRecordMetadata {
     _partition = -1;
     _partitionCount = partitionCount;
     _isMessageSerializationError = false;
-
   }
 
   /**

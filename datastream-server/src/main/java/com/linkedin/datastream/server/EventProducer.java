@@ -220,14 +220,35 @@ public class EventProducer implements DatastreamEventProducer {
   private DatastreamRecordMetadata helperSendOrBroadcast(DatastreamProducerRecord record,
       SendCallback sendEventCallback, boolean isBroadcast) {
     DatastreamRecordMetadata broadcastMetadata = null;
-    boolean eventsSerialized = false;
 
     try {
       validateEventRecord(record);
 
       record.serializeEvents(_datastreamTask.getDestinationSerDes());
-      eventsSerialized = true;
+    } catch (NullPointerException e) {
+      String errorMessage = String.format("Validation failed for record %s exception %s", record, e);
+      _logger.warn(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
+    } catch (Exception e) {
+      if (_skipMessageOnSerializationErrors) {
+        _logger.info(String.format("Skipping the message on serialization error as configured. "
+                + "Datastream name: %s, Datastream task name: %s",
+            getDatastreamName(), _datastreamTask.getDatastreamTaskName()), e);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(),
+            DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
+        if (isBroadcast) {
+          return new DatastreamRecordMetadata(true);
+        }
+        return null;
+      } else {
+        String errorMessage = String.format("Failed to send event %s because of serialization exception %s", record, e);
+        _logger.warn(errorMessage, e);
+        throw new DatastreamRuntimeException(errorMessage, e);
+      }
+    }
 
+    try {
       // Send the event to the transport
       String destination =
           record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
@@ -248,27 +269,10 @@ public class EventProducer implements DatastreamEventProducer {
             (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
                 recordEventsSendTimestamp));
       }
-    } catch (NullPointerException e) {
-      String errorMessage = String.format("Validation failed for record %s exception %s", record, e);
+    } catch (Exception e) {
+      String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
       throw new DatastreamRuntimeException(errorMessage, e);
-    } catch (Exception e) {
-      if (!eventsSerialized && _skipMessageOnSerializationErrors) {
-          _logger.info(String.format("Skipping the message on serialization error as configured. "
-                  + "Datastream name: %s, Datastream task name: %s",
-              getDatastreamName(), _datastreamTask.getDatastreamTaskName()), e);
-          _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(),
-              DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
-          _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
-          if (isBroadcast) {
-            return new DatastreamRecordMetadata(true);
-          }
-          return null;
-      } else {
-        String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
-        _logger.warn(errorMessage, e);
-        throw new DatastreamRuntimeException(errorMessage, e);
-      }
     }
 
     // Force a periodic flush if flushless mode isn't enabled, in case the connector is not calling flush at
@@ -400,14 +404,6 @@ public class EventProducer implements DatastreamEventProducer {
     }
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
-  }
-
-  private void onBroadcastCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback) {
-    SendFailedException sendFailedException = null;
-    if (exception != null) {
-      sendFailedException = createSendFailedException(exception);
-    }
-    sendCallback.onCompletion(metadata, sendFailedException);
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,

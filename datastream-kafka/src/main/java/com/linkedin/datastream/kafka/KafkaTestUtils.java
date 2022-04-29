@@ -48,7 +48,7 @@ public final class KafkaTestUtils {
   /**
    * Interface for the callback invoked whenever broadcast messages are read
    */
-  public interface BroadcastReaderCallback {
+  public interface BroadcastReaderCallbackTest {
 
     /**
      * Callback invoked whenever a broadcast message is read to be consumed
@@ -134,14 +134,14 @@ public final class KafkaTestUtils {
   }
 
   /**
-   * Consume broadcast messages from a given partition of a Kafka topic, using given BroadcastReaderCallback
+   * Consume broadcast messages from a given partition of a Kafka topic, using given BroadcastReaderCallbackTest
    *
    * @param topic Topic to be consumed
    * @param brokerList Kafka broker list for the topic
    * @param callback Broadcast message consumer callback
    * @throws Exception
    */
-  public static void readTopic(String topic, String brokerList, BroadcastReaderCallback callback)  throws Exception {
+  public static void readTopic(String topic, String brokerList, BroadcastReaderCallbackTest callback)  throws Exception {
     Validate.notNull(topic);
     Validate.notNull(brokerList);
     Validate.notNull(callback);

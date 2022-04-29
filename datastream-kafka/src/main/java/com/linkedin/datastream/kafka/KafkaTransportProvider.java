@@ -161,6 +161,9 @@ public class KafkaTransportProvider implements TransportProvider {
           } else {
             LOG.debug("Sent broadcast record {} to partition {}", record, metadata.getPartition());
           }
+          // We simply invoke onEventComplete on each "send" completion. No additional book-keeping is done in broadcast
+          // regarding individual send succeeding/failing. Client will need to do that through onEventComplete.
+          // Eg, client will have to track if broadcast is complete on all partitions if they want a guaranteed broadcast.
           onEventComplete.onCompletion(metadata, exception);
         }));
         sentToPartitions.add(partition);
