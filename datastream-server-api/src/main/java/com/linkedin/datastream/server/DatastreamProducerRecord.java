@@ -124,14 +124,6 @@ public class DatastreamProducerRecord {
     return _partition;
   }
 
-  /**
-   * Set partition for the record. Can be used to set partition for broadcast record each time before sending.
-   * @param partition Topic partition to send the record to.
-   */
-  public void setPartition(int partition) {
-    _partition = Optional.of(partition);
-  }
-
   public boolean isBroadcastRecord() {
     return _isBroadcastRecord;
   }

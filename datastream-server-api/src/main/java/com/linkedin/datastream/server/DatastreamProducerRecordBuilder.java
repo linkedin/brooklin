@@ -98,4 +98,27 @@ public class DatastreamProducerRecordBuilder {
     return new DatastreamProducerRecord(_events, _partition, _partitionKey, _destination, _sourceCheckpoint,
         _eventsSourceTimestamp, _isBroadcastRecord);
   }
+
+  /**
+   * Create DatastreamProducerRecord copied from another record and overriding the partition number
+   *
+   * @param record datastream record to be copied
+   * @param partition partition to override
+   * @return copiedDatastreamProducerRecord
+   */
+  public static DatastreamProducerRecord copyProducerRecord(DatastreamProducerRecord record, int partition) {
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    record.getEvents().forEach(builder::addEvent);
+    builder.setPartition(partition);
+    if (record.getPartitionKey().isPresent()) {
+      builder.setPartitionKey(record.getPartitionKey().get());
+    }
+    if (record.getDestination().isPresent()) {
+      builder.setDestination(record.getDestination().get());
+    }
+    builder.setSourceCheckpoint(record.getCheckpoint());
+    builder.setEventsSourceTimestamp(record.getEventsSourceTimestamp());
+    builder.setIsBroadcastRecord(record.isBroadcastRecord());
+    return builder.build();
+  }
 }

@@ -32,6 +32,7 @@ import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -154,12 +155,12 @@ public class KafkaTransportProvider implements TransportProvider {
     List<Integer> sentToPartitions = new ArrayList<>();
     try {
       for (; partition < partitionCount; partition++) {
-        record.setPartition(partition);
-        send(destinationUri, record, ((metadata, exception) -> {
+        DatastreamProducerRecord producerRecord = DatastreamProducerRecordBuilder.copyProducerRecord(record, partition);
+        send(destinationUri, producerRecord, ((metadata, exception) -> {
           if (exception != null) {
-            LOG.error("Failed to broadcast record {} to partition {}", record, metadata.getPartition());
+            LOG.error("Failed to broadcast record {} to partition {}", producerRecord, metadata.getPartition());
           } else {
-            LOG.debug("Sent broadcast record {} to partition {}", record, metadata.getPartition());
+            LOG.debug("Sent broadcast record {} to partition {}", producerRecord, metadata.getPartition());
           }
           // We simply invoke onEventComplete on each "send" completion. No additional book-keeping is done in broadcast
           // regarding individual send succeeding/failing. Client will need to do that through onEventComplete.

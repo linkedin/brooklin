@@ -45,7 +45,7 @@ public interface TransportProvider {
    * onEventComplete will be called on completion of record send to each endpoint and each onEventComplete callback will
    * contain result of send completion to that endpoint.
    *
-   * If a client wants to build guaranteed broadcast semantics or needs to do additional booking (like which endpoints
+   * If a client wants to build guaranteed broadcast semantics or needs to do additional book keeping (like which endpoints
    * broadcast was successful, etc), it will be client's responsibility to do book-keeping on successful/failed "send"
    * on each endpoint through onEventComplete callback and implement its own strategy (like retries, etc).
    *
