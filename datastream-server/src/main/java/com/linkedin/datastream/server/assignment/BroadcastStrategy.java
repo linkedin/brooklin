@@ -88,11 +88,13 @@ public class BroadcastStrategy implements AssignmentStrategy {
     Map<String, List<DatastreamTask>> reuseTaskMap =
         tasksAvailableToReuse.stream().collect(Collectors.groupingBy(DatastreamTask::getTaskPrefix));
     int instancePos = 0;
+    Set<String> uniqueDatastreamTaskNames = new HashSet<>();
     for (DatastreamGroup dg : datastreams) {
       List<DatastreamTask> reuseTasksPerDg = reuseTaskMap.getOrDefault(dg.getTaskPrefix(), Collections.emptyList());
 
       int numTasks = getNumTasks(dg, instances.size());
-      for (int taskPos = 0; taskPos < numTasks; taskPos++) {
+      int taskPos = 0;
+      while (taskPos < numTasks) {
         String instance = instances.get(instancePos);
 
         DatastreamTask foundDatastreamTask = currentAssignmentCopy.get(instance)
@@ -102,10 +104,16 @@ public class BroadcastStrategy implements AssignmentStrategy {
             .orElseGet(() -> getOrCreateDatastreamTask(reuseTasksPerDg, dg));
 
         currentAssignmentCopy.get(instance).remove(foundDatastreamTask);
+
+        // Prevent duplicate datastream task names
+        if (!uniqueDatastreamTaskNames.add(foundDatastreamTask.getDatastreamTaskName())) {
+          continue;
+        }
         newAssignment.get(instance).add(foundDatastreamTask);
 
-        // Move to the next instance
+        // Move to the next task and instance
         instancePos = (instancePos + 1) % instances.size();
+        taskPos++;
       }
     }
 

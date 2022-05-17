@@ -223,6 +223,29 @@ public class TestLoadbalancingStrategy {
   }
 
   @Test
+  public void testLoadbalancingStrategySameTaskIsNotAssignedToMoreThanOneInstance() {
+    List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
+    List<Datastream> ds =
+        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1", "ds2", "ds3", "ds4", "ds5"));
+    ds.forEach(x -> x.getSource().setPartitions(1));
+    ds.forEach(
+        x -> x.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(x)));
+    List<DatastreamGroup> datastreams =
+        ds.stream().map(x -> new DatastreamGroup(Collections.singletonList(x))).collect(Collectors.toList());
+    LoadbalancingStrategy strategy = new LoadbalancingStrategy();
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    // Copying the assignment to simulate the scenario where two instances have the same task,
+    // which is possible when the previous leader gets interrupted while updating the assignment.
+    assignment.get("instance1").addAll(assignment.get("instance2"));
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    List<DatastreamTask> newAssignmentTasksList = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toList());
+    Assert.assertEquals(newAssignmentTasks.size(), newAssignmentTasksList.size());
+    Assert.assertEquals(newAssignmentTasks.size(), 5);
+  }
+
+  @Test
   public void testLoadbalancingStrategyRemovesTasksWhenDatastreamIsDeleted() {
     String[] instances = new String[]{"instance1", "instance2", "instance3"};
     List<Datastream> datastreams =

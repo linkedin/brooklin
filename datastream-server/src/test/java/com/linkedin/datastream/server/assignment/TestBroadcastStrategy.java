@@ -152,6 +152,24 @@ public class TestBroadcastStrategy {
   }
 
   @Test
+  public void testSameTaskIsNotAssignedToMoreThanOneInstance() {
+    List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
+    int numDatastreams = 5;
+    List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
+    BroadcastStrategy strategy = new BroadcastStrategy(Optional.empty());
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    // Copying the assignment to simulate the scenario where two instances have the same task,
+    // which is possible when the previous leader gets interrupted while updating the assignment.
+    assignment.get("instance1").addAll(assignment.get("instance2"));
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    List<DatastreamTask> newAssignmentTasksList = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toList());
+    Assert.assertEquals(newAssignmentTasks.size(), newAssignmentTasksList.size());
+    Assert.assertEquals(newAssignmentTasks.size(), instances.size() * numDatastreams);
+  }
+
+  @Test
   public void testRemoveDatastreamTasksWhenDatastreamIsDeleted() {
     List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
     List<DatastreamGroup> datastreams = generateDatastreams("ds", 5);
