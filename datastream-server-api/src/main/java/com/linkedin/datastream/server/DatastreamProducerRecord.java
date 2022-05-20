@@ -20,7 +20,7 @@ import com.linkedin.datastream.serde.SerDeSet;
  * List of brooklin events that need to be sent to the {@link com.linkedin.datastream.server.api.transport.TransportProvider}
  */
 public class DatastreamProducerRecord {
-  private Optional<Integer> _partition;
+  private final Optional<Integer> _partition;
   private final Optional<String> _partitionKey;
   private final Optional<String> _destination;
   private final String _checkpoint;
