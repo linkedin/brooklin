@@ -38,4 +38,31 @@ public interface TransportProvider {
    * Flush to make sure that the current set of events that are in the buffer gets flushed to the server.
    */
   void flush();
+
+  /**
+   * Broadcast for sending the record to all consumers/endpoints. Broadcast could involve invoking "send" to multiple
+   * endpoints. Broadcast is a best-effort strategy, there is no guarantee that the record send to each endpoint will succeed.
+   * onEventComplete will be called on completion of record send to each endpoint and each onEventComplete callback will
+   * contain result of send completion to that endpoint.
+   *
+   * If a client wants to build guaranteed broadcast semantics or needs to do additional book keeping (like which endpoints
+   * broadcast was successful, etc), it will be client's responsibility to do book-keeping on successful/failed "send"
+   * on each endpoint through onEventComplete callback and implement its own strategy (like retries, etc).
+   *
+   * DatastreamRecordMetadata will be returned after "send" method is called on each endpoint.
+   *
+   * For e.g., for Kafka this means sending the record to all topic partitions (i.e. partition each partition
+   * is the broadcast endpoint for Kafka). When record send to each partition completes onEventComplete will be
+   * invoked if provided. The returned DatastreamRecordMetadata will contain total partition count and which partitions
+   * "send" was invoked on.
+   *
+   * @param destination the destination topic to which the record should be broadcasted.
+   * @param record DatastreamEvent that needs to be broadcasted to the stream.
+   * @param onEventComplete Callback that will be called at send completion to each endpoint. This is an optional
+   *                        callback. For e.g., for Kafka this callback would be invoked when send to each partition
+   *                        completes.
+   */
+  default DatastreamRecordMetadata broadcast(String destination, DatastreamProducerRecord record, SendCallback onEventComplete) {
+    throw new UnsupportedOperationException("Transport Provider does not support broadcast");
+  }
 }

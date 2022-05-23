@@ -25,6 +25,7 @@ public class DatastreamProducerRecord {
   private final Optional<String> _destination;
   private final String _checkpoint;
   private final long _eventsSourceTimestamp;
+  private final boolean _isBroadcastRecord;
 
   private final List<BrooklinEnvelope> _events;
 
@@ -36,11 +37,16 @@ public class DatastreamProducerRecord {
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
-    this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp);
+    this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp, false);
   }
 
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       Optional<String> destination, String checkpoint, long eventsSourceTimestamp) {
+    this(events, partition, partitionKey, destination, checkpoint, eventsSourceTimestamp, false);
+  }
+
+  DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
+      Optional<String> destination, String checkpoint, long eventsSourceTimestamp, boolean isBroadcastRecord) {
     Validate.notNull(events, "null event");
     events.forEach((e) -> Validate.notNull(e, "null event"));
     Validate.isTrue(eventsSourceTimestamp > 0, "events source timestamp is invalid");
@@ -51,6 +57,7 @@ public class DatastreamProducerRecord {
     _checkpoint = checkpoint;
     _eventsSourceTimestamp = eventsSourceTimestamp;
     _destination = destination;
+    _isBroadcastRecord = isBroadcastRecord;
   }
 
   /**
@@ -117,9 +124,14 @@ public class DatastreamProducerRecord {
     return _partition;
   }
 
+  public boolean isBroadcastRecord() {
+    return _isBroadcastRecord;
+  }
+
   @Override
   public String toString() {
-    return String.format("%s @ partitionKey=%s partition=%d", _events, _partitionKey.orElse(null), _partition.orElse(-1));
+    return String.format("%s @ partitionKey=%s partition=%d isBroadcastRecord=%s",
+        _events, _partitionKey.orElse(null), _partition.orElse(-1), _isBroadcastRecord);
   }
 
   @Override

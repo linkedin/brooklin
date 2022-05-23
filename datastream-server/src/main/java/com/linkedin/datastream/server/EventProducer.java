@@ -200,40 +200,75 @@ public class EventProducer implements DatastreamEventProducer {
     }
   }
 
+  @Override
+  public DatastreamRecordMetadata broadcast(DatastreamProducerRecord record, SendCallback sendEventCallback) {
+    return helperSendOrBroadcast(record, sendEventCallback, true);
+  }
+
+  @Override
+  public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
+    helperSendOrBroadcast(record, sendCallback, false);
+  }
+
   /**
    * Send the event onto the underlying transport.
    * @param record the datastream event
-   * @param sendCallback the callback to be invoked after the event is sent to the destination
+   * @param sendEventCallback the callback to be invoked after the event is sent to the destination
+   *
+   * @return For broadcast return DatastreamRecordMetadata got from transport provider broadcast, null for send
    */
-  @Override
-  public void send(DatastreamProducerRecord record, SendCallback sendCallback) {
+  private DatastreamRecordMetadata helperSendOrBroadcast(DatastreamProducerRecord record,
+      SendCallback sendEventCallback, boolean isBroadcast) {
+    DatastreamRecordMetadata broadcastMetadata = null;
+
     try {
       validateEventRecord(record);
 
-      try {
-        record.serializeEvents(_datastreamTask.getDestinationSerDes());
-      } catch (Exception e) {
-        if (_skipMessageOnSerializationErrors) {
-          _logger.info(String.format("Skipping the message on serialization error as configured. "
-                  + "Datastream name: %s, Datastream task name: %s",
-              getDatastreamName(), _datastreamTask.getDatastreamTaskName()), e);
-          _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(),
-              DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
-          _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
-          return;
+      record.serializeEvents(_datastreamTask.getDestinationSerDes());
+    } catch (NullPointerException e) {
+      String errorMessage = String.format("Validation failed for record %s exception %s", record, e);
+      _logger.warn(errorMessage, e);
+      throw new DatastreamRuntimeException(errorMessage, e);
+    } catch (Exception e) {
+      if (_skipMessageOnSerializationErrors) {
+        _logger.info(String.format("Skipping the message on serialization error as configured. "
+                + "Datastream name: %s, Datastream task name: %s",
+            getDatastreamName(), _datastreamTask.getDatastreamTaskName()), e);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, getDatastreamName(),
+            DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, DROPPED_SENT_FROM_SERIALIZATION_ERROR, 1);
+        if (isBroadcast) {
+          return new DatastreamRecordMetadata(true);
         }
-        throw e;
+        return null;
+      } else {
+        String errorMessage = String.format("Failed to send event %s because of serialization exception %s", record, e);
+        _logger.warn(errorMessage, e);
+        throw new DatastreamRuntimeException(errorMessage, e);
       }
+    }
 
+    try {
       // Send the event to the transport
       String destination =
           record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
       record.setEventsSendTimestamp(System.currentTimeMillis());
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
-      _transportProvider.send(destination, record,
-          (metadata, exception) -> onSendCallback(metadata, exception, sendCallback, recordEventsSourceTimestamp,
-              recordEventsSendTimestamp));
+      if (isBroadcast) {
+        broadcastMetadata = _transportProvider.broadcast(destination, record,
+            (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
+                recordEventsSendTimestamp));
+        _logger.debug("Broadcast completed with {}", broadcastMetadata);
+        if (broadcastMetadata.isMessageSerializationError()) {
+          _logger.warn("Broadcast of record {} to destination {} failed because of serialization error.",
+              record, destination);
+        }
+      } else {
+        _transportProvider.send(destination, record,
+            (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
+                recordEventsSendTimestamp));
+      }
     } catch (Exception e) {
       String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
       _logger.warn(errorMessage, e);
@@ -245,6 +280,8 @@ public class EventProducer implements DatastreamEventProducer {
     if (_enableFlushOnSend && Instant.now().isAfter(_lastFlushTime.plus(_flushInterval))) {
       flush();
     }
+
+    return broadcastMetadata;
   }
 
   // Report SLA metrics for aggregate, connector and task

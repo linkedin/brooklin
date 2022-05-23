@@ -25,12 +25,14 @@ import com.codahale.metrics.Meter;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.BrooklinEnvelopeMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamProducerRecord;
+import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.api.transport.DatastreamRecordMetadata;
 import com.linkedin.datastream.server.api.transport.SendCallback;
@@ -59,6 +61,8 @@ public class KafkaTransportProvider implements TransportProvider {
   private final Meter _eventByteWriteRate;
   private final Meter _eventTransportErrorRate;
 
+  private final Properties _transportProviderProperties;
+
   private boolean _isUnassigned;
 
   /**
@@ -83,6 +87,7 @@ public class KafkaTransportProvider implements TransportProvider {
       String errorMessage = "Bootstrap servers are not set";
       ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
     }
+    _transportProviderProperties = props;
     _isUnassigned = false;
 
     // initialize metrics
@@ -134,6 +139,42 @@ public class KafkaTransportProvider implements TransportProvider {
   private int getSourcePartitionFromEvent(BrooklinEnvelope event) {
     return Integer.parseInt(
         event.getMetadata().getOrDefault(BrooklinEnvelopeMetadataConstants.SOURCE_PARTITION, "-1"));
+  }
+
+  @Override
+  public DatastreamRecordMetadata broadcast(String destinationUri, DatastreamProducerRecord record, SendCallback onEventComplete) {
+    Validate.isTrue(record.isBroadcastRecord(), "Trying to broadcast a non-broadcast type record.");
+
+    // Currently destination topic partition count will be queried from datastream destination metadata. This implies
+    // a restriction that datastream destination partition should be updated for broadcast to work correctly.
+    int partitionCount = _datastreamTask.getDatastreamDestination().getPartitions();
+    String topicName = KafkaTransportProviderUtils.getTopicName(destinationUri);
+
+    LOG.debug("Broadcasting record {} to all {} partitions of destination {}", record, partitionCount, destinationUri);
+    int partition = 0;
+    List<Integer> sentToPartitions = new ArrayList<>();
+    try {
+      for (; partition < partitionCount; partition++) {
+        DatastreamProducerRecord producerRecord = DatastreamProducerRecordBuilder.copyProducerRecord(record, partition);
+        send(destinationUri, producerRecord, ((metadata, exception) -> {
+          if (exception != null) {
+            LOG.error("Failed to broadcast record {} to partition {}", producerRecord, metadata.getPartition());
+          } else {
+            LOG.debug("Sent broadcast record {} to partition {}", producerRecord, metadata.getPartition());
+          }
+          // We simply invoke onEventComplete on each "send" completion. No additional book-keeping is done in broadcast
+          // regarding individual send succeeding/failing. Client will need to do that through onEventComplete.
+          // Eg, client will have to track if broadcast is complete on all partitions if they want a guaranteed broadcast.
+          onEventComplete.onCompletion(metadata, exception);
+        }));
+        sentToPartitions.add(partition);
+      }
+      return new DatastreamRecordMetadata(record.getCheckpoint(), topicName, sentToPartitions, true, partitionCount);
+    } catch (DatastreamRuntimeException ex) {
+      LOG.error("Broadcast send failed for record {} at partition {}/{} because of exception: {} ",
+          record, partition, partitionCount, ex);
+      throw ex;
+    }
   }
 
   @Override

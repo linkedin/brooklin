@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -182,27 +183,27 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
 
   @Test
   public void testSendHappyPath() throws Exception {
-    testEventSend(1, 1, 0, true, true, "test");
+    testEventSendOrBroadcast(1, 1, 0, true, true, "test", false);
   }
 
   @Test
   public void testSendWithoutPartitionNumber() throws Exception {
-    testEventSend(1, 2, -1, true, true, "test");
+    testEventSendOrBroadcast(1, 2, -1, true, true, "test", false);
   }
 
   @Test
   public void testEventWithoutKeyAndPartition() throws Exception {
-    testEventSend(1, 2, -1, false, true, "test");
+    testEventSendOrBroadcast(1, 2, -1, false, true, "test", false);
   }
 
   @Test
   public void testEventWithoutKeyNOrValue() throws Exception {
-    testEventSend(1, 2, 0, false, false, "test");
+    testEventSendOrBroadcast(1, 2, 0, false, false, "test", false);
   }
 
   @Test
   public void testEventWithoutKeyValueAndPartition() throws Exception {
-    testEventSend(1, 2, -1, false, false, "test");
+    testEventSendOrBroadcast(1, 2, -1, false, false, "test", false);
   }
 
   @Test
@@ -279,8 +280,14 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     Assert.assertNotNull(DynamicMetricsManager.getInstance().getMetric(producerCountMetricName));
   }
 
-  private void testEventSend(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
-      boolean includeValue, String metricsPrefix) throws Exception {
+  @Test
+  public void testBroadcastHappyPath() throws Exception {
+    testEventSendOrBroadcast(1, 3, -1, true, true, "broadcast", true);
+  }
+
+  // Helper method.
+  private void testEventSendOrBroadcast(int numberOfEvents, int numberOfPartitions, int partition, boolean includeKey,
+      boolean includeValue, String metricsPrefix, boolean isBroadcast) throws Exception {
     String topicName = getUniqueTopicName();
 
     if (metricsPrefix != null) {
@@ -296,31 +303,52 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     TransportProvider transportProvider = provider.assignTransportProvider(task);
     provider.createTopic(destinationUri, numberOfPartitions, new Properties(), ds);
 
-    //KafkaTestUtils.waitForTopicCreation(_adminClient, topicName, _kafkaCluster.getBrokers());
-
     LOG.info(String.format("Topic %s created with %d partitions and topic properties %s", topicName, numberOfPartitions,
         new Properties()));
     List<DatastreamProducerRecord> datastreamEvents =
-        createEvents(topicName, partition, numberOfEvents, includeKey, includeValue);
+        createEvents(topicName, partition, numberOfEvents, includeKey, includeValue, isBroadcast);
 
     LOG.info(String.format("Trying to send %d events to topic %s", datastreamEvents.size(), topicName));
 
     final Integer[] callbackCalled = {0};
     for (DatastreamProducerRecord event : datastreamEvents) {
-      transportProvider.send(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
+      if (isBroadcast) {
+        transportProvider.broadcast(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
+      } else {
+        transportProvider.send(destinationUri, event, ((metadata, exception) -> callbackCalled[0]++));
+      }
     }
 
-    // wait until all messages were acked, to ensure all events were successfully sent to the topic
-    Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == datastreamEvents.size(), 1000, 10000),
-        "Send callback was not called; likely topic was not created in time");
+    if (isBroadcast) {
+      // wait until all messages were acked, to ensure all events were successfully sent to the topic
+      Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == (datastreamEvents.size() * numberOfPartitions), 1000, 10000),
+          "Send callback was not called; likely topic was not created in time");
+    } else {
+      // wait until all messages were acked, to ensure all events were successfully sent to the topic
+      Assert.assertTrue(PollUtils.poll(() -> callbackCalled[0] == datastreamEvents.size(), 1000, 10000),
+          "Send callback was not called; likely topic was not created in time");
+    }
 
     LOG.info(String.format("Trying to read events from the topicName %s partition %d", topicName, partition));
 
     Map<String, String> events = new HashMap<>();
-    KafkaTestUtils.readTopic(topicName, partition, _kafkaCluster.getBrokers(), (key, value) -> {
-      events.put(new String(key), new String(value));
-      return events.size() < numberOfEvents;
-    });
+    Set<Integer> partitionsRead = new HashSet<>();
+    if (isBroadcast) {
+      KafkaTestUtils.readTopic(topicName, _kafkaCluster.getBrokers(), (key, value, recordPartition) -> {
+        events.put(new String(key), new String(value));
+        partitionsRead.add(recordPartition);
+        return (partitionsRead.size() < numberOfPartitions) || (events.size() < numberOfEvents);
+      });
+    } else {
+      KafkaTestUtils.readTopic(topicName, partition, _kafkaCluster.getBrokers(), (key, value) -> {
+        events.put(new String(key), new String(value));
+        return events.size() < numberOfEvents;
+      });
+    }
+
+    if (isBroadcast) {
+      Assert.assertEquals(partitionsRead.size(), numberOfPartitions);
+    }
 
     if (metricsPrefix != null) {
       // verify that configured metrics prefix was used
@@ -351,13 +379,17 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
     }
   }
 
-
   private byte[] createMessage(String text) {
     return text.getBytes();
   }
 
   private List<DatastreamProducerRecord> createEvents(String topicName, int partition, int numberOfEvents,
       boolean includeKey, boolean includeValue) {
+    return createEvents(topicName, partition, numberOfEvents, includeKey, includeValue, false);
+  }
+
+  private List<DatastreamProducerRecord> createEvents(String topicName, int partition, int numberOfEvents,
+      boolean includeKey, boolean includeValue, boolean isBroadcastEvent) {
     Datastream stream = new Datastream();
     stream.setName("datastream_" + topicName);
     stream.setConnectorName("dummyConnector");
@@ -390,10 +422,14 @@ public class TestKafkaTransportProvider extends BaseKafkaZkTest {
       DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
       builder.setEventsSourceTimestamp(System.currentTimeMillis());
       builder.addEvent(new BrooklinEnvelope(keyValue, payloadValue, previousPayloadValue, new HashMap<>()));
-      if (partition >= 0) {
-        builder.setPartition(partition);
+      if (isBroadcastEvent) {
+        builder.setIsBroadcastRecord(true);
       } else {
-        builder.setPartitionKey(key);
+        if (partition >= 0) {
+          builder.setPartition(partition);
+        } else {
+          builder.setPartitionKey(key);
+        }
       }
 
       builder.setSourceCheckpoint("test");

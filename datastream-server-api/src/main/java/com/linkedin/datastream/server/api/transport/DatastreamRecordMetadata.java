@@ -5,6 +5,9 @@
  */
 package com.linkedin.datastream.server.api.transport;
 
+import java.util.List;
+
+
 /**
  * Metadata of the successfully produced datastream record
  */
@@ -15,6 +18,12 @@ public class DatastreamRecordMetadata {
   private final String _checkpoint;
   private final int _eventIndex;
   private final int _sourcePartition;
+
+  // Broadcast record metadata.
+  private final boolean _isBroadcastRecord;
+  private final List<Integer> _sentToPartitions;
+  private final int _partitionCount;
+  private final boolean _isMessageSerializationError;
 
   /**
    * Construct an instance of DatastreamRecordMetadata. Defaults the event index to 0 and source partition to -1.
@@ -28,6 +37,10 @@ public class DatastreamRecordMetadata {
     _partition = partition;
     _eventIndex = 0;
     _sourcePartition = -1;
+    _isBroadcastRecord = false;
+    _sentToPartitions = null;
+    _partitionCount = -1;
+    _isMessageSerializationError = false;
   }
 
   /**
@@ -44,6 +57,49 @@ public class DatastreamRecordMetadata {
     _partition = partition;
     _eventIndex = eventIndex;
     _sourcePartition = sourcePartition;
+    _isBroadcastRecord = false;
+    _sentToPartitions = null;
+    _partitionCount = -1;
+    _isMessageSerializationError = false;
+  }
+
+  /**
+   * Construct an instance of DatastreamRecordMetadata.
+   *
+   * @param checkpoint checkpoint string
+   * @param topic Kafka topic name
+   * @param sentToPartitions List of partitions numbers where send was attempted
+   * @param isBroadcastRecord Boolean to indicate if metadata record indicates broadcast
+   * @param partitionCount Total number of partitions of the topic
+   */
+  public DatastreamRecordMetadata(String checkpoint, String topic, List<Integer> sentToPartitions,
+      boolean isBroadcastRecord, int partitionCount) {
+    _checkpoint = checkpoint;
+    _topic = topic;
+    _sourcePartition = -1;
+    _sentToPartitions = sentToPartitions;
+    _eventIndex = 0;
+    _isBroadcastRecord = isBroadcastRecord;
+    _partition = -1;
+    _partitionCount = partitionCount;
+    _isMessageSerializationError = false;
+  }
+
+  /**
+   * Construct an instance of DatastreamRecordMetadata.
+   *
+   * @param isMessageSerializationError Indicates is serialization error was encountered in EventProducer
+   */
+  public DatastreamRecordMetadata(boolean isMessageSerializationError) {
+    _checkpoint = null;
+    _topic = null;
+    _sourcePartition = -1;
+    _sentToPartitions = null;
+    _eventIndex = 0;
+    _isBroadcastRecord = true;
+    _partition = -1;
+    _partitionCount = -1;
+    _isMessageSerializationError = isMessageSerializationError;
   }
 
   /**
@@ -86,5 +142,21 @@ public class DatastreamRecordMetadata {
   public String toString() {
     return String.format("Checkpoint: %s, Topic: %s, Destination Partition: %d, Event Index: %d, Source Partition: %d",
         _checkpoint, _topic, _partition, _eventIndex, _sourcePartition);
+  }
+
+  public boolean isBroadcastRecord() {
+    return _isBroadcastRecord;
+  }
+
+  public List<Integer> getSentToPartitions() {
+    return _sentToPartitions;
+  }
+
+  public int getPartitionCount() {
+    return _partitionCount;
+  }
+
+  public boolean isMessageSerializationError() {
+    return _isMessageSerializationError;
   }
 }

@@ -30,6 +30,7 @@ public class DatastreamProducerRecordBuilder {
   private long _eventsSourceTimestamp;
   private Optional<String> _partitionKey = Optional.empty();
   private Optional<String> _destination = Optional.empty();
+  private boolean _isBroadcastRecord = false;
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. If the partition is not set, TransportProvider
@@ -84,6 +85,10 @@ public class DatastreamProducerRecordBuilder {
     _eventsSourceTimestamp = eventsSourceTimestamp;
   }
 
+  public void setIsBroadcastRecord(boolean isBroadcastRecord) {
+    _isBroadcastRecord = isBroadcastRecord;
+  }
+
   /**
    * Build the DatastreamProducerRecord.
    * @return
@@ -91,6 +96,29 @@ public class DatastreamProducerRecordBuilder {
    */
   public DatastreamProducerRecord build() {
     return new DatastreamProducerRecord(_events, _partition, _partitionKey, _destination, _sourceCheckpoint,
-        _eventsSourceTimestamp);
+        _eventsSourceTimestamp, _isBroadcastRecord);
+  }
+
+  /**
+   * Create DatastreamProducerRecord copied from another record and overriding the partition number
+   *
+   * @param record datastream record to be copied
+   * @param partition partition to override
+   * @return copiedDatastreamProducerRecord
+   */
+  public static DatastreamProducerRecord copyProducerRecord(DatastreamProducerRecord record, int partition) {
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    record.getEvents().forEach(builder::addEvent);
+    builder.setPartition(partition);
+    if (record.getPartitionKey().isPresent()) {
+      builder.setPartitionKey(record.getPartitionKey().get());
+    }
+    if (record.getDestination().isPresent()) {
+      builder.setDestination(record.getDestination().get());
+    }
+    builder.setSourceCheckpoint(record.getCheckpoint());
+    builder.setEventsSourceTimestamp(record.getEventsSourceTimestamp());
+    builder.setIsBroadcastRecord(record.isBroadcastRecord());
+    return builder.build();
   }
 }

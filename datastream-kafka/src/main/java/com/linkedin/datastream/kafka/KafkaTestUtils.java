@@ -45,6 +45,17 @@ public final class KafkaTestUtils {
     boolean onMessage(byte[] key, byte[] value) throws IOException;
   }
 
+  /**
+   * Interface for the callback invoked whenever broadcast messages are read
+   */
+  public interface BroadcastReaderCallbackTest {
+
+    /**
+     * Callback invoked whenever a broadcast message is read to be consumed
+     */
+    boolean onMessage(byte[] key, byte[] value, int partition) throws IOException;
+  }
+
   private KafkaTestUtils() {
   }
 
@@ -120,6 +131,40 @@ public final class KafkaTestUtils {
       return false;
     }
     return false;
+  }
+
+  /**
+   * Consume broadcast messages from a given partition of a Kafka topic, using given BroadcastReaderCallbackTest
+   *
+   * @param topic Topic to be consumed
+   * @param brokerList Kafka broker list for the topic
+   * @param callback Broadcast message consumer callback
+   * @throws Exception
+   */
+  public static void readTopic(String topic, String brokerList, BroadcastReaderCallbackTest callback)  throws Exception {
+    Validate.notNull(topic);
+    Validate.notNull(brokerList);
+    Validate.notNull(callback);
+
+    KafkaConsumer<byte[], byte[]> consumer = createConsumer(brokerList);
+    consumer.subscribe(Collections.singletonList(topic));
+
+    boolean keepGoing = true;
+    long now = System.currentTimeMillis();
+    do {
+      ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
+      for (ConsumerRecord<byte[], byte[]> record : records.records(topic)) {
+        if (!callback.onMessage(record.key(), record.value(), record.partition())) {
+          keepGoing = false;
+          break;
+        }
+      }
+
+      // Guard against buggy test which can hang forever
+      if (System.currentTimeMillis() - now >= DEFAULT_TIMEOUT_MS) {
+        throw new TimeoutException("Timed out before reading all messages");
+      }
+    } while (keepGoing);
   }
 
   /**
