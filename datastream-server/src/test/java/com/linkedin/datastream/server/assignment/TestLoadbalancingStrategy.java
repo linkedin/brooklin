@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -237,6 +238,14 @@ public class TestLoadbalancingStrategy {
     // Copying the assignment to simulate the scenario where two instances have the same task,
     // which is possible when the previous leader gets interrupted while updating the assignment.
     assignment.get("instance1").addAll(assignment.get("instance2"));
+
+    // Create a new task with the same name but different partitions, should dedupe out
+    Optional<DatastreamTask> oldTask = assignment.get("instance1")
+        .stream()
+        .findFirst();
+    Assert.assertTrue(oldTask.isPresent());
+    DatastreamTaskImpl newTask = new DatastreamTaskImpl(oldTask.get().getDatastreams(), oldTask.get().getId(), Arrays.asList(0, 1, 2));
+    assignment.get("instance1").add(newTask);
 
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
     Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());

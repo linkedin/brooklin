@@ -135,7 +135,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
     // STEP 1: keep assignments from previous instances, if possible.
     for (DatastreamGroup dg : datastreams) {
       int numTasks = constructExpectedNumberOfTasks(dg, instances.size());
-      Set<String> uniqueDatastreamTaskNames = new HashSet<>();
+      Set<String> uniqueDatastreamTaskNamesSet = new HashSet<>();
       Set<DatastreamTask> allAliveTasks = new HashSet<>();
       for (String instance : instances) {
         if (numTasks <= 0) {
@@ -143,7 +143,7 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
         }
         List<DatastreamTask> foundDatastreamTasks =
             Optional.ofNullable(currentAssignmentCopy.get(instance)).map(c ->
-                c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && uniqueDatastreamTaskNames.add(x.getDatastreamTaskName()))
+                c.stream().filter(x -> x.getTaskPrefix().equals(dg.getTaskPrefix()) && uniqueDatastreamTaskNamesSet.add(x.getDatastreamTaskName()))
                     .collect(Collectors.toList())).orElse(Collections.emptyList());
 
         allAliveTasks.addAll(foundDatastreamTasks);
