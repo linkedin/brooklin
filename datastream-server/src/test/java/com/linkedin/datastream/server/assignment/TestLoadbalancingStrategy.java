@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -220,6 +221,37 @@ public class TestLoadbalancingStrategy {
     for (String instance : instances) {
       Assert.assertEquals(newAssignment.get(instance).size(), 4);
     }
+  }
+
+  @Test
+  public void testLoadbalancingStrategySameTaskIsNotAssignedToMoreThanOneInstance() {
+    List<String> instances = Arrays.asList("instance1", "instance2", "instance3");
+    List<Datastream> ds =
+        Arrays.asList(DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1", "ds2", "ds3", "ds4", "ds5"));
+    ds.forEach(x -> x.getSource().setPartitions(1));
+    ds.forEach(
+        x -> x.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(x)));
+    List<DatastreamGroup> datastreams =
+        ds.stream().map(x -> new DatastreamGroup(Collections.singletonList(x))).collect(Collectors.toList());
+    LoadbalancingStrategy strategy = new LoadbalancingStrategy();
+    Map<String, Set<DatastreamTask>> assignment = strategy.assign(datastreams, instances, new HashMap<>());
+    // Copying the assignment to simulate the scenario where two instances have the same task,
+    // which is possible when the previous leader gets interrupted while updating the assignment.
+    assignment.get("instance1").addAll(assignment.get("instance2"));
+
+    // Create a new task with the same name but different partitions, should dedupe out
+    Optional<DatastreamTask> oldTask = assignment.get("instance1")
+        .stream()
+        .findFirst();
+    Assert.assertTrue(oldTask.isPresent());
+    DatastreamTaskImpl newTask = new DatastreamTaskImpl(oldTask.get().getDatastreams(), oldTask.get().getId(), Arrays.asList(0, 1, 2));
+    assignment.get("instance1").add(newTask);
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assign(datastreams, instances, assignment);
+    Set<DatastreamTask> newAssignmentTasks = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    List<DatastreamTask> newAssignmentTasksList = newAssignment.values().stream().flatMap(Set::stream).collect(Collectors.toList());
+    Assert.assertEquals(newAssignmentTasks.size(), newAssignmentTasksList.size());
+    Assert.assertEquals(newAssignmentTasks.size(), 5);
   }
 
   @Test
