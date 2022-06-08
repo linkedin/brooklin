@@ -463,6 +463,35 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testLatchCountVarOnLockAcquireFailure() throws InterruptedException {
+    KafkaBasedConnectorConfig connectorConfig = KafkaMirrorMakerConnectorTestUtils.getKafkaBasedConnectorConfigBuilder()
+        .setEnablePartitionManaged(true)
+        .build();
+
+    Datastream ds = KafkaMirrorMakerConnectorTestUtils.createDatastream("ds", "test:1111", "*");
+
+    DatastreamTaskImpl spyDatastreamTask = spy(new DatastreamTaskImpl(Collections.singletonList(ds)));
+    spyDatastreamTask.setTaskPrefix("test");
+
+    // explicitly throwing exception when lock is acquired
+    doThrow(DatastreamRuntimeException.class).when(spyDatastreamTask).acquire(any());
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        new KafkaMirrorMakerConnectorTask(connectorConfig, spyDatastreamTask, "mirrormaker", false,
+            new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+
+    // Before acquiring the lock of any task, the latch counter should be 1
+    Assert.assertEquals(connectorTask.getStoppedLatchCount(), 1);
+
+    Thread t = new Thread(connectorTask);
+    t.start();
+    t.join();
+
+    // Irrespective of success or failure to acquire, the latch counter should become 0
+    Assert.assertEquals(connectorTask.getStoppedLatchCount(), 0);
+  }
+
+  @Test
   public void testPartitionManagedLockReleaseOnInterruptException() throws InterruptedException {
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));

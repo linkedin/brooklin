@@ -265,22 +265,17 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
         if (isConnectorTaskDead(connectorTaskEntry)) {
           _logger.warn("Detected that the kafka connector task is not running for datastream task {}. Restarting it",
               datastreamTask.getDatastreamTaskName());
-          if (isTaskThreadDead(connectorTaskEntry)) {
-            _logger.warn("Task thread for datastream task {} has died. No need to attempt to stop the task",
-                datastreamTask.getDatastreamTaskName());
+          // If stoppedTask is null it means that attempting to stop the task failed and that it will be retired again
+          // (in the next restartDeadTasks iteration).
+          // If we dont successfully stop the task before creating another connector task we can potentially end up with
+          // two connector tasks instances running in parallel. This is possible because the acquire method acts as a
+          // re-entrant lock if the same host calls the acquire method for the same task multiple times.
+          DatastreamTask stoppedTask = stopTask(datastreamTask, connectorTaskEntry);
+          if (stoppedTask != null) {
             deadDatastreamTasks.add(datastreamTask);
           } else {
-            // If stoppedTask is null it means that attempting to stop the task failed and that it will be retired again
-            // (in the next restartDeadTasks iteration).
-            // If we dont successfully stop the task before creating another connector task we can potentially end up with
-            // two connector tasks instances running in parallel. This is possible because the acquire method acts as a
-            // re-entrant lock if the same host calls the acquire method for the same task multiple times.
-            DatastreamTask stoppedTask = stopTask(datastreamTask, connectorTaskEntry);
-            if (stoppedTask != null) {
-              deadDatastreamTasks.add(datastreamTask);
-            } else {
-              _logger.error("Connector task for datastream task {} could not be stopped.", datastreamTask.getDatastreamTaskName());
-            }
+            _logger.error("Connector task for datastream task {} could not be stopped.",
+                datastreamTask.getDatastreamTaskName());
           }
         } else {
           _logger.info("Connector task for datastream task {} is healthy", datastreamTask.getDatastreamTaskName());
@@ -374,6 +369,11 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
    */
   private DatastreamTask stopTask(DatastreamTask datastreamTask, ConnectorTaskEntry connectorTaskEntry) {
     try {
+      if (isTaskThreadDead(connectorTaskEntry)) {
+        _logger.warn("Task thread for datastream task {} has died. No need to attempt to stop the task",
+            datastreamTask.getDatastreamTaskName());
+        return datastreamTask;
+      }
       connectorTaskEntry.setPendingStop();
       AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
       connectorTask.stop();

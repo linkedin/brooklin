@@ -88,7 +88,7 @@ public class TestAbstractKafkaConnector {
     props.setProperty("daemonThreadIntervalInSeconds", "2");
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, true, false);
     DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl();
     datastreamTask1.setTaskPrefix("testtask1");
     connector.onAssignmentChange(Collections.singletonList(datastreamTask1));
@@ -118,7 +118,7 @@ public class TestAbstractKafkaConnector {
     props.setProperty("daemonThreadIntervalInSeconds", "2");
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, true, false);
     DatastreamTaskImpl datastreamTask = new DatastreamTaskImpl();
     datastreamTask.setTaskPrefix("testtask1");
     connector.onAssignmentChange(Collections.singletonList(datastreamTask));
@@ -268,19 +268,34 @@ public class TestAbstractKafkaConnector {
     private boolean _failStopTaskOnce;
     private int _createTaskCalled = 0;
     private int _stopTaskCalled = 0;
+    private boolean _taskThreadDead = true;
 
     /**
      * Constructor for TestKafkaConnector
      * @param restartThrows Indicates whether calling {@link #restartDeadTasks()}
      *                      for the first time should throw a {@link RuntimeException}
      * @param props Configuration properties to use
+     * @param failStopTaskOnce Fails Stopping task once
+     * @param taskThreadDead Mocks if the task thread is dead or alive
      */
-    public TestKafkaConnector(boolean restartThrows, Properties props, boolean failStopTaskOnce) {
+    public TestKafkaConnector(boolean restartThrows, Properties props, boolean failStopTaskOnce, boolean taskThreadDead) {
       super("test", props, new KafkaGroupIdConstructor(
           Boolean.parseBoolean(props.getProperty(IS_GROUP_ID_HASHING_ENABLED, Boolean.FALSE.toString())),
           "TestkafkaConnectorCluster"), "TestkafkaConnectorCluster", LOG);
       _restartThrows = restartThrows;
       _failStopTaskOnce = failStopTaskOnce;
+      _taskThreadDead = taskThreadDead;
+    }
+
+    /**
+     * Constructor for TestKafkaConnector
+     * @param restartThrows Indicates whether calling {@link #restartDeadTasks()}
+     *                      for the first time should throw a {@link RuntimeException}
+     * @param props Configuration properties to use
+     * @param failStopTaskOnce Fails Stopping task once
+     */
+    public TestKafkaConnector(boolean restartThrows, Properties props, boolean failStopTaskOnce) {
+      this(restartThrows, props, failStopTaskOnce, true);
     }
 
     @Override
@@ -310,7 +325,7 @@ public class TestAbstractKafkaConnector {
 
     @Override
     protected boolean isTaskThreadDead(ConnectorTaskEntry connectorTaskEntry) {
-      return true;
+      return _taskThreadDead;
     }
 
     @Override
