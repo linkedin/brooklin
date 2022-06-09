@@ -149,7 +149,7 @@ public class TestAbstractKafkaConnector {
     props.setProperty("daemonThreadIntervalInSeconds", "2");
     // With failStopTaskOnce set to true the AbstractKafkaBasedConnectorTask.stop is configured
     // to fail the first time with InterruptedException and pass the second time.
-    TestKafkaConnector connector = new TestKafkaConnector(false, props, true);
+    TestKafkaConnector connector = new TestKafkaConnector(false, props, true, false);
 
     // first task assignment assigns task 1
     List<DatastreamTask> firstTaskAssignment = getTaskListInRange(1, 2);
@@ -268,7 +268,7 @@ public class TestAbstractKafkaConnector {
     private boolean _failStopTaskOnce;
     private int _createTaskCalled = 0;
     private int _stopTaskCalled = 0;
-    private boolean _taskThreadDead = true;
+    private boolean _taskThreadDead;
 
     /**
      * Constructor for TestKafkaConnector
