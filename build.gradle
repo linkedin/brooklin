@@ -159,7 +159,7 @@ project(':datastream-server-api') {
 project(':datastream-utils') {
   dependencies {
     compile project(':datastream-common')
-    compile "com.101tec:zkclient:$zkclientVersion"
+    compile "org.apache.helix:zookeeper-api:$helixZkclientVersion"
     compile "com.google.guava:guava:$guavaVersion"
     testCompile project(":datastream-kafka")
     testCompile project(":datastream-testcommon")
@@ -318,7 +318,6 @@ project(':datastream-client') {
 project(':datastream-server') {
 
   dependencies {
-    compile "com.101tec:zkclient:$zkclientVersion"
     compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
@@ -355,7 +354,6 @@ project(':datastream-server-restli') {
     compile "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
     compile "com.linkedin.pegasus:r2-jetty:$pegasusVersion"
     compile "com.linkedin.parseq:parseq:$parseqVersion"
-    compile "com.101tec:zkclient:$zkclientVersion"
     compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"

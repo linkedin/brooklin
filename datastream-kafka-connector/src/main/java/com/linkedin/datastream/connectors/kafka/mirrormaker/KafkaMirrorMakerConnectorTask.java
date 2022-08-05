@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.helix.zookeeper.zkclient.exception.ZkInterruptedException;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

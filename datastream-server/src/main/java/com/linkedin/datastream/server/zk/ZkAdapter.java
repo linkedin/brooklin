@@ -28,12 +28,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.I0Itec.zkclient.IZkChildListener;
-import org.I0Itec.zkclient.IZkDataListener;
-import org.I0Itec.zkclient.IZkStateListener;
-import org.I0Itec.zkclient.exception.ZkException;
-import org.I0Itec.zkclient.exception.ZkNoNodeException;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.helix.zookeeper.zkclient.IZkChildListener;
+import org.apache.helix.zookeeper.zkclient.IZkDataListener;
+import org.apache.helix.zookeeper.zkclient.IZkStateListener;
+import org.apache.helix.zookeeper.zkclient.exception.ZkException;
+import org.apache.helix.zookeeper.zkclient.exception.ZkNoNodeException;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.Watcher;
 import org.slf4j.Logger;
@@ -1831,9 +1831,9 @@ public class ZkAdapter {
     }
 
     @Override
-    public void handleNewSession() {
+    public void handleNewSession(final String sessionId) {
       synchronized (_zkSessionLock) {
-        LOG.info("ZkStateChangeListener::A new session has been established.");
+        LOG.info("ZkStateChangeListener::A new session with ID {} has been established.", sessionId);
         if (_reinitOnNewSession) {
           onNewSession();
         }

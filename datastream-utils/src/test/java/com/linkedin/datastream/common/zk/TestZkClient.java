@@ -8,8 +8,9 @@ package com.linkedin.datastream.common.zk;
 import java.io.IOException;
 import java.util.List;
 
-import org.I0Itec.zkclient.IZkChildListener;
-import org.I0Itec.zkclient.IZkDataListener;
+import org.apache.helix.zookeeper.zkclient.IZkChildListener;
+import org.apache.helix.zookeeper.zkclient.IZkDataListener;
+import org.apache.helix.zookeeper.zkclient.exception.ZkNoNodeException;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,30 @@ public class TestZkClient {
     Assert.assertTrue(zkClient.exists(rootZNode, false));
 
     zkClient.close();
+  }
+
+  @Test
+  public void testCreateNoNodeException() throws Exception {
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    String electionPath = "/leaderelection";
+    String electionNodeName = electionPath + "/coordinator-";
+
+    // now create this node with persistent mode
+    Assert.assertThrows(ZkNoNodeException.class,
+        () -> zkClient.create(electionNodeName, "test", CreateMode.PERSISTENT_SEQUENTIAL));
+  }
+
+  @Test
+  public void testCreateIllegalArgumentException() throws Exception {
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    String electionPath = "/leaderelection";
+    String electionNodeName = electionPath + "/coordinator-";
+
+    // now create this node with persistent mode
+    Assert.assertThrows(NullPointerException.class,
+        () -> zkClient.create(null, "test", CreateMode.PERSISTENT_SEQUENTIAL));
   }
 
   @Test
