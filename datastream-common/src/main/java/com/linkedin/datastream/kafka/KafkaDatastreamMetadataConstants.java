@@ -13,6 +13,9 @@ public class KafkaDatastreamMetadataConstants {
   // Can be used by the transport provider to send to a particular Kafka cluster
   public static final String DESTINATION_KAFKA_BROKERS = "system.destination.KafkaBrokers";
 
+  // Can be used by the kafka consume to read from a particular Kafka cluster
+  public static final String SOURCE_KAFKA_BROKERS = "system.source.KafkaBrokers";
+
   // The auto.offset.reset Kafka consumer config, used whenever no consumer group offsets are found
   // should be one of: "earliest", "latest", or "none"
   public static final String CONSUMER_OFFSET_RESET_STRATEGY = "system.auto.offset.reset";
