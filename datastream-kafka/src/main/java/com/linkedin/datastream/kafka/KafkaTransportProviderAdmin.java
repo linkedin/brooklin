@@ -39,6 +39,7 @@ import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamSource;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -71,6 +72,8 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
   private static final int DEFAULT_NUMBER_PARTITIONS = 1;
   private static final String DEFAULT_MIN_INSYNC_REPLICAS_CONFIG_VALUE = "2";
   private static final String METADATA_KAFKA_BROKERS = DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX + "KafkaBrokers";
+  private static final int GET_RETENTION_RETRY_PERIOD_MS = 2000;
+  private static final int GET_RETENTION_RETRY_TIMEOUT_MS = 10000;
 
   private final String _transportProviderMetricsNamesPrefix;
   private final int _numProducersPerConnector;
@@ -250,23 +253,26 @@ public class KafkaTransportProviderAdmin implements TransportProviderAdmin {
     Validate.notNull(destination, "null destination URI");
     String topicName = KafkaTransportProviderUtils.getTopicName(destination);
 
-    try {
-      // TODO: In rare cases it may happen that even though topic has been created, its metadata hasn't synced
-      // to all the brokers yet and adminClient might query such a broker in which case topic retention will
-      // not be present in the topic config. To circumvent this we need to query only the controller node in
-      // Kafka cluster which will always return successful result, but that is more involved.
-      ConfigResource topicResource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
-      Map<ConfigResource, Config> topicConfigMap = adminClient.describeConfigs(Collections.singletonList(topicResource)).all().get();
-      Config topicConfig = topicConfigMap.get(topicResource);
-      ConfigEntry entry = topicConfig.get(TOPIC_RETENTION_MS);
-      if (entry != null) {
-        return Duration.ofMillis(Long.parseLong(entry.value()));
+    // In rare cases it may happen that even though topic has been created, its metadata hasn't synced
+    // to all the brokers yet and adminClient might query such a broker in which case topic retention will
+    // not be present in the topic config. Therefore we retry for a few times before giving up.
+    return PollUtils.poll(() -> {
+      try {
+        ConfigResource topicResource = new ConfigResource(ConfigResource.Type.TOPIC, topicName);
+        Map<ConfigResource, Config> topicConfigMap =
+            adminClient.describeConfigs(Collections.singletonList(topicResource)).all().get();
+        Config topicConfig = topicConfigMap.get(topicResource);
+        ConfigEntry entry = topicConfig.get(TOPIC_RETENTION_MS);
+        if (entry != null) {
+          LOG.info("Retention time for topic {} is {}", topicName, entry.value());
+          return Duration.ofMillis(Long.parseLong(entry.value()));
+        }
+      } catch (ExecutionException e) {
+        LOG.warn("Failed to retrieve config for topic {}.", topicName, e);
       }
-    } catch (InterruptedException | ExecutionException e) {
-      LOG.warn("Failed to retrieve config for topic {}.", topicName, e);
-    }
-
-    return null;
+      LOG.warn("Failed to retrieve retention time for topic {}", topicName);
+      return null;
+    }, Objects::nonNull, GET_RETENTION_RETRY_PERIOD_MS, GET_RETENTION_RETRY_TIMEOUT_MS).orElse(null);
   }
 
   /**
