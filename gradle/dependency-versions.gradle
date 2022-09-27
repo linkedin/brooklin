@@ -6,6 +6,7 @@ ext {
     commonsIOVersion = "2.4"
     commonslang3Version = "3.4"
     commonsValidatorVersion = "1.5.1"
+    findbugsVersion = "3.0.1"
     guavaVersion = "25.0-jre"
     intellijAnnotationsVersion = "12.0"
     jacksonVersion = "2.10.0"
@@ -18,6 +19,6 @@ ext {
     scalaVersion = "2.12"
     slf4jVersion = "1.7.5"
     testngVersion = "7.1.0"
-    zookeeperVersion = "3.4.13"
+    zookeeperVersion = "3.6.3"
     helixZkclientVersion = "1.0.2"
 }
