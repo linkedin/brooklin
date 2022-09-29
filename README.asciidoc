@@ -1,7 +1,7 @@
 = Brooklin
 
 image:https://img.shields.io/github/license/linkedin/brooklin.svg[link="https://github.com/linkedin/brooklin/blob/master/LICENSE"]
-image:https://img.shields.io/badge/bintray-v1.0.2-blue.svg?style=popout[link="https://bintray.com/linkedin/maven/brooklin"]
+image:https://img.shields.io/badge/bintray-v4.1.0-blue.svg?style=popout[link="https://bintray.com/linkedin/maven/brooklin"]
 image:https://img.shields.io/gitter/room/linkedin/kafka.svg?style=popout[link="https://gitter.im/linkedin/brooklin"]
 image:https://img.shields.io/github/last-commit/linkedin/brooklin.svg?style=popout[link="https://github.com/linkedin/brooklin/commits/master"]
 image:https://img.shields.io/github/issues/linkedin/brooklin/bug.svg?color=orange?style=popout[link="https://github.com/linkedin/brooklin/labels/bug"]
