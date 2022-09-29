@@ -2,6 +2,66 @@
 All notable changes to this project will be documented in this file.  
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 4.1.0 — 2022-09-29
+
+- Refactored StickyPartitionAssignmentStrategy and implemented task estimation logic in LoadBasedPartitionAssignmentStrategy #835
+- Fix flaky test testConsumeFromMultipleTopics #838
+- Refactor Optional parameters in the constructor of strategy #836
+- Implemented logic to prevent tasks from having more than specified number of partitions #837
+- Publishing artifacts to JFrog #839
+- Make the Throughput based assignment and task estimation based on partition assignment configurable #841
+- Implemented metrics for LoadBasedPartitionAssignmentStrategy #840
+- Clear the CallbackStatus entry from the map in FlushlessEventProducerHandler #843
+- Handle the new session after session expiry #770
+- Fixed issue with config key #847
+- Print count of orphaned tasks and orphaned task locks in the log message #844
+- Datastream stop transition redesign #842
+- Fix flaky stopping simultaneous datastream test #849
+- Update the DatabaseChunkedReader to take the Connection as input rather than the DataSource #850
+- Handle leaking TP exception in handleAssignmentChange #845
+- Migrating from AdminUtils with AdminClient #848
+- Fix running task data structure logic in AbstractKafkaConnector for failing to stop task #851
+- Removing partial Helix ZkClient dependency #852
+- Stop the tasks in parallel in AbstractKafkaConnector #853
+- Add additional log in LoadBasedPartitionAssignmentStrategy #856
+- Fixing flaky test testCreateDatastreamHappyPathDefaultRetention #854
+- Added toString() override in PartitionThroughputInfo #858
+- Add Stats to DatastreamTaskImpl #855
+- Make PartitionThroughputProvider metricsAware #859
+- Added base strategy metric info in LoadBasedPartitionAssignmentStrategy #857
+- Add alert metrics to identify that elastic task configurations require adjustment #860
+- Fix restartDeadTask logic when the task thread has died #861
+- Fix metric infos in PartitionThroughputProvider #862
+- Fix the metrics deregistration in AbstractKafkaConnector when multiple stop are called #865
+- Fix logging in LoadBasedPartitionAssignmentStrategy #866
+- Make Default byte in rate and Msg in rate configurable #864
+- Metrics are getting emitted in LoadBasedPartitionAssignmentStrategy only when it needs adjustment #867
+- Use topic level throughput information when partition level information is unavailable #871
+- Fix compilation error #874
+- Loadbased Partition assigner not using topic level metrics to recognize partitions #876
+- Flushless producer supporting both comparable and non comparable offsets #873
+- LiveInstanceProvider subscription should be done only by the leader coordinator #879
+- Fixed issue with missing exception message during task initialization #882
+- Kafka upgrade #881
+- Skipping onPartitionsRevoked during consumer.close() call #886
+- Scala 2.12 upgrade #895
+- Upgrade avro and move jackson from codehaus to fasterxml #894
+- Fix topic deletion when multiple duplicate streams expire at the same time #897
+- Use 2.4.1.57 kafka version #901
+- Tests for min/max partitions per task metrics and minor code quality improvements #887
+- Fix rebalancing-tasks bug and added tests #900
+- Refactor Stopping Tasks On Assignment Change of Tasks #868
+- Change python dependency in commit-msg git hook #904
+- Remove Scala Dependencies #905
+- Introduce broadcast API to TransportProvider #903
+- Dedupe tasks on LeaderDoAssignment #906
+- Fix Stopping Logic and Maintain Stopping Latch Counter #877
+- Fixing test OnAssignmentChangeMultipleReassignments #908
+- Update kafka version #910
+- Replace 101tec ZkClient with Helix ZkClient #909
+- Add retry to query retention time for destination topic #863
+- Upgrade Zookeeper version to 3.6.3 #913
+
 ## 1.0.2 — 2019-10-01
 
 - Relax Kafka broker hostname validation checks (#656)
