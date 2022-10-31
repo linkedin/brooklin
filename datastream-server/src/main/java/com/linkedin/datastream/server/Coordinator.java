@@ -989,7 +989,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * This method performs following tasks:
    * 1) initializes destination for a newly created datastream and update it in ZooKeeper
    * 2) delete an existing datastream if it is marked as deleted or its TTL has expired.
-   * 3) perform post datastream add or delete action
+   * 3) perform post datastream add or delete action, this will be invoked as an async call
    *
    * If #2 occurs, it also invalidates the datastream cache for the next assignment.
    *
