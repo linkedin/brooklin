@@ -438,6 +438,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             datastreamGroups.stream().filter(x -> x.getTaskPrefix().equals(task.getTaskPrefix())).findFirst();
         if (dg.isPresent()) {
           ((DatastreamTaskImpl) task).setDatastreams(dg.get().getDatastreams());
+          dg.get().getDatastreams().forEach(this::invokePostDataStreamStateChangeAction);
         } else {
           _log.warn("Can't find datastream group for task {}", task);
         }
@@ -985,9 +986,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /**
-   * This method performs two tasks:
+   * This method performs following tasks:
    * 1) initializes destination for a newly created datastream and update it in ZooKeeper
    * 2) delete an existing datastream if it is marked as deleted or its TTL has expired.
+   * 3) perform post datastream add or delete action
    *
    * If #2 occurs, it also invalidates the datastream cache for the next assignment.
    *
@@ -1030,6 +1032,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             _log.warn("Failed to update datastream: {} after initializing. This datastream will not be scheduled for "
                 + "producing events ", ds.getName());
             shouldRetry = true;
+          } else {
+            // invoke post datastream upsert/delete or state modify actions
+            invokePostDataStreamStateChangeAction(ds);
           }
         } catch (Exception e) {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
@@ -1062,6 +1067,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
   }
 
+  private void invokePostDataStreamStateChangeAction(final Datastream ds) {
+    Executors.newSingleThreadExecutor().submit(() -> {
+      try {
+        final String connectorName = ds.getConnectorName();
+        final ConnectorInfo connectorInfo = _connectors.get(connectorName);
+        connectorInfo.getConnector().postDatastreamStateChangeAction(ds);
+      } catch (Exception e) {
+        // no need to re-throw the exception as we do not want to kill the leader thread
+        _log.warn("Failed to perform postDatastreamStageChangeAction", e);
+      }
+    });
+  }
+
   private void hardDeleteDatastream(Datastream ds, List<Datastream> activeStreams) {
     String taskPrefix;
     if (DatastreamUtils.containsTaskPrefix(ds)) {
@@ -1087,6 +1105,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _adapter.deleteDatastream(ds.getName());
+    invokePostDataStreamStateChangeAction(ds);
   }
 
   private void createTopic(Datastream datastream) {
