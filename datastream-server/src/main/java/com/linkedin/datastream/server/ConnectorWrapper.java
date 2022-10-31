@@ -249,4 +249,21 @@ public class ConnectorWrapper {
 
     logApiEnd("postDatastreamInitialize");
   }
+
+  /**
+   * Hook that can be used to perform action for post datastream upsert/deletion or state change. This will be called
+   * by the leader coordinator thread
+   *
+   * @param stream the modified(created, updated, deleted, state changed) Datastream
+   */
+  public void postDatastreamStateChangeAction(Datastream stream) throws Exception {
+    logApiStart("postDatastreamStateChangeAction");
+    try {
+      _connector.postDatastreamStateChangeAction(stream);
+    } catch (Exception e) {
+      logErrorAndException("postDatastreamStateChangeAction", e);
+      throw e;
+    }
+    logApiEnd("postDatastreamStateChangeAction");
+  }
 }

@@ -139,4 +139,15 @@ public interface Connector extends MetricsAware, DatastreamChangeListener {
   default void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
   }
+
+  /**
+   * Hook that can be used to do any additional operations once the datastream has been created, update or deleted.
+   * This method will be invoked for datastream state change too.
+   *
+   * NOTE: This method is called after the datastream is written to/deleted from ZooKeeper
+   * @param stream the datastream
+   * @throws Exception
+   */
+  default void postDatastreamStateChangeAction(Datastream stream) throws Exception {
+  }
 }
