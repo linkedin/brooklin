@@ -1386,7 +1386,7 @@ public class TestCoordinator {
 
     // connector1 is assigned on coordinator1 which is a leader
     // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
-    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , 1);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 1);
 
     // update datastream
     datastream.getMetadata().put("key", "value");
@@ -1400,17 +1400,17 @@ public class TestCoordinator {
 
     assertConnectorReceiveDatastreamUpdate(connector1, datastream);
     PollUtils.poll(() -> connector1.getPostDSStatechangeActionInvokeCount() == 2, 200, WAIT_TIMEOUT_MS);
-    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , 2);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 2);
     PollUtils.poll(() -> connector2.getPostDSStatechangeActionInvokeCount() == 1, 200, WAIT_TIMEOUT_MS);
-    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 1);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 1);
 
     LOG.info("Deleting datastream: {}", datastream);
     datastreamResources.delete(datastream.getName());
 
     // post datastream state chance method for UPDATE should be invoked only for a leader instance
     PollUtils.poll(() -> connector1.getPostDSStatechangeActionInvokeCount() == 3, 200, WAIT_TIMEOUT_MS);
-    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , 3);
-    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 1);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 3);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 1);
 
     coordinator1.stop();
     coordinator1.getDatastreamCache().getZkclient().close();
@@ -1653,8 +1653,8 @@ public class TestCoordinator {
 
     // connector1 is assigned on instance1 which is a leader
     // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
-    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , concurrencyLevel);
-    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 0);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), concurrencyLevel);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
 
     instance1.stop();
     instance2.stop();
@@ -2012,9 +2012,9 @@ public class TestCoordinator {
 
     // connector1 is assigned on instance1 which is a leader
     // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
-    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , dsCount);
-    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 0);
-    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount() , 0);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), dsCount);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount(), 0);
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
@@ -2041,8 +2041,8 @@ public class TestCoordinator {
     Assert.assertTrue(instance2.getIsLeader().getAsBoolean());
     Assert.assertFalse(instance3.getIsLeader().getAsBoolean());
     // post datastream create/update/delete or state chance method should not be invoked on leader re-assignement
-    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 0);
-    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount() , 0);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount(), 0);
 
     LOG.info("Stop the instance2 and delete the live instance");
 
@@ -2062,7 +2062,7 @@ public class TestCoordinator {
     // instance2 should be a leader
     Assert.assertTrue(instance3.getIsLeader().getAsBoolean());
     // post datastream create/update/delete or state chance method should not be invoked on leader re-assignement
-    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount() , 0);
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount(), 0);
 
     LOG.info("Make sure strategy reused all the tasks as opposed to creating new ones");
 
@@ -2480,14 +2480,14 @@ public class TestCoordinator {
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
     // post datastream create/update/delete or state chance method should be called
-    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 1);
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Delete the data stream and verify proper cleanup
     UpdateResponse deleteResponse = setup._resource.delete(stream.getName());
     Assert.assertEquals(deleteResponse.getStatus(), HttpStatus.S_200_OK);
     assertConnectorAssignment(setup._connector, 30000);
     // post datastream create/update/delete or state chance method should be called
-    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 2);
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
   @Test
@@ -2623,7 +2623,7 @@ public class TestCoordinator {
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
     // post datastream create/update/delete or state chance method should be called
-    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 1);
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Creating a stream2 which should trigger stream1 to be deleted
     createResponse = setup._resource.create(streams[1]);
@@ -2642,7 +2642,7 @@ public class TestCoordinator {
     }, 200, Duration.ofSeconds(30).toMillis());
 
     // post datastream create/update/delete or state chance method should be called
-    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 2);
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
   @Test
