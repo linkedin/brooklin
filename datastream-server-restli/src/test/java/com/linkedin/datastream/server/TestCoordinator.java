@@ -1385,7 +1385,7 @@ public class TestCoordinator {
     Assert.assertTrue(coordinator1.getIsLeader().getAsBoolean());
 
     // connector1 is assigned on coordinator1 which is a leader
-    // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
+    // and post datastream create/delete or state chance method should be invoked only for a leader instance
     Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 1);
 
     // update datastream
@@ -1407,7 +1407,7 @@ public class TestCoordinator {
     LOG.info("Deleting datastream: {}", datastream);
     datastreamResources.delete(datastream.getName());
 
-    // post datastream state chance method for UPDATE should be invoked only for a leader instance
+    // post datastream state chance method for DELETE should be invoked only for a leader instance
     PollUtils.poll(() -> connector1.getPostDSStatechangeActionInvokeCount() == 3, 200, WAIT_TIMEOUT_MS);
     Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 3);
     Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 1);
@@ -1652,7 +1652,7 @@ public class TestCoordinator {
     Assert.assertFalse(instance2.getIsLeader().getAsBoolean());
 
     // connector1 is assigned on instance1 which is a leader
-    // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
+    // and post datastream create/delete method will be invoked only for a leader instance
     Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), concurrencyLevel);
     Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
 
