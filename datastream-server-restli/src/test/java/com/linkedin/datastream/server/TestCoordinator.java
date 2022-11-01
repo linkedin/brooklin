@@ -1349,6 +1349,77 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testDatastreamCreateUpdateDelete() throws Exception {
+    String testCluster = "testDatastreamCreateUpdateDelete";
+    String connectorType = "connectorType";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType);
+
+    Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator1.start();
+
+    Coordinator coordinator2 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator2.addConnector(connectorType, connector2, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator2.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream[] list =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, "datastream1");
+    Datastream datastream = list[0];
+    LOG.info("Created datastream: {}", datastream);
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+    datastream = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastream.getName());
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastream.getName());
+
+    // ZK chooses instance with lower index count as a leader from the cluster
+    // coordinator1 has to be leader as it gets created first with lower index counter
+    Assert.assertTrue(coordinator1.getIsLeader().getAsBoolean());
+
+    // connector1 is assigned on coordinator1 which is a leader
+    // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , 1);
+
+    // update datastream
+    datastream.getMetadata().put("key", "value");
+    datastream.getSource().setConnectionString("newSource");
+
+    LOG.info("Updating datastream: {}", datastream);
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, testCluster);
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, testCluster);
+    DatastreamResources datastreamResources = new DatastreamResources(dsStore, coordinator1);
+    datastreamResources.update(datastream.getName(), datastream);
+
+    assertConnectorReceiveDatastreamUpdate(connector1, datastream);
+    PollUtils.poll(() -> connector1.getPostDSStatechangeActionInvokeCount() == 2, 200, WAIT_TIMEOUT_MS);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , 2);
+    PollUtils.poll(() -> connector2.getPostDSStatechangeActionInvokeCount() == 1, 200, WAIT_TIMEOUT_MS);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 1);
+
+    LOG.info("Deleting datastream: {}", datastream);
+    datastreamResources.delete(datastream.getName());
+
+    // post datastream state chance method for UPDATE should be invoked only for a leader instance
+    PollUtils.poll(() -> connector1.getPostDSStatechangeActionInvokeCount() == 3, 200, WAIT_TIMEOUT_MS);
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , 3);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 1);
+
+    coordinator1.stop();
+    coordinator1.getDatastreamCache().getZkclient().close();
+    coordinator2.stop();
+    coordinator2.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
+  @Test
   public void testCoordinatorHandleUpdateDatastream() throws Exception {
     String testCluster = "testCoordinatorHandleUpdateDatastream";
 
@@ -1574,6 +1645,16 @@ public class TestCoordinator {
 
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamNames);
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, datastreamNames);
+
+    // ZK chooses instance with lower index count as a leader from the cluster
+    // instance1 has to be leader as it gets created first with lower index counter
+    Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
+    Assert.assertFalse(instance2.getIsLeader().getAsBoolean());
+
+    // connector1 is assigned on instance1 which is a leader
+    // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , concurrencyLevel);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 0);
 
     instance1.stop();
     instance2.stop();
@@ -1901,11 +1982,16 @@ public class TestCoordinator {
         null);
     instance3.start();
 
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 0);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount(), 0);
+
     LOG.info("Creating six datastreams");
     //
     // create 6 datastreams, [datastream0, ..., datastream5]
     //
-    for (int i = 0; i < 6; i++) {
+    final int dsCount = 6;
+    for (int i = 0; i < dsCount; i++) {
       DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName + i);
     }
 
@@ -1917,6 +2003,18 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, WAIT_DURATION_FOR_ZK, "datastream0", "datastream3");
     assertConnectorAssignment(connector2, WAIT_DURATION_FOR_ZK, "datastream1", "datastream4");
     assertConnectorAssignment(connector3, WAIT_DURATION_FOR_ZK, "datastream2", "datastream5");
+
+    // ZK chooses instance with lower index count as a leader from the cluster
+    // instance1 has to be leader as it gets created first with lower index counter
+    Assert.assertTrue(instance1.getIsLeader().getAsBoolean());
+    Assert.assertFalse(instance2.getIsLeader().getAsBoolean());
+    Assert.assertFalse(instance3.getIsLeader().getAsBoolean());
+
+    // connector1 is assigned on instance1 which is a leader
+    // and post datastream create/update/delete or state chance method will be invoked only for a leader instance
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount() , dsCount);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 0);
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount() , 0);
 
     List<DatastreamTask> tasks1 = new ArrayList<>(connector1.getTasks());
     tasks1.addAll(connector2.getTasks());
@@ -1939,6 +2037,13 @@ public class TestCoordinator {
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream0", "datastream2", "datastream4");
     assertConnectorAssignment(connector3, WAIT_TIMEOUT_MS, "datastream1", "datastream3", "datastream5");
 
+    // instance2 should be a leader
+    Assert.assertTrue(instance2.getIsLeader().getAsBoolean());
+    Assert.assertFalse(instance3.getIsLeader().getAsBoolean());
+    // post datastream create/update/delete or state chance method should not be invoked on leader re-assignement
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount() , 0);
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount() , 0);
+
     LOG.info("Stop the instance2 and delete the live instance");
 
     //
@@ -1953,6 +2058,11 @@ public class TestCoordinator {
     // verify all tasks assigned to instance3
     assertConnectorAssignment(connector3, WAIT_TIMEOUT_MS, "datastream0", "datastream2", "datastream4", "datastream1",
         "datastream3", "datastream5");
+
+    // instance2 should be a leader
+    Assert.assertTrue(instance3.getIsLeader().getAsBoolean());
+    // post datastream create/update/delete or state chance method should not be invoked on leader re-assignement
+    Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount() , 0);
 
     LOG.info("Make sure strategy reused all the tasks as opposed to creating new ones");
 
@@ -2235,7 +2345,7 @@ public class TestCoordinator {
     PollUtils.poll(() -> connector1.getAssignmentCount() == 12, 200, WAIT_TIMEOUT_MS);
     int childrenCount = zkClient.countChildren(errorPath);
     Assert.assertTrue(childrenCount <= 10);
-
+    Assert.assertEquals(connector1.getPostDSCount(), 12);
     //
     // clean up
     //
@@ -2369,11 +2479,15 @@ public class TestCoordinator {
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
+    // post datastream create/update/delete or state chance method should be called
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 1);
 
     // Delete the data stream and verify proper cleanup
     UpdateResponse deleteResponse = setup._resource.delete(stream.getName());
     Assert.assertEquals(deleteResponse.getStatus(), HttpStatus.S_200_OK);
     assertConnectorAssignment(setup._connector, 30000);
+    // post datastream create/update/delete or state chance method should be called
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 2);
   }
 
   @Test
@@ -2508,6 +2622,9 @@ public class TestCoordinator {
     Assert.assertNull(createResponse.getError());
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
+    // post datastream create/update/delete or state chance method should be called
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 1);
+
     // Creating a stream2 which should trigger stream1 to be deleted
     createResponse = setup._resource.create(streams[1]);
     Assert.assertNull(createResponse.getError());
@@ -2523,6 +2640,9 @@ public class TestCoordinator {
         return true;
       }
     }, 200, Duration.ofSeconds(30).toMillis());
+
+    // post datastream create/update/delete or state chance method should be called
+    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount() , 2);
   }
 
   @Test
@@ -3110,6 +3230,7 @@ public class TestCoordinator {
     List<DatastreamTask> _tasks = new ArrayList<>();
     String _instance = "";
     String _name;
+    private int postDSStatechangeActionInvokeCount;
 
     /**
      * Constructor for TestHookConnector
@@ -3139,6 +3260,10 @@ public class TestCoordinator {
     public List<DatastreamTask> getTasks() {
       LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
+    }
+
+    public int getPostDSStatechangeActionInvokeCount() {
+      return postDSStatechangeActionInvokeCount;
     }
 
     @Override
@@ -3176,6 +3301,12 @@ public class TestCoordinator {
       if (!_allowDatastreamUpdate) {
         throw new DatastreamValidationException("not allowed");
       }
+    }
+
+    @Override
+    public void postDatastreamStateChangeAction(Datastream stream) throws Exception {
+      ++postDSStatechangeActionInvokeCount;
+      Assert.assertNotNull(stream);
     }
 
     @Override
@@ -3224,9 +3355,14 @@ public class TestCoordinator {
    */
   class BadConnector implements Connector {
     private int assignmentCount;
+    private int postDSCount;
 
     public int getAssignmentCount() {
       return assignmentCount;
+    }
+
+    public int getPostDSCount() {
+      return postDSCount;
     }
 
     @Override
@@ -3244,6 +3380,13 @@ public class TestCoordinator {
       ++assignmentCount;
       // throw a fake exception to trigger the error handling
       throw new RuntimeException();
+    }
+
+    @Override
+    public void postDatastreamStateChangeAction(Datastream stream) throws Exception {
+      ++postDSCount;
+      Assert.assertNotNull(stream);
+//      Connector.super.postDatastreamStateChangeAction(stream);
     }
 
     @Override
