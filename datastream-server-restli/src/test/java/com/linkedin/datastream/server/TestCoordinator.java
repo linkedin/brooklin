@@ -2059,7 +2059,7 @@ public class TestCoordinator {
     assertConnectorAssignment(connector3, WAIT_TIMEOUT_MS, "datastream0", "datastream2", "datastream4", "datastream1",
         "datastream3", "datastream5");
 
-    // instance2 should be a leader
+    // instance3 should be a leader
     Assert.assertTrue(instance3.getIsLeader().getAsBoolean());
     // post datastream create/update/delete or state chance method should not be invoked on leader re-assignement
     Assert.assertEquals(connector3.getPostDSStatechangeActionInvokeCount(), 0);
@@ -3386,7 +3386,6 @@ public class TestCoordinator {
     public void postDatastreamStateChangeAction(Datastream stream) throws Exception {
       ++postDSCount;
       Assert.assertNotNull(stream);
-//      Connector.super.postDatastreamStateChangeAction(stream);
     }
 
     @Override
