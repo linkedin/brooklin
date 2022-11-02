@@ -2481,17 +2481,11 @@ public class TestCoordinator {
 
     // Make sure connector has received the assignment (timeout in 30 seconds)
     assertConnectorAssignment(setup._connector, 30000, datastreamName);
-    // post datastream create/update/delete or state chance method should be called
-    Assert.assertTrue(PollUtils.poll(() -> setup._connector.getPostDSStatechangeActionInvokeCount() == 1,
-        200, WAIT_TIMEOUT_MS));
 
     // Delete the data stream and verify proper cleanup
     UpdateResponse deleteResponse = setup._resource.delete(stream.getName());
     Assert.assertEquals(deleteResponse.getStatus(), HttpStatus.S_200_OK);
     assertConnectorAssignment(setup._connector, 30000);
-    // post datastream create/update/delete or state chance method should be called
-    Assert.assertTrue(PollUtils.poll(() -> setup._connector.getPostDSStatechangeActionInvokeCount() == 2,
-        200, WAIT_TIMEOUT_MS));
   }
 
   @Test
@@ -2626,10 +2620,6 @@ public class TestCoordinator {
     Assert.assertNull(createResponse.getError());
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
-    // post datastream create/update/delete or state chance method should be called
-    Assert.assertTrue(PollUtils.poll(() -> setup._connector.getPostDSStatechangeActionInvokeCount() == 1, 200,
-        WAIT_TIMEOUT_MS));
-
     // Creating a stream2 which should trigger stream1 to be deleted
     createResponse = setup._resource.create(streams[1]);
     Assert.assertNull(createResponse.getError());
@@ -2645,11 +2635,6 @@ public class TestCoordinator {
         return true;
       }
     }, 200, Duration.ofSeconds(30).toMillis());
-
-    // post datastream create/update/delete or state chance method should be called
-    Assert.assertTrue(PollUtils.poll(() -> setup._connector.getPostDSStatechangeActionInvokeCount() == 2, 200,
-        WAIT_TIMEOUT_MS));
-    Assert.assertEquals(setup._connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
   @Test
