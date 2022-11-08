@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
@@ -252,15 +253,15 @@ public class ConnectorWrapper {
 
   /**
    * Hook that can be used to perform action for post datastream upsert/deletion or state change. This will be called
-   * by the leader coordinator thread
+   * as part of the Rest.li call once the ZooKeeper has been updated.
    *
    * @param stream the modified(created, updated, deleted, state changed) Datastream
    */
-  public void postDatastreamStateChangeAction(Datastream stream) throws Exception {
+  public void postDatastreamStateChangeAction(Datastream stream) throws DatastreamException {
     logApiStart("postDatastreamStateChangeAction");
     try {
       _connector.postDatastreamStateChangeAction(stream);
-    } catch (Exception e) {
+    } catch (DatastreamException e) {
       logErrorAndException("postDatastreamStateChangeAction", e);
       throw e;
     }

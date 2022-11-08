@@ -303,6 +303,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       // are updated before we touch the "assignments" node to avoid race condition
       for (String key : datastreamMap.keySet()) {
         _store.updateDatastream(key, datastreamMap.get(key), false);
+
+        // invoke post datastream state change action for recently updated datastream
+        invokePostDSStateChangeAction(datastreamMap.get(key));
       }
       _coordinator.broadcastDatastreamUpdate();
     } catch (DatastreamException e) {
@@ -359,6 +362,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         if (DatastreamStatus.READY.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.PAUSED);
           _store.updateDatastream(d.getName(), d, true);
+          // invoke post datastream state change action for recently paused datastream
+          invokePostDSStateChangeAction(d);
         } else {
           LOG.warn("Cannot pause datastream {}, as it is not in READY state. State: {}", d, datastream.getStatus());
         }
@@ -467,12 +472,16 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           d.setStatus(DatastreamStatus.STOPPING);
           _store.updateDatastream(d.getName(), d, true);
           _store.deleteDatastreamNumTasks(d.getName());
+          // invoke post datastream state change action for recently stopped datastream
+          invokePostDSStateChangeAction(d);
         } else if (DatastreamStatus.STOPPING.equals(d.getStatus())) {
           // this check helps in preventing any datastream from being stuck in STOPPING state indefinitely
           LOG.warn("Datastream {} is already in {} state. Notifying leader to initiate transition", d,
               d.getStatus());
           _store.updateDatastream(d.getName(), d, true);
           _store.deleteDatastreamNumTasks(d.getName());
+          // invoke post datastream state change action for recently stopped datastream
+          invokePostDSStateChangeAction(d);
         } else {
           LOG.warn("Cannot stop datastream {}, as it is not in READY/PAUSED state. State: {}", d, d.getStatus());
         }
@@ -528,6 +537,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
             DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.READY);
           _store.updateDatastream(d.getName(), d, true);
+          // invoke post datastream state change action for recently resumed datastream
+          invokePostDSStateChangeAction(d);
         } else {
           LOG.warn("Will not resume datastream {}, as it is not already in PAUSED/STOPPED state", d);
         }
@@ -712,7 +723,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
   @Override
   public UpdateResponse delete(String datastreamName) {
-    if (null == _store.getDatastream(datastreamName)) {
+    final Datastream datastream = _store.getDatastream(datastreamName);
+    if (null == datastream) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
           "Datastream requested to be deleted does not exist: " + datastreamName);
     }
@@ -724,6 +736,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       Instant startTime = Instant.now();
       _store.deleteDatastream(datastreamName);
       DELETE_CALL_LATENCY_MS.set(Duration.between(startTime, Instant.now()).toMillis());
+
+      // invoke post datastream state change action for recently deleted datastream
+      invokePostDSStateChangeAction(datastream);
 
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
@@ -893,6 +908,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       CREATE_CALL_LATENCY_MS.set(delta.toMillis());
 
       LOG.info("Datastream persisted to zookeeper, total time used: {} ms", delta.toMillis());
+
+      // invoke post datastream state change action for recently created datastream
+      invokePostDSStateChangeAction(datastream);
+
       return new CreateResponse(datastream.getName(), HttpStatus.S_201_CREATED);
     } catch (IllegalArgumentException e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
@@ -918,6 +937,17 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
     // Should never get here because we throw on any errors
     return null;
+  }
+
+  private void invokePostDSStateChangeAction(Datastream datastream) throws DatastreamException {
+    try {
+      LOG.debug("Invoke post datastream state change action datastream={}", datastream);
+      _coordinator.invokePostDataStreamStateChangeAction(datastream);
+      LOG.info("Invoked post datastream state change action datastream={}", datastream);
+    } catch (DatastreamException e) {
+      LOG.error("Failed to perform post datastream state change action datastream={}", datastream, e);
+      throw e;
+    }
   }
 
   /**
