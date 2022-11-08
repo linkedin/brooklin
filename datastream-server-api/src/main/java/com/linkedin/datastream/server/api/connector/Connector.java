@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.api.connector;
 
-import com.linkedin.datastream.common.DatastreamException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -16,6 +15,7 @@ import org.apache.commons.lang.StringUtils;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
