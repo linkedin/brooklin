@@ -500,6 +500,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
     LOG.info("Completed request for stopping datastream {}", _store.getDatastream(datastream.getName()));
 
+    // above check guarantees us that datastreams will be in STOPPED state only, so need to fetch the latest state
+    // from store
+    datastreamsToStop.forEach(ds -> {
+      // set the status as STOPPED as the original status would be READY, PAUSED or STOPPING
+      ds.setStatus(DatastreamStatus.STOPPED);
+      invokePostDSStateChangeAction(ds);
+    });
+
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
@@ -940,14 +948,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return null;
   }
 
-  private void invokePostDSStateChangeAction(Datastream datastream) throws DatastreamException {
+  private void invokePostDSStateChangeAction(Datastream datastream) {
     try {
       LOG.debug("Invoke post datastream state change action datastream={}", datastream);
       _coordinator.invokePostDataStreamStateChangeAction(datastream);
       LOG.info("Invoked post datastream state change action datastream={}", datastream);
     } catch (DatastreamException e) {
-      LOG.error("Failed to perform post datastream state change action datastream={}", datastream, e);
-      throw e;
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Failed to perform post datastream state change action datastream=" + datastream, e);
     }
   }
 

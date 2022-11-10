@@ -276,12 +276,13 @@ public class TestDatastreamResources {
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
     ActionResult<Void> stopResponse = resource1.stop(pathKey, false);
     Assert.assertEquals(stopResponse.getStatus(), HttpStatus.S_200_OK);
-    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
 
     // Retrieve datastream and check that is in STOPPED state.
     Datastream ds = resource2.get(datastreamName);
     Assert.assertNotNull(ds);
     Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPED);
+    // postDatastreamStateChangeAction should be invoked for status STOPPING and STOPPED
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
   }
 
   @Test
@@ -410,7 +411,7 @@ public class TestDatastreamResources {
     // Setting status to STOPPING explicitly to perform testing.
     datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
     store.updateDatastream(datastreamName, datastreamToCreate, false);
-    // as we are updating datastream directly on store, post datastream state change action should not be invoked
+    // as we are updating datastream directly on store, postDatastreamStateChangeActionn should not be invoked
     Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Retrieve datastream and check that is in STOPPING state.
@@ -437,7 +438,7 @@ public class TestDatastreamResources {
     // Attempting to stop a datastream in stopping state, which should get executed without exception.
     Assert.assertEquals(resource1.stop(pathKey, false).getStatus(), HttpStatus.S_200_OK);
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.STOPPED);
-    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
 
     // Setting status to STOPPING again explicitly to perform testing.
     datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
@@ -451,12 +452,13 @@ public class TestDatastreamResources {
     // Attempting to delete a datastream in stopping state, which should get executed without exception.
     Assert.assertEquals(resource1.delete(datastreamName).getStatus(), HttpStatus.S_200_OK);
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.DELETING);
-    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 4);
   }
 
   @Test
   public void testStopRequestTimeoutScenarioWithConfigurableTimeouts() {
     DatastreamServer testDatastreamServer = _datastreamKafkaCluster.getPrimaryDatastreamServer();
+    DummyConnector connector = (DummyConnector) testDatastreamServer.getCoordinator().getConnector(DUMMY_CONNECTOR);
 
     // Configuring small timeouts to mock timeout scenario
     Properties testProperties = new Properties();
@@ -475,6 +477,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -487,12 +490,16 @@ public class TestDatastreamResources {
     Assert.assertEquals(
         Assert.expectThrows(RestLiServiceException.class, () -> resource1.stop(pathKey, false)).getStatus(),
         HttpStatus.S_408_REQUEST_TIMEOUT);
+    // postDatastreamStateChangeAction should be invoked only for STOPPING and not for STOPPED
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
 
   @Test
   public void testStopRequestTimeoutWithBusyLeader() throws DatastreamException {
-    DatastreamStore testDatastreamStore = _datastreamKafkaCluster.getPrimaryDatastreamServer().getDatastreamStore();
+    DatastreamServer testDatastreamServer = _datastreamKafkaCluster.getPrimaryDatastreamServer();
+    DatastreamStore testDatastreamStore = testDatastreamServer.getDatastreamStore();
+    DummyConnector connector = (DummyConnector) testDatastreamServer.getCoordinator().getConnector(DUMMY_CONNECTOR);
 
     // Attaching mock spies to the test instances of DatastreamCluster, DatastreamServer and DatastreamStore
     EmbeddedDatastreamCluster mockDatastreamCluster = Mockito.spy(_datastreamKafkaCluster);
@@ -524,6 +531,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -536,6 +544,8 @@ public class TestDatastreamResources {
     Assert.assertEquals(
         Assert.expectThrows(RestLiServiceException.class, () -> resource1.stop(pathKey, false)).getStatus(),
         HttpStatus.S_408_REQUEST_TIMEOUT);
+    // postDatastreamStateChangeAction should be invoked only for STOPPING and not for STOPPED
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
   @Test
