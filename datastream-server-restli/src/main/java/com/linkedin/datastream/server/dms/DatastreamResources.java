@@ -500,8 +500,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
     LOG.info("Completed request for stopping datastream {}", _store.getDatastream(datastream.getName()));
 
-    // above check guarantees us that datastreams will be in STOPPED state only, so need to fetch the latest state
-    // from store
+    // above check guarantees us that datastreams will be in STOPPED state only, so not need to fetch the latest state
+    // from store explicitly
     datastreamsToStop.forEach(ds -> {
       // set the status as STOPPED as the original status would be READY, PAUSED or STOPPING
       ds.setStatus(DatastreamStatus.STOPPED);
