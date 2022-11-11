@@ -1098,12 +1098,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void invokePostDataStreamStateChangeAction(final Datastream datastream) throws DatastreamException {
     _log.info("Invoke post datastream state change action");
     try {
-      final String connectorName = datastream.getConnectorName();
+      Datastream datastreamCopy = datastream.copy();
+      final String connectorName = datastreamCopy.getConnectorName();
       final ConnectorInfo connectorInfo = _connectors.get(connectorName);
-      connectorInfo.getConnector().postDatastreamStateChangeAction(datastream);
+      connectorInfo.getConnector().postDatastreamStateChangeAction(datastreamCopy);
+    } catch (CloneNotSupportedException e) {
+      _log.error("Failed to copy object for datastream={}", datastream.getName());
+      throw new DatastreamException();
     } catch (DatastreamException e) {
-      _log.error("Failed to perform post datastream state change action datastream={}", datastream);
-      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.VALIDATE_DATASTREAMS_UPDATE_NUM_ERRORS, 1);
+      _log.error("Failed to perform post datastream state change action datastream={}", datastream.getName());
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.POST_DATASTREAMS_STATE_CHANGE_ACTION_NUM_ERRORS, 1);
       throw e;
     }
   }

@@ -1165,18 +1165,27 @@ public class TestCoordinator {
     coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()),
         false, new SourceBasedDeduper(), null);
     coordinator1.start();
+
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType);
+    Coordinator coordinator2 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator2.addConnector(connectorType, connector2, new BroadcastStrategy(Optional.empty()),
+        false, new SourceBasedDeduper(), null);
+    coordinator2.start();
     ZkClient zkClient = new ZkClient(_zkConnectionString);
 
     // create datastream
     Datastream[] list = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType,
-        "datastream1");
+        "datastream1", "datastream2");
     Datastream datastream1 = list[0];
     LOG.info("Created datastream1: {}", datastream1);
+    Datastream datastream2 = list[1];
+    LOG.info("Created datastream2: {}", datastream2);
 
     coordinator1.invokePostDataStreamStateChangeAction(datastream1);
     Assert.assertTrue(coordinator1.getIsLeader().getAsBoolean());
     // post datastream state change action method should be invoked for created datastream
     Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 1);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
 
     // update datastream
     datastream1.getMetadata().put("key", "value");
@@ -1189,9 +1198,12 @@ public class TestCoordinator {
     datastreamResources.update(datastream1.getName(), datastream1);
 
     Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 2);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
 
     coordinator1.stop();
     coordinator1.getDatastreamCache().getZkclient().close();
+    coordinator2.stop();
+    coordinator2.getDatastreamCache().getZkclient().close();
     zkClient.close();
   }
 
