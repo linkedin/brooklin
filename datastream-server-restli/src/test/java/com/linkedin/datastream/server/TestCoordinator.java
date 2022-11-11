@@ -1187,6 +1187,12 @@ public class TestCoordinator {
     Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 1);
     Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
 
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+    datastream1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastream1.getName());
+
     // update datastream
     datastream1.getMetadata().put("key", "value");
     datastream1.getSource().setConnectionString("newSource");
