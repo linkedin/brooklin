@@ -742,7 +742,6 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
 
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, DELETE_CALL, 1);
       Instant startTime = Instant.now();
-      datastream.setStatus(DatastreamStatus.DELETING);
       _store.deleteDatastream(datastreamName);
       DELETE_CALL_LATENCY_MS.set(Duration.between(startTime, Instant.now()).toMillis());
 
