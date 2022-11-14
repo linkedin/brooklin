@@ -1155,6 +1155,64 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  @Test
+  public void testInvokePostDataStreamStateChangeAction() throws Exception {
+    String testCluster = "testDatastreamCreateUpdateDelete";
+    String connectorType = "connectorType";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()),
+        false, new SourceBasedDeduper(), null);
+    coordinator1.start();
+
+    TestHookConnector connector2 = new TestHookConnector("connector2", connectorType);
+    Coordinator coordinator2 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator2.addConnector(connectorType, connector2, new BroadcastStrategy(Optional.empty()),
+        false, new SourceBasedDeduper(), null);
+    coordinator2.start();
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    // create datastream
+    Datastream[] list = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType,
+        "datastream1", "datastream2");
+    Datastream datastream1 = list[0];
+    LOG.info("Created datastream1: {}", datastream1);
+    Datastream datastream2 = list[1];
+    LOG.info("Created datastream2: {}", datastream2);
+
+    coordinator1.invokePostDataStreamStateChangeAction(datastream1);
+    Assert.assertTrue(coordinator1.getIsLeader().getAsBoolean());
+    // post datastream state change action method should be invoked for created datastream
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 1);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
+
+    // wait for datastream to be READY
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+    datastream1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastream1.getName());
+
+    // update datastream
+    datastream1.getMetadata().put("key", "value");
+    datastream1.getSource().setConnectionString("newSource");
+
+    LOG.info("Updating datastream: {}", datastream1);
+    CachedDatastreamReader datastreamCache = new CachedDatastreamReader(zkClient, testCluster);
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(datastreamCache, zkClient, testCluster);
+    DatastreamResources datastreamResources = new DatastreamResources(dsStore, coordinator1);
+    datastreamResources.update(datastream1.getName(), datastream1);
+
+    Assert.assertEquals(connector1.getPostDSStatechangeActionInvokeCount(), 2);
+    Assert.assertEquals(connector2.getPostDSStatechangeActionInvokeCount(), 0);
+
+    coordinator1.stop();
+    coordinator1.getDatastreamCache().getZkclient().close();
+    coordinator2.stop();
+    coordinator2.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
   /**
    * Test datastream creation with Connector-managed destination; coordinator should not create or delete topics.
    */
@@ -3110,6 +3168,7 @@ public class TestCoordinator {
     List<DatastreamTask> _tasks = new ArrayList<>();
     String _instance = "";
     String _name;
+    private int _postDSStatechangeActionInvokeCount;
 
     /**
      * Constructor for TestHookConnector
@@ -3139,6 +3198,10 @@ public class TestCoordinator {
     public List<DatastreamTask> getTasks() {
       LOG.info(_name + ": getTasks. Instance: " + _instance + ", size: " + _tasks.size() + ", tasks: " + _tasks);
       return _tasks;
+    }
+
+    public int getPostDSStatechangeActionInvokeCount() {
+      return _postDSStatechangeActionInvokeCount;
     }
 
     @Override
@@ -3176,6 +3239,12 @@ public class TestCoordinator {
       if (!_allowDatastreamUpdate) {
         throw new DatastreamValidationException("not allowed");
       }
+    }
+
+    @Override
+    public void postDatastreamStateChangeAction(Datastream stream) throws DatastreamException {
+      ++_postDSStatechangeActionInvokeCount;
+      Assert.assertNotNull(stream);
     }
 
     @Override

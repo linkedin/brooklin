@@ -15,6 +15,7 @@ import org.apache.commons.lang.StringUtils;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.metrics.MetricsAware;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -131,12 +132,25 @@ public interface Connector extends MetricsAware, DatastreamChangeListener {
    * with its set of initializations.
    *
    * NOTE: This method is called by the Rest.li service before the datastream is written to ZooKeeper, so please make
-   *   sure this call doesn't block for more then few seconds otherwise the REST call will timeout.
+   *   sure this call doesn't block for more than few seconds otherwise the REST call will timeout.
    * @param stream Datastream being initialized
    * @param allDatastreams all existing datastreams in the system of connector type of the datastream that is being
    *                       initialized.
    */
   default void postDatastreamInitialize(Datastream stream, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
+  }
+
+  /**
+   * Hook that can be used to do any additional operations once the datastream has been created, update or deleted
+   * successfully on the ZooKeeper. This method will be invoked for datastream state change too.
+   *
+   * NOTE: This method is called by the Rest.li service after the datastream is written to/deleted from ZooKeeper. So
+   * please make sure this call doesn't block for more than few seconds otherwise the REST call will timeout. If you
+   * have non-critical work, see if that can be done as an async operation or on a separate thread.
+   * @param stream the datastream
+   * @throws DatastreamException on fail to perform post datastream state change operations successfully.
+   */
+  default void postDatastreamStateChangeAction(Datastream stream) throws DatastreamException {
   }
 }
