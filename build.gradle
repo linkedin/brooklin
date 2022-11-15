@@ -24,6 +24,9 @@ allprojects {
     maven {
       url  "https://linkedin.jfrog.io/artifactory/open-source"
     }
+    maven {
+      url  "https://linkedin.jfrog.io/artifactory/zookeeper"
+    }
     mavenLocal()
   }
 }
@@ -250,7 +253,7 @@ project(":datastream-testcommon") {
     compile "commons-cli:commons-cli:$commonsCliVersion"
     compile "org.apache.avro:avro:$avroVersion"
     compile "com.google.code.findbugs:findbugs:$findbugsVersion"
-    compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
+    compile "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "org.testng:testng:$testngVersion"
     compile "com.google.guava:guava:$guavaVersion"
