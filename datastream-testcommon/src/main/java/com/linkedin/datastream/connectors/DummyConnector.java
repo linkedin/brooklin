@@ -9,8 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.testng.Assert;
+
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DiagnosticsAware;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -28,6 +31,7 @@ public class DummyConnector implements Connector, DiagnosticsAware {
   public static final String CONNECTOR_TYPE = "DummyConnector";
 
   private final Properties _properties;
+  private int _postDSStatechangeActionInvokeCount;
 
   /**
    * Constructor for DummyConnector
@@ -41,6 +45,10 @@ public class DummyConnector implements Connector, DiagnosticsAware {
     if (!dummyConfigValue.equals("dummyValue")) {
       throw new Exception("Invalid config value for dummyProperty. Expected: dummyValue");
     }
+  }
+
+  public int getPostDSStatechangeActionInvokeCount() {
+    return _postDSStatechangeActionInvokeCount;
   }
 
   @Override
@@ -70,6 +78,12 @@ public class DummyConnector implements Connector, DiagnosticsAware {
   @Override
   public void validateUpdateDatastreams(List<Datastream> datastreams, List<Datastream> allDatastreams)
       throws DatastreamValidationException {
+  }
+
+  @Override
+  public void postDatastreamStateChangeAction(Datastream stream) throws DatastreamException {
+    ++_postDSStatechangeActionInvokeCount;
+    Assert.assertNotNull(stream);
   }
 
   @Override

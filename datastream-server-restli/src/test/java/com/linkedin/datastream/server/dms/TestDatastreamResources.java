@@ -55,6 +55,7 @@ import com.linkedin.restli.server.PagingContext;
 import com.linkedin.restli.server.PathKeys;
 import com.linkedin.restli.server.RestLiServiceException;
 
+import static com.linkedin.datastream.server.TestDatastreamServer.DUMMY_CONNECTOR;
 import static com.linkedin.datastream.server.dms.DatastreamResources.CONFIG_STOP_TRANSITION_RETRY_PERIOD_MS;
 import static com.linkedin.datastream.server.dms.DatastreamResources.CONFIG_STOP_TRANSITION_TIMEOUT_MS;
 /**
@@ -205,6 +206,8 @@ public class TestDatastreamResources {
   public void testPauseDatastream() {
     DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
 
     // Create a Datastream.
     Datastream datastreamToCreate = generateDatastream(0);
@@ -217,6 +220,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -226,6 +230,7 @@ public class TestDatastreamResources {
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.READY);
     ActionResult<Void> pauseResponse = resource1.pause(pathKey, false);
     Assert.assertEquals(pauseResponse.getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
 
     // Retrieve datastream and check that is in pause state.
     Datastream ds = resource2.get(datastreamName);
@@ -235,6 +240,7 @@ public class TestDatastreamResources {
     // Resume datastream.
     ActionResult<Void> resumeResponse = resource1.resume(pathKey, false);
     Assert.assertEquals(resumeResponse.getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
 
     // Retrieve datastream and check that is not paused.
     Datastream ds2 = resource2.get(datastreamName);
@@ -246,6 +252,8 @@ public class TestDatastreamResources {
   public void testStopDatastream() {
     DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
 
     // Create a Datastream.
     Datastream datastreamToCreate = generateDatastream(0);
@@ -258,6 +266,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -272,6 +281,8 @@ public class TestDatastreamResources {
     Datastream ds = resource2.get(datastreamName);
     Assert.assertNotNull(ds);
     Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPED);
+    // postDatastreamStateChangeAction should be invoked for status STOPPING and STOPPED
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
   }
 
   @Test
@@ -377,6 +388,8 @@ public class TestDatastreamResources {
   public void testPerformingAllActionsOnStoppingDatastream() throws DatastreamException {
     DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     DatastreamStore store = _datastreamKafkaCluster.getPrimaryDatastreamServer().getDatastreamStore();
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
 
     // Create a Datastream
     Datastream datastreamToCreate = generateDatastream(0);
@@ -389,6 +402,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -397,25 +411,34 @@ public class TestDatastreamResources {
     // Setting status to STOPPING explicitly to perform testing.
     datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
     store.updateDatastream(datastreamName, datastreamToCreate, false);
+    // as we are updating datastream directly on store, postDatastreamStateChangeActionn should not be invoked
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Retrieve datastream and check that is in STOPPING state.
     Datastream ds = resource1.get(datastreamName);
     Assert.assertNotNull(ds);
     Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPING);
+    // datastream get should not invoke postDatastreamStateChangeAction
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Attempting to pause a datastream in stopping state, which should raise an exception.
     Assert.assertEquals(
         Assert.expectThrows(RestLiServiceException.class, () -> resource1.pause(pathKey, false)).getStatus(),
         HttpStatus.S_405_METHOD_NOT_ALLOWED);
+    // postDatastreamStateChangeAction should not be invoked
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Attempting to resume a datastream in stopping state, which should raise an exception.
     Assert.assertEquals(
         Assert.expectThrows(RestLiServiceException.class, () -> resource1.resume(pathKey, false)).getStatus(),
         HttpStatus.S_405_METHOD_NOT_ALLOWED);
+    // postDatastreamStateChangeAction should not be invoked
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Attempting to stop a datastream in stopping state, which should get executed without exception.
     Assert.assertEquals(resource1.stop(pathKey, false).getStatus(), HttpStatus.S_200_OK);
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.STOPPED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
 
     // Setting status to STOPPING again explicitly to perform testing.
     datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
@@ -429,11 +452,13 @@ public class TestDatastreamResources {
     // Attempting to delete a datastream in stopping state, which should get executed without exception.
     Assert.assertEquals(resource1.delete(datastreamName).getStatus(), HttpStatus.S_200_OK);
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.DELETING);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 4);
   }
 
   @Test
   public void testStopRequestTimeoutScenarioWithConfigurableTimeouts() {
     DatastreamServer testDatastreamServer = _datastreamKafkaCluster.getPrimaryDatastreamServer();
+    DummyConnector connector = (DummyConnector) testDatastreamServer.getCoordinator().getConnector(DUMMY_CONNECTOR);
 
     // Configuring small timeouts to mock timeout scenario
     Properties testProperties = new Properties();
@@ -452,6 +477,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -464,12 +490,16 @@ public class TestDatastreamResources {
     Assert.assertEquals(
         Assert.expectThrows(RestLiServiceException.class, () -> resource1.stop(pathKey, false)).getStatus(),
         HttpStatus.S_408_REQUEST_TIMEOUT);
+    // postDatastreamStateChangeAction should be invoked only for STOPPING and not for STOPPED
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
 
   @Test
   public void testStopRequestTimeoutWithBusyLeader() throws DatastreamException {
-    DatastreamStore testDatastreamStore = _datastreamKafkaCluster.getPrimaryDatastreamServer().getDatastreamStore();
+    DatastreamServer testDatastreamServer = _datastreamKafkaCluster.getPrimaryDatastreamServer();
+    DatastreamStore testDatastreamStore = testDatastreamServer.getDatastreamStore();
+    DummyConnector connector = (DummyConnector) testDatastreamServer.getCoordinator().getConnector(DUMMY_CONNECTOR);
 
     // Attaching mock spies to the test instances of DatastreamCluster, DatastreamServer and DatastreamStore
     EmbeddedDatastreamCluster mockDatastreamCluster = Mockito.spy(_datastreamKafkaCluster);
@@ -501,6 +531,7 @@ public class TestDatastreamResources {
     PollUtils.poll(() -> resource1.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Mock PathKeys
     PathKeys pathKey = Mockito.mock(PathKeys.class);
@@ -513,6 +544,8 @@ public class TestDatastreamResources {
     Assert.assertEquals(
         Assert.expectThrows(RestLiServiceException.class, () -> resource1.stop(pathKey, false)).getStatus(),
         HttpStatus.S_408_REQUEST_TIMEOUT);
+    // postDatastreamStateChangeAction should be invoked only for STOPPING and not for STOPPED
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
   @Test
@@ -778,41 +811,51 @@ public class TestDatastreamResources {
   @Test
   public void testUpdateDatastream() throws Exception {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
 
     Datastream originalDatastream1 = generateDatastream(1);
 
     checkBadRequest(() -> resource.update("none", originalDatastream1), HttpStatus.S_400_BAD_REQUEST);
     checkBadRequest(() -> resource.update(originalDatastream1.getName(), originalDatastream1),
         HttpStatus.S_404_NOT_FOUND);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 0);
 
     Datastream datastream1 = createAndWaitUntilInitialized(resource, originalDatastream1);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Cant update destination / status / connector / transport provider
     Datastream modifyDestination = generateDatastream(1);
     modifyDestination.getDestination().setConnectionString("updated");
     checkBadRequest(() -> resource.update(modifyDestination.getName(), modifyDestination),
         HttpStatus.S_400_BAD_REQUEST);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     Datastream modifyStatus = generateDatastream(1);
     modifyStatus.setStatus(DatastreamStatus.PAUSED);
     checkBadRequest(() -> resource.update(modifyStatus.getName(), modifyStatus), HttpStatus.S_400_BAD_REQUEST);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     Datastream modifyConnector = generateDatastream(1);
     modifyStatus.setConnectorName("Random");
     checkBadRequest(() -> resource.update(modifyConnector.getName(), modifyConnector), HttpStatus.S_400_BAD_REQUEST);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     Datastream modifyTransport = generateDatastream(1);
     modifyStatus.setTransportProviderName("Random");
     checkBadRequest(() -> resource.update(modifyTransport.getName(), modifyTransport), HttpStatus.S_400_BAD_REQUEST);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     Datastream modifyNumTasks = generateDatastream(1);
     modifyNumTasks.getMetadata().put("numTasks", "10");
     checkBadRequest(() -> resource.update(modifyNumTasks.getName(), modifyNumTasks), HttpStatus.S_400_BAD_REQUEST);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Create another datastream that gets deduped to datastream1.
     Datastream originalDatastream2 = generateDatastream(2);
     originalDatastream2.getDestination().setConnectionString("a different destination");
     final Datastream datastream2 = createAndWaitUntilInitialized(resource, originalDatastream2);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
 
     // Update metadata for all streams in the group. It is up to the connector to validate if metadata updates are
     // allowed. Dummy connector allows it
@@ -825,6 +868,7 @@ public class TestDatastreamResources {
       BatchUpdateResult<String, Datastream> response = resource.batchUpdate(batchRequest);
       Assert.assertTrue(
           response.getResults().values().stream().allMatch(res -> res.getStatus().equals(HttpStatus.S_200_OK)));
+      Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 4);
     } catch (RestLiServiceException e) {
       Assert.fail("Valid batch update request failed");
     }
@@ -846,6 +890,8 @@ public class TestDatastreamResources {
     } catch (RestLiServiceException e) {
       // do nothing
     }
+    // post datastream state change should not get called on update failure
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 4);
 
     // make sure that on a failed batch update even the valid datastream update doesn't go through
     Thread.sleep(200);
@@ -856,14 +902,16 @@ public class TestDatastreamResources {
   }
 
   @Test
-  public void testCreateEncryptedDatastream() throws Exception {
+  public void testCreateEncryptedDatastream() {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
-
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
     // Happy Path
     Datastream encryptedDS = generateEncryptedDatastream(1, true, true);
     CreateResponse response = resource.create(encryptedDS);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // Regression for Byot
     Datastream justByotDS = generateEncryptedDatastream(3, false, true);
@@ -872,18 +920,22 @@ public class TestDatastreamResources {
     response = resource.create(justByotDS);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
   }
 
   @Test
   public void testCreateDatastream() throws Exception {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     Set<String> missingFields = new HashSet<>();
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
 
     // happy path
     Datastream fullDatastream = generateDatastream(0);
     CreateResponse response = resource.create(fullDatastream);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 1);
 
     // datastream names with leading and/or trailing whitespace are trimmed
     Datastream whitespaceDatastream = generateDatastream(1);
@@ -895,12 +947,14 @@ public class TestDatastreamResources {
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
     Assert.assertEquals(response.getId(), originalName);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 2);
 
     missingFields.add("target");
     Datastream allRequiredFields = generateDatastream(2, missingFields);
     response = resource.create(allRequiredFields);
     Assert.assertNull(response.getError());
     Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
 
     // missing necessary fields
     missingFields.clear();
@@ -953,6 +1007,8 @@ public class TestDatastreamResources {
     Datastream badDatastream = generateDatastream(0);
     badDatastream.getMetadata().put("numTasks", "100");
     checkBadRequest(() -> resource.create(badDatastream));
+    System.out.println("KHS11= " + connector.getPostDSStatechangeActionInvokeCount());
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
   }
 
   private Datastream createDatastream(DatastreamResources resource, String name, int seed) {
@@ -971,11 +1027,14 @@ public class TestDatastreamResources {
   @Test
   public void testCreateGetAllDatastreams() throws Exception {
     DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    DummyConnector connector = (DummyConnector) _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator()
+        .getConnector(DUMMY_CONNECTOR);
 
     Assert.assertEquals(resource.getAll(NO_PAGING).size(), 0);
 
     String datastreamName = "TestDatastream-";
     List<Datastream> datastreams = createDatastreams(resource, datastreamName, 10);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 10);
 
     // Get All
     Optional<List<Datastream>> result =
@@ -994,12 +1053,14 @@ public class TestDatastreamResources {
     // Delete one entry
     Datastream removed = queryStreams.remove(0);
     Assert.assertEquals(resource.delete(removed.getName()).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 11);
 
     // Get All
     List<Datastream> remainingQueryStreams = resource.getAll(NO_PAGING)
         .stream()
         .filter(x -> x.getStatus() != DatastreamStatus.DELETING)
         .collect(Collectors.toList());
+    // getAll should not invoke postDatastreamStateChangeAction
 
     // Compare datastreams set only by name since destination is empty upon creation and later populated
     Assert.assertEquals(queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()),

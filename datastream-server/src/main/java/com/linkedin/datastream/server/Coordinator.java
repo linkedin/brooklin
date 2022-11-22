@@ -49,6 +49,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamConstants;
 import com.linkedin.datastream.common.DatastreamDestination;
+import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.DatastreamStatus;
@@ -1087,6 +1088,28 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _adapter.deleteDatastream(ds.getName());
+  }
+
+  /**
+   * Invokes post datastream state change action of connector for given datastream.
+   * @param datastream the datastream
+   * @throws DatastreamException if fails to perform post datastream action
+   */
+  public void invokePostDataStreamStateChangeAction(final Datastream datastream) throws DatastreamException {
+    _log.info("Invoke post datastream state change action");
+    try {
+      Datastream datastreamCopy = datastream.copy();
+      final String connectorName = datastreamCopy.getConnectorName();
+      final ConnectorInfo connectorInfo = _connectors.get(connectorName);
+      connectorInfo.getConnector().postDatastreamStateChangeAction(datastreamCopy);
+    } catch (CloneNotSupportedException e) {
+      _log.error("Failed to copy object for datastream={}", datastream.getName());
+      throw new DatastreamException("Failed to copy datastream object", e);
+    } catch (DatastreamException e) {
+      _log.error("Failed to perform post datastream state change action datastream={}", datastream.getName());
+      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.POST_DATASTREAMS_STATE_CHANGE_ACTION_NUM_ERRORS, 1);
+      throw e;
+    }
   }
 
   private void createTopic(Datastream datastream) {
@@ -2157,6 +2180,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       IS_PARTITION_ASSIGNMENT_SUPPORTED_NUM_ERRORS("isPartitionAssignmentSupported", NUM_ERRORS),
       IS_DATASTREAM_UPDATE_TYPE_SUPPORTED_NUM_ERRORS("isDatastreamUpdateTypeSupported", NUM_ERRORS),
       INITIALIZE_DATASTREAM_NUM_ERRORS("initializeDatastream", NUM_ERRORS),
+      POST_DATASTREAMS_STATE_CHANGE_ACTION_NUM_ERRORS("postDatastreamStateChangeAction", NUM_ERRORS),
       /* Coordinator event metrics */
       LEADER_DO_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_DO_ASSIGNMENT, NUM_ERRORS),
       LEADER_PARTITION_ASSIGNMENT_NUM_ERRORS(HANDLE_EVENT_PREFIX + EventType.LEADER_PARTITION_ASSIGNMENT, NUM_ERRORS),
