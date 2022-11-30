@@ -24,6 +24,9 @@ allprojects {
     maven {
       url  "https://linkedin.jfrog.io/artifactory/open-source"
     }
+    maven {
+      url  "https://linkedin.jfrog.io/artifactory/zookeeper"
+    }
     mavenLocal()
   }
 }
@@ -122,6 +125,16 @@ subprojects {
     testCompile "org.testng:testng:$testngVersion"
   }
 
+  configurations.all {
+    // Helix client pulls a transitive dependency of zookeeper from
+    // org.apache.zookeeper group. This conflicts with the zookeeper
+    // dependency from com.linkedin.zookeeper, which is required for
+    // zookeeper pagination support.
+    //
+    // Excluding this just from "datastream-testcommon" is not sufficient
+    exclude group: "org.apache.zookeeper", module: "zookeeper"
+  }
+
   jar {
     manifest {
       attributes 'Implementation-Title': 'Datastream'
@@ -160,6 +173,7 @@ project(':datastream-utils') {
   dependencies {
     compile project(':datastream-common')
     compile "org.apache.helix:zookeeper-api:$helixZkclientVersion"
+    compile "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.google.guava:guava:$guavaVersion"
     testCompile project(":datastream-kafka")
     testCompile project(":datastream-testcommon")
@@ -250,7 +264,7 @@ project(":datastream-testcommon") {
     compile "commons-cli:commons-cli:$commonsCliVersion"
     compile "org.apache.avro:avro:$avroVersion"
     compile "com.google.code.findbugs:findbugs:$findbugsVersion"
-    compile "org.apache.zookeeper:zookeeper:$zookeeperVersion"
+    compile "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "org.testng:testng:$testngVersion"
     compile "com.google.guava:guava:$guavaVersion"
