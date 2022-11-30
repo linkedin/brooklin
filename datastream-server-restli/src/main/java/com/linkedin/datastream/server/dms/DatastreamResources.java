@@ -745,7 +745,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       _store.deleteDatastream(datastreamName);
       DELETE_CALL_LATENCY_MS.set(Duration.between(startTime, Instant.now()).toMillis());
 
-      // invoke post datastream state change action for recently deleted datastream
+      // EXPLICITLY set the status to DatastreamStatus.DELETING as `_store.deleteDatastream(datastreamName);`
+      // creates new Datastream instance and sets the status on that, which will not be reflected here into
+      // original Datastream instance then invoke post datastream state change action for recently deleted datastream
+      datastream.setStatus(DatastreamStatus.DELETING);
       invokePostDSStateChangeAction(datastream);
 
       return new UpdateResponse(HttpStatus.S_200_OK);
