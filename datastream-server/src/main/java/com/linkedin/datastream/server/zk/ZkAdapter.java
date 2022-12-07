@@ -29,6 +29,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.apache.helix.zookeeper.zkclient.IZkChildListener;
 import org.apache.helix.zookeeper.zkclient.IZkDataListener;
 import org.apache.helix.zookeeper.zkclient.IZkStateListener;
@@ -741,6 +742,9 @@ public class ZkAdapter {
    */
   public void updateAllAssignmentsAndIssueTokens(Map<String, List<DatastreamTask>> assignmentsByInstance,
       List<DatastreamGroup> stoppingDatastreamGroups) {
+    Validate.notNull(assignmentsByInstance);
+    Validate.notNull(stoppingDatastreamGroups);
+
     Map<String, Set<DatastreamTask>> currentAssignment = getAllAssignedDatastreamTasks();
     Set<String> stoppingDatastreamTaskPrefixes = stoppingDatastreamGroups.stream().
         map(DatastreamGroup::getTaskPrefix).collect(toSet());
