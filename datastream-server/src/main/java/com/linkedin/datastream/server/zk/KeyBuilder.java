@@ -22,6 +22,8 @@ public final class KeyBuilder {
   private static final String INSTANCE_ASSIGNMENT = "/%s/instances/%s/assignments/%s";
   private static final String DATASTREAMS = "/%s/dms";
   private static final String DATASTREAM = "/%s/dms/%s";
+  private static final String DATASTREAM_ASSIGNMENT_TOKENS = "/%s/dms/%s/assignmentTokens";
+  private static final String DATASTREAM_ASSIGNMENT_TOKEN_FOR_INSTANCE = "/%s/dms/%s/assignmentTokens/%s";
   private static final String CONNECTORS = "/%s/connectors";
   private static final String CONNECTOR = "/%s/connectors/%s";
 
@@ -198,6 +200,25 @@ public final class KeyBuilder {
    */
   public static String datastream(String cluster, String stream) {
     return String.format(DATASTREAM, cluster, stream);
+  }
+
+  /**
+   * Get the ZooKeeper znode for a datastream's assignment tokens in a Brooklin cluster
+   * @param cluster Brooklin cluster name
+   * @param stream Datastream name
+   */
+  public static String datastreamAssignmentTokens(String cluster, String stream) {
+    return String.format(DATASTREAM_ASSIGNMENT_TOKENS, cluster, stream);
+  }
+
+  /**
+   * Get the ZooKeeper znode for a datastream's assignment token for an instance in a Brooklin cluster
+   * @param cluster Brooklin cluster name
+   * @param stream Datastream name
+   * @param instance Instance name
+   */
+  public static String datastreamAssignmentTokenForInstance(String cluster, String stream, String instance) {
+    return String.format(DATASTREAM_ASSIGNMENT_TOKEN_FOR_INSTANCE, cluster, stream, instance);
   }
 
   /**

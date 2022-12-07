@@ -31,6 +31,7 @@ public final class CoordinatorConfig {
   public static final String CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP = PREFIX + "performPreAssignmentCleanup";
   public static final String CONFIG_REINIT_ON_NEW_ZK_SESSION = PREFIX + "reinitOnNewZKSession";
   public static final String CONFIG_MAX_ASSIGNMENT_RETRY_COUNT = PREFIX + "maxAssignmentRetryCount";
+  public static final String CONFIG_ENABLE_ASSIGNMENT_TOKENS = PREFIX + "enableAssignmentTokens";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
 
@@ -50,6 +51,7 @@ public final class CoordinatorConfig {
   private final boolean _performPreAssignmentCleanup;
   private final boolean _reinitOnNewZkSession;
   private final int _maxAssignmentRetryCount;
+  private final boolean _enableAssignmentTokens;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -75,6 +77,7 @@ public final class CoordinatorConfig {
     _performPreAssignmentCleanup = _properties.getBoolean(CONFIG_PERFORM_PRE_ASSIGNMENT_CLEANUP, false);
     _reinitOnNewZkSession = _properties.getBoolean(CONFIG_REINIT_ON_NEW_ZK_SESSION, false);
     _maxAssignmentRetryCount = _properties.getInt(CONFIG_MAX_ASSIGNMENT_RETRY_COUNT, DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT);
+    _enableAssignmentTokens = _properties.getBoolean(CONFIG_ENABLE_ASSIGNMENT_TOKENS, false);
   }
 
   public Properties getConfigProperties() {
@@ -135,5 +138,9 @@ public final class CoordinatorConfig {
 
   public int getMaxAssignmentRetryCount() {
     return _maxAssignmentRetryCount;
+  }
+
+  public boolean getEnableAssignmentTokens() {
+    return _enableAssignmentTokens;
   }
 }

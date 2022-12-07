@@ -5,6 +5,8 @@
  */
 package com.linkedin.datastream.server.zk;
 
+import com.linkedin.datastream.server.AssignmentToken;
+import com.linkedin.datastream.server.DatastreamGroup;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -726,6 +728,70 @@ public class ZkAdapter {
 
     // Remove the task node under instance assignment
     _zkclient.deleteRecursive(instancePath);
+  }
+
+  /**
+   * Update the task assignment for the given instances and issue assignment tokens for stopping tasks.
+   * Assignment tokens are used by the follower hosts to signal the leader that they finished handling their assignments.
+   *
+   * In addition to the work done by updateAllAssignments, this method writes to
+   * <ol>
+   *    *  <li>{@code /<cluster>/dms/<datastream-name>/assignmentTokens/<token1>,<token2>...}</li>
+   * </ol>
+   */
+  public void updateAllAssignmentsAndIssueTokens(Map<String, List<DatastreamTask>> assignmentsByInstance,
+      List<DatastreamGroup> stoppingDatastreamGroups) {
+    Map<String, Set<DatastreamTask>> currentAssignment = getAllAssignedDatastreamTasks();
+    Set<String> stoppingDatastreamTaskPrefixes = stoppingDatastreamGroups.stream().
+        map(DatastreamGroup::getTaskPrefix).collect(toSet());
+    Map<String, DatastreamGroup> taskPrefixDatastreamGroups = stoppingDatastreamGroups.stream().
+        collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, Function.identity()));
+
+    // For each stopping datastream group, find all the instances that currently have tasks assigned
+    Map<DatastreamGroup, Set<String>> stoppingDgInstances = new HashMap<>();
+    for (String instance : currentAssignment.keySet()) {
+        Set<DatastreamTask> instanceTasks = currentAssignment.get(instance);
+        List<DatastreamTask> stoppingTasks = instanceTasks.stream().
+            filter(t -> stoppingDatastreamTaskPrefixes.contains(t.getTaskPrefix())).
+            collect(Collectors.toList());
+        for (DatastreamTask stoppingTask : stoppingTasks) {
+          DatastreamGroup datastreamGroup = taskPrefixDatastreamGroups.get(stoppingTask.getTaskPrefix());
+          stoppingDgInstances.computeIfAbsent(datastreamGroup, k -> new HashSet<>()).add(instance);
+        }
+      }
+
+    String hostname = "localhost";
+    try {
+      hostname = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException ex) {
+      LOG.warn("Unable to obtain hostname for leader");
+    }
+
+    // Issue assignment tokens for each instance and each stopping datastream
+    for (DatastreamGroup stoppingGroup : stoppingDatastreamGroups) {
+      for (Datastream stoppingStream : stoppingGroup.getDatastreams()) {
+        String path = KeyBuilder.datastream(_cluster, stoppingStream.getName());
+
+        if (!_zkclient.exists(path)) {
+          LOG.warn("Trying to issue assignment tokens for non-existing stream: " + stoppingStream.getName());
+          continue;
+        }
+
+        String assignmentTokensPath = KeyBuilder.datastreamAssignmentTokens(_cluster, stoppingStream.getName());
+        _zkclient.ensurePath(assignmentTokensPath);
+
+        Set<String> instances = stoppingDgInstances.get(stoppingGroup);
+        LOG.info("Issuing assignment tokens for stream {} and {} instance(s)", stoppingStream.getName(), instances.size());
+        for (String instance : instances) {
+          String assignmentTokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster,
+              stoppingStream.getName(), instance);
+          AssignmentToken token = new AssignmentToken(hostname, instance);
+          _zkclient.create(assignmentTokenPath, token.toJson(), CreateMode.PERSISTENT);
+        }
+      }
+    }
+
+    updateAllAssignments(assignmentsByInstance);
   }
 
   /**
