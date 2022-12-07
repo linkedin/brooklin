@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.zk;
 
-import com.linkedin.datastream.server.AssignmentToken;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Duration;
@@ -32,6 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.AssignmentToken;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
