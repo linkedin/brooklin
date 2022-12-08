@@ -742,8 +742,8 @@ public class ZkAdapter {
    */
   public void updateAllAssignmentsAndIssueTokens(Map<String, List<DatastreamTask>> assignmentsByInstance,
       List<DatastreamGroup> stoppingDatastreamGroups) {
-    Validate.notNull(assignmentsByInstance);
-    Validate.notNull(stoppingDatastreamGroups);
+    Validate.notNull(assignmentsByInstance, "null assignmentsByInstance");
+    Validate.notNull(stoppingDatastreamGroups, "null stoppingDatastreamGroups");
 
     Map<String, Set<DatastreamTask>> currentAssignment = getAllAssignedDatastreamTasks();
     Set<String> stoppingDatastreamTaskPrefixes = stoppingDatastreamGroups.stream().

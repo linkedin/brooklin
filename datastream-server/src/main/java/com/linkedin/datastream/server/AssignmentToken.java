@@ -12,7 +12,7 @@ import com.linkedin.datastream.common.JsonUtils;
  * Data structure to store assignment tokens. These are used as a mechanism for followers to signal the leader that
  * they handled assignment change
  */
-public class AssignmentToken {
+public final class AssignmentToken {
   private String _issuedBy;
   private String _issuedFor;
   private long  _timestamp;
