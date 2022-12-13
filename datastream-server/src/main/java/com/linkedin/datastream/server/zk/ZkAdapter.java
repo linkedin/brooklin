@@ -752,6 +752,7 @@ public class ZkAdapter {
         collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, Function.identity()));
 
     // For each stopping datastream group, find all the instances that currently have tasks assigned
+    Map<DatastreamGroup, Set<String>> stoppingDgInstances = new HashMap<>();
     currentAssignment.keySet()
         .forEach(i -> currentAssignment.get(i).stream()
             .filter(t -> stoppingDatastreamTaskPrefixes.contains(t.getTaskPrefix()))
