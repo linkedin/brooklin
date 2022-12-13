@@ -745,13 +745,24 @@ public class ZkAdapter {
     Validate.notNull(assignmentsByInstance, "null assignmentsByInstance");
     Validate.notNull(stoppingDatastreamGroups, "null stoppingDatastreamGroups");
 
+    Map<DatastreamGroup, Set<String>> stoppingDgInstances =
+        getStoppingDatastreamGroupInstances(stoppingDatastreamGroups);
+    issueAssignmentTokensForStoppingDatastreams(stoppingDatastreamGroups, stoppingDgInstances);
+
+    updateAllAssignments(assignmentsByInstance);
+  }
+
+  /**
+   * For each stopping datastream group, finds all the instances that currently have tasks assigned
+   */
+  private Map<DatastreamGroup, Set<String>> getStoppingDatastreamGroupInstances(
+      List<DatastreamGroup> stoppingDatastreamGroups) {
     Map<String, Set<DatastreamTask>> currentAssignment = getAllAssignedDatastreamTasks();
     Set<String> stoppingDatastreamTaskPrefixes = stoppingDatastreamGroups.stream().
         map(DatastreamGroup::getTaskPrefix).collect(toSet());
     Map<String, DatastreamGroup> taskPrefixDatastreamGroups = stoppingDatastreamGroups.stream().
         collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, Function.identity()));
 
-    // For each stopping datastream group, find all the instances that currently have tasks assigned
     Map<DatastreamGroup, Set<String>> stoppingDgInstances = new HashMap<>();
     currentAssignment.keySet()
         .forEach(i -> currentAssignment.get(i).stream()
@@ -761,14 +772,15 @@ public class ZkAdapter {
               stoppingDgInstances.computeIfAbsent(datastreamGroup, k -> new HashSet<>()).add(i);
             }));
 
-    String hostname = "localhost";
-    try {
-      hostname = InetAddress.getLocalHost().getHostName();
-    } catch (UnknownHostException ex) {
-      LOG.warn("Unable to obtain hostname for leader");
-    }
+    return stoppingDgInstances;
+  }
 
-    // Issue assignment tokens for each instance and each stopping datastream
+  /**
+   * Issues assignment tokens for each instance and each stopping datastream
+   */
+  private void issueAssignmentTokensForStoppingDatastreams(List<DatastreamGroup> stoppingDatastreamGroups,
+      Map<DatastreamGroup, Set<String>> stoppingDgInstances) {
+    String hostname = getLocalHostName();
     for (DatastreamGroup stoppingGroup : stoppingDatastreamGroups) {
       for (Datastream stoppingStream : stoppingGroup.getDatastreams()) {
         String path = KeyBuilder.datastream(_cluster, stoppingStream.getName());
@@ -791,8 +803,19 @@ public class ZkAdapter {
         }
       }
     }
+  }
 
-    updateAllAssignments(assignmentsByInstance);
+  /**
+   * Gets the name of the local host
+   */
+  private String getLocalHostName() {
+    String hostname = "localhost";
+    try {
+      hostname = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException ex) {
+      LOG.warn("Unable to obtain hostname for leader");
+    }
+    return hostname;
   }
 
   /**
