@@ -752,17 +752,13 @@ public class ZkAdapter {
         collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, Function.identity()));
 
     // For each stopping datastream group, find all the instances that currently have tasks assigned
-    Map<DatastreamGroup, Set<String>> stoppingDgInstances = new HashMap<>();
-    for (String instance : currentAssignment.keySet()) {
-        Set<DatastreamTask> instanceTasks = currentAssignment.get(instance);
-        List<DatastreamTask> stoppingTasks = instanceTasks.stream().
-            filter(t -> stoppingDatastreamTaskPrefixes.contains(t.getTaskPrefix())).
-            collect(Collectors.toList());
-        for (DatastreamTask stoppingTask : stoppingTasks) {
-          DatastreamGroup datastreamGroup = taskPrefixDatastreamGroups.get(stoppingTask.getTaskPrefix());
-          stoppingDgInstances.computeIfAbsent(datastreamGroup, k -> new HashSet<>()).add(instance);
-        }
-      }
+    currentAssignment.keySet()
+        .forEach(i -> currentAssignment.get(i).stream()
+            .filter(t -> stoppingDatastreamTaskPrefixes.contains(t.getTaskPrefix()))
+            .forEach(st -> {
+              DatastreamGroup datastreamGroup = taskPrefixDatastreamGroups.get(st.getTaskPrefix());
+              stoppingDgInstances.computeIfAbsent(datastreamGroup, k -> new HashSet<>()).add(i);
+            }));
 
     String hostname = "localhost";
     try {
