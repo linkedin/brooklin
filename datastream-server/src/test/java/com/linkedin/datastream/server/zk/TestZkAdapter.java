@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server.zk;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.AssignmentToken;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
@@ -1057,6 +1059,59 @@ public class TestZkAdapter {
     Assert.assertFalse(adapter.getZkClient().exists(KeyBuilder.instance(testCluster, "deadInstance-999")));
 
     adapter.disconnect();
+  }
+
+  @Test
+  public void testUpdateAllAssignmentAndIssueTokens() throws Exception {
+    String testCluster = "testUpdateAllAssignmentAndIssueTokens";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter = createZkAdapter(testCluster);
+    adapter.connect();
+
+    // assigning 2 tasks to the cluster
+    Datastream[] datastreams1 = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType,
+        "datastream1");
+    DatastreamGroup datastreamGroup1 = new DatastreamGroup(Arrays.asList(datastreams1));
+
+    Datastream[] datastreams2 = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType,
+        "datastream2");
+    DatastreamGroup datastreamGroup2 = new DatastreamGroup(Arrays.asList(datastreams2));
+
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setTaskPrefix(datastreamGroup1.getTaskPrefix());
+    task1.setConnectorType(connectorType);
+
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    task2.setTaskPrefix(datastreamGroup2.getTaskPrefix());
+    task2.setConnectorType(connectorType);
+
+    Map<String, List<DatastreamTask>> oldAassignment = new HashMap<>();
+    oldAassignment.put("instance1", Collections.singletonList(task1));
+    oldAassignment.put("instance2", Collections.singletonList(task2));
+
+    adapter.updateAllAssignments(oldAassignment);
+
+    // simulating a stopping datastream which has a task assigned to instance2
+    List<DatastreamGroup> stoppingDatastreamGroups = Collections.singletonList(datastreamGroup2);
+    Map<String, List<DatastreamTask>> newAssignment = new HashMap<>();
+    newAssignment.put("instance1", Collections.singletonList(task1));
+    adapter.updateAllAssignmentsAndIssueTokens(newAssignment, stoppingDatastreamGroups);
+
+    // asserting that:
+    // (1) the assignment tokens path was created for stopping stream
+    // (2) a token has ben issued for instance2, and only for instance2
+    // (3) the token data is correct
+    String assignmentTokensPath = KeyBuilder.datastreamAssignmentTokens(testCluster, datastreamGroup2.getTaskPrefix());
+    Assert.assertTrue(zkClient.exists(assignmentTokensPath));
+    List<String> tokenNodes = zkClient.getChildren(assignmentTokensPath);
+    Assert.assertEquals(tokenNodes.size(), 1);
+    String tokenData = zkClient.readData(
+        KeyBuilder.datastreamAssignmentTokenForInstance(testCluster, datastreamGroup2.getTaskPrefix(), tokenNodes.get(0)));
+    AssignmentToken token = AssignmentToken.fromJson(tokenData);
+    Assert.assertEquals(token.getIssuedFor(), "instance2");
+    String hostname = InetAddress.getLocalHost().getHostName();
+    Assert.assertEquals(token.getIssuedBy(), hostname);
   }
 
   @Test

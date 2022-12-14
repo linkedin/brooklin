@@ -1219,7 +1219,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // assignment and do remove and add zNodes accordingly. In the case of ZooKeeper failure (when
       // it failed to create or delete zNodes), we will do our best to continue the current process
       // and schedule a retry. The retry should be able to diff the remaining ZooKeeper work
-      _adapter.updateAllAssignments(newAssignmentsByInstance);
+      if (_config.getEnableAssignmentTokens()) {
+        _adapter.updateAllAssignmentsAndIssueTokens(newAssignmentsByInstance, stoppingDatastreamGroups);
+      } else {
+        _adapter.updateAllAssignments(newAssignmentsByInstance);
+      }
 
       for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
         for (Datastream datastream : datastreamGroup.getDatastreams()) {
