@@ -710,6 +710,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       retryHandleAssignmentChange(isDatastreamUpdate);
     }
 
+    if (_config.getEnableAssignmentTokens()) {
+      List<DatastreamGroup> stoppingDatastreamGroups =
+          fetchDatastreamGroupsWithStatus(Collections.singletonList(DatastreamStatus.STOPPING));
+      _adapter.claimAssignmentTokensOfInstance(currentAssignment, stoppingDatastreamGroups, _adapter.getInstanceName());
+    }
+
     _log.info("END: Coordinator::handleAssignmentChange, Duration: {} milliseconds",
         System.currentTimeMillis() - startAt);
     _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_ASSIGNMENT_CHANGES, 1);
