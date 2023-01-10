@@ -697,11 +697,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     // now save the current assignment
+    List<DatastreamTask> oldAssignment = new ArrayList<>(_assignedDatastreamTasks.values());
     _assignedDatastreamTasks.clear();
     _assignedDatastreamTasks.putAll(currentAssignment.values()
         .stream()
         .flatMap(Collection::stream)
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())));
+    List<DatastreamTask> newAssignment = new ArrayList<>(_assignedDatastreamTasks.values());
 
     if ((totalTasks - submittedTasks) > 0) {
       _log.warn("Failed to submit {} tasks from currentAssignment. Queueing onAssignmentChange event again",
@@ -711,9 +713,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     if (_config.getEnableAssignmentTokens()) {
-      List<DatastreamGroup> stoppingDatastreamGroups =
-          fetchDatastreamGroupsWithStatus(Collections.singletonList(DatastreamStatus.STOPPING));
-      _adapter.claimAssignmentTokensOfInstance(currentAssignment, stoppingDatastreamGroups, _adapter.getInstanceName());
+      maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment);
     }
 
     _log.info("END: Coordinator::handleAssignmentChange, Duration: {} milliseconds",
@@ -748,19 +748,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     ConnectorInfo connectorInfo = _connectors.get(connectorType);
     ConnectorWrapper connector = connectorInfo.getConnector();
 
-    List<DatastreamTask> addedTasks = new ArrayList<>(assignment);
-    List<DatastreamTask> removedTasks;
     List<DatastreamTask> oldAssignment = _assignedDatastreamTasks.values()
         .stream()
         .filter(t -> t.getConnectorType().equals(connectorType))
         .collect(Collectors.toList());
+    List<DatastreamTask> addedTasks = getAddedTasks(assignment, oldAssignment);
+    List<DatastreamTask> removedTasks = getRemovedTasks(assignment, oldAssignment);
 
     // if there are any difference in the list of assignment. Note that if there are no difference
     // between the two lists, then the connector onAssignmentChange() is not called.
-    addedTasks.removeAll(oldAssignment);
-    oldAssignment.removeAll(assignment);
-    removedTasks = oldAssignment;
-
     if (isDatastreamUpdate || !addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
       addedTasks.stream()
@@ -771,6 +767,70 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     return null;
+  }
+
+  private List<DatastreamTask> getRemovedTasks(List<DatastreamTask> newAssignment, List<DatastreamTask> oldAssignment) {
+    List<DatastreamTask> removedTasks = new ArrayList<>(oldAssignment);
+    removedTasks.removeAll(newAssignment);
+    return removedTasks;
+  }
+
+  private List<DatastreamTask> getAddedTasks(List<DatastreamTask> newAssignment, List<DatastreamTask> oldAssignment) {
+    List<DatastreamTask> addedTasks = new ArrayList<>(newAssignment);
+    addedTasks.removeAll(oldAssignment);
+    return addedTasks;
+  }
+
+  private void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
+      List<DatastreamTask> oldAssignment) {
+    Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
+    for (DatastreamTask task : newAssignment) {
+      String connectorType = task.getConnectorType();
+      newAssignmentPerConnector.computeIfAbsent(connectorType, k -> new ArrayList<>()).add(task);
+    }
+
+    Map<String, List<DatastreamTask>> oldAssignmentPerConnector = new HashMap<>();
+    for (DatastreamTask task : oldAssignment) {
+      String connectorType = task.getConnectorType();
+      oldAssignmentPerConnector.computeIfAbsent(connectorType, k -> new ArrayList<>()).add(task);
+    }
+
+    Set<String> allConnectors = new HashSet<>();
+    allConnectors.addAll(newAssignmentPerConnector.keySet());
+    allConnectors.addAll(oldAssignmentPerConnector.keySet());
+
+    // The follower nodes don't keep an up-to-date view of the datastreams Zk node and making them listen to changes
+    // to datastreams node risks overwhelming the ZK server with reads. Instead, the follower is inferring the stopping
+    // streams from the task assignment for each connector type. Even if that inference results in a falsely identified
+    // stopping stream, the attempt to claim the token will be a no-op.
+    for (String connector : allConnectors) {
+      List<DatastreamTask> oldTasks = oldAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
+      List<DatastreamTask> newTasks = newAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
+      List<DatastreamTask> removedTasks = getRemovedTasks(newTasks, oldTasks);
+
+      List<Datastream> stoppingStreams = inferStoppingDatastreamsFromAssignment(newTasks, removedTasks);
+      List<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toList());
+
+      if (!stoppingStreamNames.isEmpty()) {
+        _log.info("Trying to claim assignment tokens for streams: {}", stoppingStreamNames);
+        _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
+      }
+    }
+  }
+
+  @VisibleForTesting
+  static List<Datastream> inferStoppingDatastreamsFromAssignment(List<DatastreamTask> newAssignment,
+      List<DatastreamTask> removedTasks) {
+    Map<String, List<Datastream>> taskPrefixToDatastream = removedTasks.stream().
+        collect(Collectors.toMap(DatastreamTask::getTaskPrefix, DatastreamTask::getDatastreams));
+
+    Set<String> removedPrefixes = removedTasks.stream().map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
+    Set<String> activePrefixes = newAssignment.stream().map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
+    removedPrefixes.removeAll(activePrefixes);
+
+    List<Datastream> stoppingStreams = removedPrefixes.stream().map(taskPrefixToDatastream::get).
+        flatMap(List::stream).collect(Collectors.toList());
+    return stoppingStreams;
   }
 
   private Future<Boolean> submitAssignment(String connectorType, List<DatastreamTask> assignment,

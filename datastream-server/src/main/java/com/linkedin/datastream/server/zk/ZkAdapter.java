@@ -805,24 +805,12 @@ public class ZkAdapter {
   }
 
   /**
-   * Claims assignment tokens of successfully stopped tasks of the given instance
-   * @param currentAssignment Current assignment per connector type
-   * @param stoppingDatastreamGroups List of stopping datastream groups
+   * Claims assignment tokens for the given datastreams and instance
+   * @param datastreams List of datastreams for which tokens are to be claimed
    * @param instance Instance name
    */
-  public void claimAssignmentTokensOfInstance(Map<String, List<DatastreamTask>> currentAssignment,
-      List<DatastreamGroup> stoppingDatastreamGroups, String instance) {
-    // Flatten the currently assigned (active) tasks and get all task prefixes
-    Set<String> activeTaskPrefixes = currentAssignment.values().stream().
-        flatMap(Collection::stream).map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
-
-    // Get all stopping streams with no tasks assigned. For each one, claim assignment tokens (if any)
-    stoppingDatastreamGroups.stream().filter(dg -> !activeTaskPrefixes.contains(dg.getTaskPrefix())).
-        forEach(dg -> deleteAssignmentTokensForDatastreamGroup(dg, instance));
-  }
-
-  private void deleteAssignmentTokensForDatastreamGroup(DatastreamGroup datastreamGroup, String instance) {
-    for (Datastream stream : datastreamGroup.getDatastreams()) {
+  public void claimAssignmentTokensForDatastreams(List<Datastream> datastreams, String instance) {
+    for (Datastream stream : datastreams) {
       String streamName = stream.getName();
       String tokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster, streamName, instance);
       if (_zkclient.exists(tokenPath)) {

@@ -1127,7 +1127,6 @@ public class TestZkAdapter {
         "ketchupStream", "mayoStream");
     Datastream ketchupStream = datastreams[0];
     Datastream mayoStream = datastreams[1];
-    DatastreamGroup ketchupDatastreamGroup = new DatastreamGroup(Collections.singletonList(ketchupStream));
     DatastreamGroup mayoDatastreamGroup = new DatastreamGroup(Collections.singletonList(mayoStream));
 
     // Simulating a stop request for ketchup stream
@@ -1138,35 +1137,17 @@ public class TestZkAdapter {
     zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(testCluster,
         ketchupStream.getName(), "someOtherInstance"), "token", CreateMode.PERSISTENT);
 
-    List<DatastreamTask> tasks = new ArrayList<>();
     DatastreamTaskImpl task1 = new DatastreamTaskImpl();
     task1.setTaskPrefix(mayoDatastreamGroup.getTaskPrefix());
     task1.setConnectorType(connectorType);
 
-    Map<String, List<DatastreamTask>> assignment = new HashMap<>();
-    assignment.put(connectorType, tasks);
-    List<DatastreamGroup> stoppingDatastreamGroups = Collections.singletonList(ketchupDatastreamGroup);
-
-    adapter.claimAssignmentTokensOfInstance(assignment, stoppingDatastreamGroups, adapter.getInstanceName());
+    adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(ketchupStream), adapter.getInstanceName());
 
     // Asserting that ZkAdapter claimed token for the given instance, and given instance only
     List<String> nodes = zkClient.getChildren(
         KeyBuilder.datastreamAssignmentTokens(testCluster, ketchupStream.getName()));
     Assert.assertEquals(nodes.size(), 1);
     Assert.assertEquals(nodes.get(0), "someOtherInstance"); // adapter didn't touch other instance's token
-
-    // Asserting that tokens will be left intact if the stopping stream has active tasks
-    zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(testCluster,
-        ketchupStream.getName(), adapter.getInstanceName()), "token", CreateMode.PERSISTENT);
-    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
-    task2.setTaskPrefix(ketchupDatastreamGroup.getTaskPrefix());
-    task2.setConnectorType(connectorType);
-    tasks.add(task2);
-
-    adapter.claimAssignmentTokensOfInstance(assignment, stoppingDatastreamGroups, adapter.getInstanceName());
-    nodes = zkClient.getChildren(
-        KeyBuilder.datastreamAssignmentTokens(testCluster, ketchupStream.getName()));
-    Assert.assertEquals(nodes.size(), 2);
   }
 
   @Test
