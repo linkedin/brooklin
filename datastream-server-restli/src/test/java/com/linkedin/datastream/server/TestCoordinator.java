@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Validate;
 import org.jetbrains.annotations.NotNull;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 import org.mockito.invocation.Invocation;
 import org.slf4j.Logger;
@@ -3198,8 +3199,14 @@ public class TestCoordinator {
 
     // Verify that claim assignment tokens is called twice:
     // (1) For deepDishStream, since it no longer has tasks in the new assignment
-    // (2) For eggBagelStream, since the bagel connector has tasks in the new assignment (connector stopped case)
+    // (2) For eggBagelStream, since the bagel connector has no tasks in the new assignment (connector stopped case)
+    CollectionContainsMatcher<Datastream> deepDishStreamMatcher = new CollectionContainsMatcher<>(pizzaStreams[1]);
+    CollectionContainsMatcher<Datastream> eggBagelStreamMatcher = new CollectionContainsMatcher<>(bagelStreams[0]);
     verify(spyZkAdapter, times(2)).claimAssignmentTokensForDatastreams(any(), any());
+    verify(spyZkAdapter, times(1)).
+        claimAssignmentTokensForDatastreams(argThat(deepDishStreamMatcher), any());
+    verify(spyZkAdapter, times(1)).
+        claimAssignmentTokensForDatastreams(argThat(eggBagelStreamMatcher), any());
 
     zkClient.close();
     coordinator.stop();
@@ -3247,6 +3254,24 @@ public class TestCoordinator {
   private void deleteLiveInstanceNode(ZkClient zkClient, String cluster, Coordinator instance) {
     String path = KeyBuilder.liveInstance(cluster, instance.getInstanceName());
     zkClient.deleteRecursive(path);
+  }
+
+  static class CollectionContainsMatcher<T> extends ArgumentMatcher<List<T>> {
+    private final T _element;
+
+    public CollectionContainsMatcher(T element) {
+      _element = element;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean matches(Object argument) {
+      if (!(argument instanceof List))
+        return false;
+
+      List<T> argumentAsList = (List<T>)argument;
+      return argumentAsList.contains(_element);
+    }
   }
 
   /**
