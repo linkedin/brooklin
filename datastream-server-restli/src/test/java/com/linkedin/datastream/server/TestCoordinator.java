@@ -90,6 +90,7 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATIO
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
@@ -3112,6 +3113,96 @@ public class TestCoordinator {
 
     instance1.stop();
     instance1.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testInferStoppingStreamsFromAssignment() {
+    String connectorType = "testConnector";
+    Datastream ketchupStream = DatastreamTestUtils.createDatastream(connectorType, "ketchupStream", "random");
+    Datastream mayoStream = DatastreamTestUtils.createDatastream(connectorType, "mayoStream", "random");
+    Datastream mustardStream = DatastreamTestUtils.createDatastream(connectorType, "mustardStream", "random");
+
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setTaskPrefix(ketchupStream.getName());
+    task1.setDatastreams(Collections.singletonList(ketchupStream));
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    task2.setTaskPrefix(mustardStream.getName());
+    task2.setDatastreams(Collections.singletonList(mustardStream));
+    List<DatastreamTask> newAssignment = Arrays.asList(task1, task2);
+
+    DatastreamTaskImpl task3 = new DatastreamTaskImpl();
+    task3.setTaskPrefix(mayoStream.getName());
+    task3.setDatastreams(Collections.singletonList(mayoStream));
+    List<DatastreamTask> removedTasks = Collections.singletonList(task3);
+
+    List<Datastream> stoppingStreams = Coordinator.inferStoppingDatastreamsFromAssignment(newAssignment, removedTasks);
+    Assert.assertEquals(stoppingStreams.size(), 1);
+    Assert.assertEquals(stoppingStreams.get(0), mayoStream);
+
+    removedTasks = Arrays.asList(task2, task3);
+    stoppingStreams = Coordinator.inferStoppingDatastreamsFromAssignment(newAssignment, removedTasks);
+    Assert.assertEquals(stoppingStreams.size(), 1);
+    Assert.assertEquals(stoppingStreams.get(0), mayoStream);
+
+    newAssignment = Arrays.asList(task1, task2, task3);
+    stoppingStreams = Coordinator.inferStoppingDatastreamsFromAssignment(newAssignment, removedTasks);
+    Assert.assertEquals(stoppingStreams.size(), 0);
+  }
+
+  @Test
+  public void testClaimAssignmentTokensForStoppingStreams() throws Exception {
+    String testCluster = "testCluster";
+    String pizzaConnector = "pizzaConnector";
+    String thinCrustStream = "thinCrustStream";
+    String deepDishStream = "deepDishStream";
+
+    String bagelConnector = "bagelConnector";
+    String eggBagelStream = "eggBagelStream";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator coordinator = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    coordinator.start();
+
+    Datastream[] pizzaStreams = DatastreamTestUtils.createAndStoreDatastreams(
+        zkClient, testCluster, pizzaConnector, thinCrustStream, deepDishStream);
+    Datastream[] bagelStreams = DatastreamTestUtils.createAndStoreDatastreams(zkClient,
+        testCluster, bagelConnector, eggBagelStream);
+
+    DatastreamTaskImpl pizzaTask1 = new DatastreamTaskImpl();
+    pizzaTask1.setConnectorType(pizzaConnector);
+    pizzaTask1.setTaskPrefix(thinCrustStream);
+    pizzaTask1.setDatastreams(Collections.singletonList(pizzaStreams[0]));
+
+    DatastreamTaskImpl pizzaTask2 = new DatastreamTaskImpl();
+    pizzaTask2.setConnectorType(pizzaConnector);
+    pizzaTask2.setTaskPrefix(deepDishStream);
+    pizzaTask2.setDatastreams(Collections.singletonList(pizzaStreams[1]));
+
+    DatastreamTaskImpl bagelTask1 = new DatastreamTaskImpl();
+    bagelTask1.setConnectorType(bagelConnector);
+    bagelTask1.setTaskPrefix(eggBagelStream);
+    bagelTask1.setDatastreams(Collections.singletonList(bagelStreams[0]));
+
+    List<DatastreamTask> oldAssignment = new ArrayList<>(Arrays.asList(pizzaTask1, pizzaTask2, bagelTask1));
+    List<DatastreamTask> newAssignment = new ArrayList<>(Collections.singletonList(pizzaTask1));
+
+    ZkAdapter spyZkAdapter = coordinator.getZkAdapter();
+    coordinator.maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment);
+
+    // Verify that claim assignment tokens is called twice:
+    // (1) For deepDishStream, since it no longer has tasks in the new assignment
+    // (2) For eggBagelStream, since the bagel connector has tasks in the new assignment (connector stopped case)
+    verify(spyZkAdapter, times(2)).claimAssignmentTokensForDatastreams(any(), any());
+
+    zkClient.close();
+    coordinator.stop();
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

@@ -781,7 +781,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return addedTasks;
   }
 
-  private void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
+  @VisibleForTesting
+  void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
       List<DatastreamTask> oldAssignment) {
     Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
     for (DatastreamTask task : newAssignment) {
