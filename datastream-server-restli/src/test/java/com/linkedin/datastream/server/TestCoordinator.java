@@ -91,7 +91,8 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATIO
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
-import static org.mockito.Matchers.*;
+import static org.mockito.Matchers.argThat;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
@@ -3266,10 +3267,11 @@ public class TestCoordinator {
     @Override
     @SuppressWarnings("unchecked")
     public boolean matches(Object argument) {
-      if (!(argument instanceof List))
+      if (!(argument instanceof List)) {
         return false;
+      }
 
-      List<T> argumentAsList = (List<T>)argument;
+      List<T> argumentAsList = (List<T>) argument;
       return argumentAsList.contains(_element);
     }
   }
