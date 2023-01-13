@@ -32,8 +32,10 @@ public final class CoordinatorConfig {
   public static final String CONFIG_REINIT_ON_NEW_ZK_SESSION = PREFIX + "reinitOnNewZKSession";
   public static final String CONFIG_MAX_ASSIGNMENT_RETRY_COUNT = PREFIX + "maxAssignmentRetryCount";
   public static final String CONFIG_ENABLE_ASSIGNMENT_TOKENS = PREFIX + "enableAssignmentTokens";
+  public static final String CONFIG_STOP_PROPAGATION_TIMEOUT_MS = PREFIX + "stopPropagationTimeout";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
+  public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60000;
 
   private final String _cluster;
   private final String _zkAddress;
@@ -52,6 +54,7 @@ public final class CoordinatorConfig {
   private final boolean _reinitOnNewZkSession;
   private final int _maxAssignmentRetryCount;
   private final boolean _enableAssignmentTokens;
+  private final long _stopPropagationTimeout;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -78,6 +81,7 @@ public final class CoordinatorConfig {
     _reinitOnNewZkSession = _properties.getBoolean(CONFIG_REINIT_ON_NEW_ZK_SESSION, false);
     _maxAssignmentRetryCount = _properties.getInt(CONFIG_MAX_ASSIGNMENT_RETRY_COUNT, DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT);
     _enableAssignmentTokens = _properties.getBoolean(CONFIG_ENABLE_ASSIGNMENT_TOKENS, false);
+    _stopPropagationTimeout = _properties.getLong(CONFIG_STOP_PROPAGATION_TIMEOUT_MS, DEFAULT_STOP_PROPAGATION_TIMEOUT_MS);
   }
 
   public Properties getConfigProperties() {
@@ -139,6 +143,8 @@ public final class CoordinatorConfig {
   public int getMaxAssignmentRetryCount() {
     return _maxAssignmentRetryCount;
   }
+
+  public long getStopPropagationTimeout() { return  _stopPropagationTimeout; }
 
   public boolean getEnableAssignmentTokens() {
     return _enableAssignmentTokens;

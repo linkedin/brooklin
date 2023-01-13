@@ -25,9 +25,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import jdk.nashorn.internal.ir.Assignment;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.helix.zookeeper.zkclient.IZkChildListener;
@@ -803,6 +805,42 @@ public class ZkAdapter {
         }
       }
     }
+  }
+
+  /**
+   * Returns a list of unclaimed tokens per datastream for the given datastreams
+   */
+  public Map<String, List<AssignmentToken>> getUnclaimedAssignmentTokensForDatastreams(List<DatastreamGroup> stoppingDatastreamGroups) {
+    Map<String, List<AssignmentToken>> unclaimedTokensPerStream = new HashMap<>();
+    for (DatastreamGroup stoppingGroup : stoppingDatastreamGroups) {
+      for (Datastream stoppingStream : stoppingGroup.getDatastreams()) {
+        String streamName = stoppingStream.getName();
+        String tokensPath = KeyBuilder.datastreamAssignmentTokens(_cluster, streamName);
+        if (_zkclient.exists(tokensPath)) {
+          List<String> tokens = _zkclient.getChildren(tokensPath).stream().
+              map(t -> KeyBuilder.datastreamAssignmentTokenForInstance(_cluster, streamName, t)).
+              collect(Collectors.toList());
+          if (!tokens.isEmpty()) {
+            List<AssignmentToken> currentTokens = new ArrayList<>();
+            tokens.forEach(t -> currentTokens.add(AssignmentToken.fromJson(_zkclient.readData(t))));
+            unclaimedTokensPerStream.computeIfAbsent(streamName, key -> new ArrayList<>()).addAll(currentTokens);
+          }
+        }
+      }
+    }
+    return unclaimedTokensPerStream;
+  }
+
+  /**
+   * Returns the number of unclaimed assignment tokens for the given datastreams
+   */
+  public int getNumUnclaimedTokensForDatastreams(List<DatastreamGroup> stoppingDatastreamGroups) {
+    AtomicInteger numberOfTokens = new AtomicInteger();
+    stoppingDatastreamGroups.forEach(dg -> dg.getDatastreams().forEach(ds -> {
+      String tokensPath = KeyBuilder.datastreamAssignmentTokens(_cluster, ds.getName());
+      numberOfTokens.addAndGet(_zkclient.countChildren(tokensPath));
+    }));
+    return numberOfTokens.get();
   }
 
   /**

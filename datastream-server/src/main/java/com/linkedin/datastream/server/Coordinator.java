@@ -56,6 +56,7 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -163,6 +164,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 90000L;
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
+  private static final long STOP_PROPAGATION_RETRY_MS = 5000L;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
@@ -195,6 +197,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // where no events can be handled if coordinator locks up. This can happen because
   // handleEvent is synchronized and downstream code can misbehave.
   private final Duration _heartbeatPeriod;
+
 
   private final Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
   private final ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
@@ -1225,12 +1228,34 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _adapter.updateAllAssignments(newAssignmentsByInstance);
       }
 
+      Set<String> failedStreams = Collections.emptySet();
+      // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
+      if (_config.getEnableAssignmentTokens() &&
+          !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
+            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeout())) {
+        Map<String, List<AssignmentToken>> unclaimedTokens =
+            _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
+        failedStreams = unclaimedTokens.keySet();
+        Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
+            map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
+        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+            _config.getStopPropagationTimeout(), failedStreams, hosts);
+        // TODO Revoke tokens that have remained unclaimed
+        _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_FAILED_STOPS,
+            failedStreams.size());
+      }
+
+      // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
+
       for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
         for (Datastream datastream : datastreamGroup.getDatastreams()) {
-          datastream.setStatus(DatastreamStatus.STOPPED);
-          if (!_adapter.updateDatastream(datastream)) {
-            _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
-            succeeded = false;
+          // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
+          if (!failedStreams.contains(datastream.getName())) {
+            datastream.setStatus(DatastreamStatus.STOPPED);
+            if (!_adapter.updateDatastream(datastream)) {
+              _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
+              succeeded = false;
+            }
           }
         }
       }
@@ -1982,6 +2007,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private static final String NUM_RETRIES = "numRetries";
     private static final String NUM_ERRORS = "numErrors";
     private static final String HANDLE_EVENT_PREFIX = "handleEvent";
+    private static final String NUM_FAILED_STOPS = "numFailedStops";
 
     // Gauge metrics
     private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
@@ -2177,6 +2203,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     public enum KeyedMeter {
       HANDLE_DATASTREAM_ADD_OR_DELETE_NUM_RETRIES("handleDatastreamAddOrDelete", NUM_RETRIES),
       HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES("handleLeaderDoAssignment", NUM_RETRIES, true),
+      HANDLE_LEADER_DO_ASSIGNMENT_NUM_FAILED_STOPS("handleLeaderDoAssignment", NUM_FAILED_STOPS, true),
       HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES("handleLeaderPartitionAssignment", NUM_RETRIES, true),
       HANDLE_LEADER_PARTITION_MOVEMENT_NUM_ERRORS("handleLeaderPartitionMovement", NUM_ERRORS),
       HANDLE_LEADER_PARTITION_MOVEMENT_NUM_RETRIES("handleLeaderPartitionMovement", NUM_RETRIES),
