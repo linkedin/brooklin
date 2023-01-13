@@ -1240,7 +1240,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
         _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
             _config.getStopPropagationTimeout(), failedStreams, hosts);
-        // TODO Revoke tokens that have remained unclaimed
+        revokeUnclaimedAssignmentTokens(unclaimedTokens);
         _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_FAILED_STOPS,
             failedStreams.size());
       }
@@ -1288,6 +1288,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+    }
+  }
+
+  private void revokeUnclaimedAssignmentTokens(Map<String, List<AssignmentToken>> unclaimedTokens) {
+    _log.info("Revoking unclaimed tokens");
+    for (String stream : unclaimedTokens.keySet()) {
+      List<String> instances = unclaimedTokens.get(stream).stream().map(AssignmentToken::getIssuedFor).
+          collect(Collectors.toList());
+      // TODO Uncomment after #921
+      //instances.forEach(i -> _adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(stream), i));
     }
   }
 

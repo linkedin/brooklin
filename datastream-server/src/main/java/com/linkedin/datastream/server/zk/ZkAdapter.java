@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import jdk.nashorn.internal.ir.Assignment;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.helix.zookeeper.zkclient.IZkChildListener;
