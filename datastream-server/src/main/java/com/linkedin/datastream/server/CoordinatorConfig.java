@@ -144,7 +144,9 @@ public final class CoordinatorConfig {
     return _maxAssignmentRetryCount;
   }
 
-  public long getStopPropagationTimeout() { return  _stopPropagationTimeout; }
+  public long getStopPropagationTimeout() {
+    return  _stopPropagationTimeout;
+  }
 
   public boolean getEnableAssignmentTokens() {
     return _enableAssignmentTokens;
