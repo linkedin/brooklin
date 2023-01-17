@@ -820,6 +820,8 @@ public class ZkAdapter {
           LOG.info("Revoking assignment token for datastream: {}, instance: {}", streamName, instance);
         }
         _zkclient.delete(tokenPath);
+      } else {
+        LOG.debug("Attempt to claim non-existing assignment token {}", tokenPath);
       }
     }
   }

@@ -815,6 +815,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (!stoppingStreamNames.isEmpty()) {
         _log.info("Trying to claim assignment tokens for streams: {}", stoppingStreamNames);
         _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
+      } else {
+        _log.info("No streams have been inferred as stopping and no assignment tokens will be claimed");
       }
     }
   }
