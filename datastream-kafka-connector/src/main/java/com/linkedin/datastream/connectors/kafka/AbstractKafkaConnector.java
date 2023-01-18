@@ -789,6 +789,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     }
   }
 
+  /**
+   * {@inheritDoc}
+   */
   public List<String> getActiveTasks() {
     List<DatastreamTask> tasks = new ArrayList<>();
 
