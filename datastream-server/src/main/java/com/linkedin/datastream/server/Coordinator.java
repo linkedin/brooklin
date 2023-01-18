@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -56,6 +57,7 @@ import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamTransientException;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -713,7 +715,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     if (_config.getEnableAssignmentTokens()) {
-      maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment);
+      try {
+        // Queue assignment token claim task
+        _executor.schedule(() -> maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment),
+            0, TimeUnit.MILLISECONDS);
+      } catch (RejectedExecutionException ex) {
+        _log.warn("Failed to schedule the task for claiming assignment tokens", ex);
+      }
     }
 
     _log.info("END: Coordinator::handleAssignmentChange, Duration: {} milliseconds",
@@ -784,6 +792,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
       List<DatastreamTask> oldAssignment) {
+    // TODO Check for performance optimizations
+    // TODO Add metrics for number of streams that are inferred as stopping
     Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
     for (DatastreamTask task : newAssignment) {
       String connectorType = task.getConnectorType();
@@ -804,21 +814,39 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // to datastreams node risks overwhelming the ZK server with reads. Instead, the follower is inferring the stopping
     // streams from the task assignment for each connector type. Even if that inference results in a falsely identified
     // stopping stream, the attempt to claim the token will be a no-op.
-    for (String connector : allConnectors) {
+    allConnectors.parallelStream().forEach(connector -> {
       List<DatastreamTask> oldTasks = oldAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
       List<DatastreamTask> newTasks = newAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
       List<DatastreamTask> removedTasks = getRemovedTasks(newTasks, oldTasks);
 
       List<Datastream> stoppingStreams = inferStoppingDatastreamsFromAssignment(newTasks, removedTasks);
-      List<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toList());
+      Set<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
 
       if (!stoppingStreamNames.isEmpty()) {
-        _log.info("Trying to claim assignment tokens for streams: {}", stoppingStreamNames);
-        _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
+        _log.info("Trying to claim assignment tokens for connector {}, streams: {}", connector, stoppingStreamNames);
+
+        Set<String> stoppingDatastreamTasks = removedTasks.stream().
+            filter(t -> stoppingStreamNames.contains(t.getTaskPrefix())).
+            map(DatastreamTask::getId).collect(Collectors.toSet());
+
+        if (PollUtils.poll(() -> connectorTasksHaveStopped(connector, stoppingDatastreamTasks),
+            _config.getTaskStopCheckRetryPeriodMs(), _config.getTaskStopCheckTimeoutMs())) {
+          _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
+        } else {
+          _log.warn("Connector {} failed to stop its tasks in {}ms. No assignment tokens will be claimed",
+              connector, _config.getTaskStopCheckTimeoutMs());
+        }
       } else {
         _log.info("No streams have been inferred as stopping and no assignment tokens will be claimed");
       }
-    }
+    });
+  }
+
+  @VisibleForTesting
+  boolean connectorTasksHaveStopped(String connectorName, Set<String> stoppingTasks) {
+    Set<String> activeTasks =
+        new HashSet<>(_connectors.get(connectorName).getConnector().getConnectorInstance().getActiveTasks());
+    return activeTasks.isEmpty() || stoppingTasks.isEmpty() || Collections.disjoint(activeTasks, stoppingTasks);
   }
 
   @VisibleForTesting

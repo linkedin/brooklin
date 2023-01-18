@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -3153,12 +3154,12 @@ public class TestCoordinator {
 
   @Test
   public void testClaimAssignmentTokensForStoppingStreams() throws Exception {
-    String testCluster = "testCluster";
-    String pizzaConnector = "pizzaConnector";
+    String testCluster = "testClaimAssignmentTokensForStoppingStreams";
+    String pizzaConnectorName = "pizzaConnector";
     String thinCrustStream = "thinCrustStream";
     String deepDishStream = "deepDishStream";
 
-    String bagelConnector = "bagelConnector";
+    String bagelConnectorName = "bagelConnector";
     String eggBagelStream = "eggBagelStream";
 
     Properties props = new Properties();
@@ -3170,25 +3171,31 @@ public class TestCoordinator {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
     Coordinator coordinator = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    Connector pizzaConnector = new TestHookConnector(pizzaConnectorName, pizzaConnectorName);
+    Connector bagelConnector = new TestHookConnector(bagelConnectorName, bagelConnectorName);
+    coordinator.addConnector(pizzaConnectorName, pizzaConnector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.addConnector(bagelConnectorName, bagelConnector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
     coordinator.start();
 
     Datastream[] pizzaStreams = DatastreamTestUtils.createAndStoreDatastreams(
-        zkClient, testCluster, pizzaConnector, thinCrustStream, deepDishStream);
+        zkClient, testCluster, pizzaConnectorName, thinCrustStream, deepDishStream);
     Datastream[] bagelStreams = DatastreamTestUtils.createAndStoreDatastreams(zkClient,
-        testCluster, bagelConnector, eggBagelStream);
+        testCluster, bagelConnectorName, eggBagelStream);
 
     DatastreamTaskImpl pizzaTask1 = new DatastreamTaskImpl();
-    pizzaTask1.setConnectorType(pizzaConnector);
+    pizzaTask1.setConnectorType(pizzaConnectorName);
     pizzaTask1.setTaskPrefix(thinCrustStream);
     pizzaTask1.setDatastreams(Collections.singletonList(pizzaStreams[0]));
 
     DatastreamTaskImpl pizzaTask2 = new DatastreamTaskImpl();
-    pizzaTask2.setConnectorType(pizzaConnector);
+    pizzaTask2.setConnectorType(pizzaConnectorName);
     pizzaTask2.setTaskPrefix(deepDishStream);
     pizzaTask2.setDatastreams(Collections.singletonList(pizzaStreams[1]));
 
     DatastreamTaskImpl bagelTask1 = new DatastreamTaskImpl();
-    bagelTask1.setConnectorType(bagelConnector);
+    bagelTask1.setConnectorType(bagelConnectorName);
     bagelTask1.setTaskPrefix(eggBagelStream);
     bagelTask1.setDatastreams(Collections.singletonList(bagelStreams[0]));
 
@@ -3211,6 +3218,85 @@ public class TestCoordinator {
 
     zkClient.close();
     coordinator.stop();
+  }
+
+  @Test
+  public void testTokensNotClaimedForConnectorThatFailedToStop() throws Exception {
+    String testCluster = "testTokensNotClaimedForConnectorThatFailedToStop";
+    String connectorName = "mockConnector";
+    String streamName = "someStream";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_TASK_STOP_CHECK_TIMEOUT_MS, "100");
+    props.put(CoordinatorConfig.CONFIG_TASK_STOP_CHECK_RETRY_PERIOD_MS, "10");
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator coordinator = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    Connector mockConnector = Mockito.mock(Connector.class);
+    coordinator.addConnector(connectorName, mockConnector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    Datastream testStream = DatastreamTestUtils.
+        createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setConnectorType(connectorName);
+    task1.setTaskPrefix(streamName);
+    task1.setDatastreams(Collections.singletonList(testStream));
+
+    List<DatastreamTask> oldAssignment = new ArrayList<>(Collections.singletonList(task1));
+    List<DatastreamTask> newAssignment = Collections.emptyList();
+
+    // task1 never stops
+    when(mockConnector.getActiveTasks()).thenReturn(Collections.singletonList(task1.getId()));
+    coordinator.maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment);
+    ZkAdapter spyZkAdapter = coordinator.getZkAdapter();
+
+    // Verify that:
+    // (1) Active tasks are queried from the connector at least once
+    // (2) No tokens are claimed for the stream since the task never stops
+    verify(mockConnector, Mockito.atLeast(1)).getActiveTasks();
+    verify(spyZkAdapter, times(0)).claimAssignmentTokensForDatastreams(any(), any());
+  }
+
+  @Test
+  public void testConnectorTasksHaveStopped() throws Exception {
+    String testCluster = "testConnectorTasksHaveStopped";
+    String connectorName = "connector";
+    String streamName = "stream";
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    Connector connector = Mockito.mock(Connector.class);
+    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+
+    List<DatastreamTaskImpl> allTasks = new ArrayList<>(Arrays.asList(
+        new DatastreamTaskImpl(),
+        new DatastreamTaskImpl(),
+        new DatastreamTaskImpl(),
+        new DatastreamTaskImpl()));
+    allTasks.forEach(t -> t.setTaskPrefix(streamName));
+    allTasks.forEach(t -> t.setConnectorType(connectorName));
+    allTasks.forEach(t -> t.setId(UUID.randomUUID().toString())); // setting unique IDs for tasks
+    Set<String> allTaskIds = allTasks.stream().map(DatastreamTaskImpl::getId).collect(Collectors.toSet());
+
+    when(connector.getActiveTasks()).thenReturn(Collections.emptyList());
+    Assert.assertTrue(coordinator.connectorTasksHaveStopped(connectorName, allTaskIds));
+
+    when(connector.getActiveTasks()).thenReturn(new ArrayList<>(allTaskIds));
+    Assert.assertFalse(coordinator.connectorTasksHaveStopped(connectorName, allTaskIds));
+    Assert.assertFalse(coordinator.connectorTasksHaveStopped(connectorName,
+        new HashSet<>(Collections.singletonList(allTasks.get(0).getId()))));
+    Assert.assertTrue(coordinator.connectorTasksHaveStopped(connectorName, Collections.emptySet()));
+
+    when(connector.getActiveTasks()).thenReturn(Collections.singletonList(allTasks.get(0).getId()));
+    Assert.assertFalse(coordinator.connectorTasksHaveStopped(connectorName, allTaskIds));
+    Assert.assertTrue(coordinator.connectorTasksHaveStopped(connectorName,
+        new HashSet<>(Collections.singletonList(allTasks.get(1).getId()))));
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
@@ -3373,6 +3459,11 @@ public class TestCoordinator {
     @Override
     public List<BrooklinMetricInfo> getMetricInfos() {
       return null;
+    }
+
+    @Override
+    public List<String> getActiveTasks() {
+      return Collections.emptyList();
     }
   }
 
