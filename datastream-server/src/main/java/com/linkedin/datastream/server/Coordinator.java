@@ -778,21 +778,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private List<DatastreamTask> getRemovedTasks(List<DatastreamTask> newAssignment, List<DatastreamTask> oldAssignment) {
-    List<DatastreamTask> removedTasks = new ArrayList<>(oldAssignment);
-    removedTasks.removeAll(newAssignment);
-    return removedTasks;
+    Set<DatastreamTask> removedTasks = new HashSet<>(oldAssignment);
+    newAssignment.forEach(removedTasks::remove);
+    return new ArrayList<>(removedTasks);
   }
 
   private List<DatastreamTask> getAddedTasks(List<DatastreamTask> newAssignment, List<DatastreamTask> oldAssignment) {
-    List<DatastreamTask> addedTasks = new ArrayList<>(newAssignment);
-    addedTasks.removeAll(oldAssignment);
-    return addedTasks;
+    Set<DatastreamTask> addedTasks = new HashSet<>(newAssignment);
+    oldAssignment.forEach(addedTasks::remove);
+    return new ArrayList<>(addedTasks);
   }
 
   @VisibleForTesting
   void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
       List<DatastreamTask> oldAssignment) {
-    // TODO Check for performance optimizations
     // TODO Add metrics for number of streams that are inferred as stopping
     Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
     for (DatastreamTask task : newAssignment) {
