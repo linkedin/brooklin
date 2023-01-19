@@ -1241,8 +1241,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
             _config.getStopPropagationTimeout(), failedStreams, hosts);
         revokeUnclaimedAssignmentTokens(unclaimedTokens);
-        _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_FAILED_STOPS,
-            failedStreams.size());
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
       }
 
       // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
@@ -2017,7 +2016,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private static final String NUM_RETRIES = "numRetries";
     private static final String NUM_ERRORS = "numErrors";
     private static final String HANDLE_EVENT_PREFIX = "handleEvent";
-    private static final String NUM_FAILED_STOPS = "numFailedStops";
 
     // Gauge metrics
     private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
@@ -2214,7 +2212,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     public enum KeyedMeter {
       HANDLE_DATASTREAM_ADD_OR_DELETE_NUM_RETRIES("handleDatastreamAddOrDelete", NUM_RETRIES),
       HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES("handleLeaderDoAssignment", NUM_RETRIES, true),
-      HANDLE_LEADER_DO_ASSIGNMENT_NUM_FAILED_STOPS("handleLeaderDoAssignment", NUM_FAILED_STOPS, true),
       HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES("handleLeaderPartitionAssignment", NUM_RETRIES, true),
       HANDLE_LEADER_PARTITION_MOVEMENT_NUM_ERRORS("handleLeaderPartitionMovement", NUM_ERRORS),
       HANDLE_LEADER_PARTITION_MOVEMENT_NUM_RETRIES("handleLeaderPartitionMovement", NUM_RETRIES),
