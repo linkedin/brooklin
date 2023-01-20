@@ -1,7 +1,7 @@
 = Brooklin
 
 image:https://img.shields.io/github/license/linkedin/brooklin.svg[link="https://github.com/linkedin/brooklin/blob/master/LICENSE"]
-image:https://img.shields.io/badge/bintray-v4.1.0-blue.svg?style=popout[link="https://bintray.com/linkedin/maven/brooklin"]
+image:https://img.shields.io/badge/bintray-v5.1.0-blue.svg?style=popout[link="https://bintray.com/linkedin/maven/brooklin"]
 image:https://img.shields.io/gitter/room/linkedin/kafka.svg?style=popout[link="https://gitter.im/linkedin/brooklin"]
 image:https://img.shields.io/github/last-commit/linkedin/brooklin.svg?style=popout[link="https://github.com/linkedin/brooklin/commits/master"]
 image:https://img.shields.io/github/issues/linkedin/brooklin/bug.svg?color=orange?style=popout[link="https://github.com/linkedin/brooklin/labels/bug"]
@@ -31,7 +31,7 @@ Brooklin is a distributed system intended for streaming data between various het
 ** While it is not limited to any particular system, Brooklin provides capabilities for reading/writing massive amounts of data to/from Kafka with high reliability at scale. You can learn more about this in the <<Use cases>> section.
 
 * *Supports Change Data Capture with bootstrap*
-** Brooklin supports propagating https://en.wikipedia.org/wiki/Change_data_capture[Change Data Capture] events from data stores, e.g. RDBMS, KV stores ... etc. 
+** Brooklin supports propagating https://en.wikipedia.org/wiki/Change_data_capture[Change Data Capture] events from data stores, e.g. RDBMS, KV stores ... etc.
 ** Brooklin also supports streaming a snapshot of the existing data before propagating change events.
 
 == Use cases
@@ -56,7 +56,7 @@ Through its https://github.com/linkedin/brooklin/wiki/Brooklin-Architecture#rest
 > Check out https://github.com/linkedin/brooklin/wiki/mirroring-kafka-clusters[Mirroring Kafka Clusters] to learn more about using Brooklin to mirror Kafka clusters.
 
 === Change Data Capture
-* Brooklin supports propagating https://en.wikipedia.org/wiki/Change_data_capture[Change Data Capture] events from data stores, e.g. RDBMS, KV stores ... etc. 
+* Brooklin supports propagating https://en.wikipedia.org/wiki/Change_data_capture[Change Data Capture] events from data stores, e.g. RDBMS, KV stores ... etc.
 * Brooklin supports bootstrapping data from a datastore, i.e. streaming a snapshot of the existing data before any change events.
 * MySQL support is currently under development.
 
