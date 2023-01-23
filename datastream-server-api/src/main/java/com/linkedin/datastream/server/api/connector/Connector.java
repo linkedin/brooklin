@@ -72,7 +72,7 @@ public interface Connector extends MetricsAware, DatastreamChangeListener {
    * @throws UnsupportedOperationException if not implemented by Connector classes.
    */
   default List<String> getActiveTasks() {
-    throw new UnsupportedOperationException("Running tasks API is not supported unless implemented by coordinators");
+    throw new UnsupportedOperationException("Running tasks API is not supported unless implemented by connectors");
   }
 
   /**

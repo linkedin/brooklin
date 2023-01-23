@@ -716,11 +716,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (_config.getEnableAssignmentTokens()) {
       try {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
         // Queue assignment token claim task
-        _executor.schedule(() -> maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment),
-            0, TimeUnit.MILLISECONDS);
+        executor.submit(() -> maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment));
       } catch (RejectedExecutionException ex) {
-        _log.warn("Failed to schedule the task for claiming assignment tokens", ex);
+        _log.warn("Failed to submit the task for claiming assignment tokens", ex);
       }
     }
 
@@ -828,6 +828,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             filter(t -> stoppingStreamNames.contains(t.getTaskPrefix())).
             map(DatastreamTask::getId).collect(Collectors.toSet());
 
+        // TODO Evaluate whether we need to optimize here and make this call for each datastream
         if (PollUtils.poll(() -> connectorTasksHaveStopped(connector, stoppingDatastreamTasks),
             _config.getTaskStopCheckRetryPeriodMs(), _config.getTaskStopCheckTimeoutMs())) {
           _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
