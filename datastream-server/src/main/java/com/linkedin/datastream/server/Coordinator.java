@@ -198,7 +198,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // handleEvent is synchronized and downstream code can misbehave.
   private final Duration _heartbeatPeriod;
 
-
   private final Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
   private final ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
