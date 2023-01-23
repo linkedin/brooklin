@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
@@ -716,9 +717,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (_config.getEnableAssignmentTokens()) {
       try {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
         // Queue assignment token claim task
-        executor.submit(() -> maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment));
+        ExecutorService claimTokensExecutorService = Executors.newSingleThreadExecutor(
+            new ThreadFactoryBuilder().setNameFormat("CoordinatorClaimTokens-%d").build());
+        claimTokensExecutorService.submit(() ->
+            maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment));
       } catch (RejectedExecutionException ex) {
         _log.warn("Failed to submit the task for claiming assignment tokens", ex);
       }
