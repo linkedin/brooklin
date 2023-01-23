@@ -67,6 +67,15 @@ public interface Connector extends MetricsAware, DatastreamChangeListener {
   void initializeDatastream(Datastream stream, List<Datastream> allDatastreams) throws DatastreamValidationException;
 
   /**
+   * Returns a list with IDs for tasks that are active (i.e. running or pending stop)
+   * @return A list with task IDs that are currently running on the coordinator
+   * @throws UnsupportedOperationException if not implemented by Connector classes.
+   */
+  default List<String> getActiveTasks() {
+    throw new UnsupportedOperationException("Active tasks API is not supported unless implemented by connectors");
+  }
+
+  /**
    * Validate the update datastreams operation. By default this is not supported. Any connectors that want to support
    * datastream updates should override this method to perform the validation needed.
    * @param datastreams list of datastreams to be updated
