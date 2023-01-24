@@ -156,4 +156,16 @@ public final class CoordinatorConfig {
   public boolean getEnableAssignmentTokens() {
     return _enableAssignmentTokens;
   }
+
+  public long getTaskStopCheckTimeoutMs() {
+    return _taskStopCheckTimeoutMs;
+  }
+
+  public long getTaskStopCheckRetryPeriodMs() {
+    return _taskStopCheckRetryPeriodMs;
+  }
+
+  public long getStopPropagationTimeout() {
+    return _stopPropagationTimeout;
+  }
 }
