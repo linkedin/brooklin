@@ -166,6 +166,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 90000L;
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
+  // how long should the leader wait between consecutive polls to zookeeper to confirm that the datastreams have stopped
   private static final long STOP_PROPAGATION_RETRY_MS = 5000L;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);

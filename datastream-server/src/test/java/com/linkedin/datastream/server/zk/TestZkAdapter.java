@@ -1176,8 +1176,8 @@ public class TestZkAdapter {
 
     zkClient.ensurePath(KeyBuilder.datastreamAssignmentTokens(cluster, datastream1));
     zkClient.ensurePath(KeyBuilder.datastreamAssignmentTokens(cluster, datastream2));
-    AssignmentToken instance1Token = new AssignmentToken(localhost, instance1);
-    AssignmentToken instance2Token = new AssignmentToken(localhost, instance1);
+    AssignmentToken instance1Token = new AssignmentToken(localhost, instance1, System.currentTimeMillis());
+    AssignmentToken instance2Token = new AssignmentToken(localhost, instance1, System.currentTimeMillis());
     zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(cluster, datastream1, instance1),
         instance1Token.toJson(), CreateMode.PERSISTENT);
     zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(cluster, datastream1, instance2),

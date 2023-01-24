@@ -32,8 +32,12 @@ public final class CoordinatorConfig {
   public static final String CONFIG_REINIT_ON_NEW_ZK_SESSION = PREFIX + "reinitOnNewZKSession";
   public static final String CONFIG_MAX_ASSIGNMENT_RETRY_COUNT = PREFIX + "maxAssignmentRetryCount";
   public static final String CONFIG_ENABLE_ASSIGNMENT_TOKENS = PREFIX + "enableAssignmentTokens";
+
+  // how long should the leader poll the zookeeper to confirm that stopping datastreams have stopped before giving up
   public static final String CONFIG_STOP_PROPAGATION_TIMEOUT_MS = PREFIX + "stopPropagationTimeout";
+  // how long should the coordinator wait for a connector's tasks to stop before giving up
   public static final String CONFIG_TASK_STOP_CHECK_TIMEOUT_MS = PREFIX + "taskStopCheckTimeoutMs";
+  // how long should the coordinator wait in between two consecutive calls to check if a connector's tasks have stopped
   public static final String CONFIG_TASK_STOP_CHECK_RETRY_PERIOD_MS = PREFIX + "taskStopCheckRetryPeriodMs";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
