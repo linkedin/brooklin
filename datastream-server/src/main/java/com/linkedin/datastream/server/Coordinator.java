@@ -166,6 +166,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static final long EVENT_THREAD_LONG_JOIN_TIMEOUT = 90000L;
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
+  // how long should the leader wait between consecutive polls to zookeeper to confirm that the datastreams have stopped
+  private static final long STOP_PROPAGATION_RETRY_MS = 5000L;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
@@ -1337,12 +1339,33 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _adapter.updateAllAssignments(newAssignmentsByInstance);
       }
 
+      Set<String> failedStreams = Collections.emptySet();
+      // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
+      if (_config.getEnableAssignmentTokens() &&
+          !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
+            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeout())) {
+        Map<String, List<AssignmentToken>> unclaimedTokens =
+            _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
+        failedStreams = unclaimedTokens.keySet();
+        Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
+            map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
+        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+            _config.getStopPropagationTimeout(), failedStreams, hosts);
+        revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
+      }
+
+      // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
+
       for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
         for (Datastream datastream : datastreamGroup.getDatastreams()) {
-          datastream.setStatus(DatastreamStatus.STOPPED);
-          if (!_adapter.updateDatastream(datastream)) {
-            _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
-            succeeded = false;
+          // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
+          if (!failedStreams.contains(datastream.getName())) {
+            datastream.setStatus(DatastreamStatus.STOPPED);
+            if (!_adapter.updateDatastream(datastream)) {
+              _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
+              succeeded = false;
+            }
           }
         }
       }
@@ -1375,6 +1398,25 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+    }
+  }
+
+  private void revokeUnclaimedAssignmentTokens(Map<String, List<AssignmentToken>> unclaimedTokens,
+      List<DatastreamGroup> stoppingDatastreamGroups) {
+    _log.info("Revoking unclaimed tokens");
+    Map<String, Datastream> datastreamMap = new HashMap<>();
+    stoppingDatastreamGroups.forEach(dg -> dg.getDatastreams().forEach(ds -> datastreamMap.put(ds.getName(), ds)));
+    for (String streamName : unclaimedTokens.keySet()) {
+      Datastream stream = datastreamMap.get(streamName);
+
+      if (stream == null) {
+        _log.warn("Failed to claim token for unknown datastream: {}", streamName);
+        continue;
+      }
+
+      List<String> instances = unclaimedTokens.get(streamName).stream().map(AssignmentToken::getIssuedFor).
+          collect(Collectors.toList());
+      instances.forEach(i -> _adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(stream), i));
     }
   }
 
@@ -2266,6 +2308,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      */
     public enum Meter {
       NUM_REBALANCES("numRebalances"),
+      NUM_FAILED_STOPS("numFailedStops"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),

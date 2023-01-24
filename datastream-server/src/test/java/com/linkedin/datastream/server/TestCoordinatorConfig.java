@@ -8,8 +8,6 @@ package com.linkedin.datastream.server;
 import java.util.Properties;
 
 import org.testng.Assert;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 /**
@@ -27,14 +25,6 @@ public class TestCoordinatorConfig {
     return config;
   }
 
-  @BeforeMethod
-  public void setup() {
-  }
-
-  @AfterMethod
-  public void teardown() {
-  }
-
   @Test
   public void testCoordinatorMaxAssignmentRetryCountFromConfig() throws Exception {
     Properties props = new Properties();
@@ -48,6 +38,18 @@ public class TestCoordinatorConfig {
     Properties props = new Properties();
     CoordinatorConfig config = createCoordinatorConfig(props);
     Assert.assertEquals(CoordinatorConfig.DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT, config.getMaxAssignmentRetryCount());
+  }
+
+  @Test
+  public void testStopPropagationTimeoutConfig() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    Assert.assertEquals(CoordinatorConfig.DEFAULT_STOP_PROPAGATION_TIMEOUT_MS, config.getStopPropagationTimeout());
+
+    String stopPropagationTimeoutValue = "1000";
+    props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, stopPropagationTimeoutValue);
+    CoordinatorConfig config2 = createCoordinatorConfig(props);
+    Assert.assertEquals(config2.getStopPropagationTimeout(), 1000);
   }
 
   @Test

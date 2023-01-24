@@ -1151,6 +1151,53 @@ public class TestZkAdapter {
   }
 
   @Test
+  public void testGetUnclaimedTokensForDatastreams() throws Exception {
+    String cluster = "testGetUnclaimedTokensForDatastreams";
+    String connectorType = "connectorType";
+    String instance1 = "instance1";
+    String instance2 = "instance2";
+    String localhost = "localhost";
+    String datastream1 = "datastream1";
+    String datastream2 = "datastream2";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter = createZkAdapter(cluster);
+    adapter.connect();
+
+    // creating 2 datastreams in the cluster and assigning tokens
+    Datastream[] datastreams = DatastreamTestUtils.createAndStoreDatastreams(zkClient, cluster, connectorType,
+        "datastream1", "datastream2");
+    DatastreamGroup datastreamGroup1 = new DatastreamGroup(Collections.singletonList(datastreams[0]));
+    DatastreamGroup datastreamGroup2 = new DatastreamGroup(Collections.singletonList(datastreams[1]));
+    List<DatastreamGroup> datastreamGroups =  Arrays.asList(datastreamGroup1, datastreamGroup2);
+    Map<String, List<AssignmentToken>> tokens = adapter.getUnclaimedAssignmentTokensForDatastreams(datastreamGroups);
+    int numTokens = adapter.getNumUnclaimedTokensForDatastreams(datastreamGroups);
+    Assert.assertEquals(numTokens, 0);
+    Assert.assertEquals(tokens.size(), 0);
+
+    zkClient.ensurePath(KeyBuilder.datastreamAssignmentTokens(cluster, datastream1));
+    zkClient.ensurePath(KeyBuilder.datastreamAssignmentTokens(cluster, datastream2));
+    AssignmentToken instance1Token = new AssignmentToken(localhost, instance1, System.currentTimeMillis());
+    AssignmentToken instance2Token = new AssignmentToken(localhost, instance1, System.currentTimeMillis());
+    zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(cluster, datastream1, instance1),
+        instance1Token.toJson(), CreateMode.PERSISTENT);
+    zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(cluster, datastream1, instance2),
+        instance2Token.toJson(), CreateMode.PERSISTENT);
+    zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(cluster, datastream2, instance1),
+        instance1Token.toJson(), CreateMode.PERSISTENT);
+    tokens = adapter.getUnclaimedAssignmentTokensForDatastreams(
+        Arrays.asList(datastreamGroup1, datastreamGroup2));
+    numTokens = adapter.getNumUnclaimedTokensForDatastreams(datastreamGroups);
+    Assert.assertEquals(tokens.size(), 2);
+    Assert.assertEquals(numTokens, 3);
+    Assert.assertTrue(tokens.containsKey(datastream1));
+    Assert.assertTrue(tokens.containsKey(datastream2));
+    Assert.assertEquals(tokens.get(datastream1).size(), 2);
+    Assert.assertEquals(tokens.get(datastream2).size(), 1);
+
+    zkClient.close();
+  }
+
+  @Test
   public void testSaveStateOnlyWhenTaskExists() {
     String testCluster = "testSaveStateOnlyWhenTaskExists";
     String connectorType = "connectorType";
