@@ -1,6 +1,20 @@
 # Change Log
-All notable changes to this project will be documented in this file.  
+All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
+
+## 5.1.0 - 2023-01-19
+* Version 5.1.0-SNAPSHOT by @ehoner in https://github.com/linkedin/brooklin/pull/923
+* Add support for post datastream create,update,delete and state change action by @hshukla in https://github.com/linkedin/brooklin/pull/915
+* Version 4.2.0-SNAPSHOT by @ryannedolan in https://github.com/linkedin/brooklin/pull/914
+* Update zookeeper dependency to import from LinkedIn published version by @surajkn in https://github.com/linkedin/brooklin/pull/917
+* Set datastream status to deleting for delete call by @hshukla in https://github.com/linkedin/brooklin/pull/918
+* Bump version after release by @hshukla in https://github.com/linkedin/brooklin/pull/920
+* BMM Restart Improvements Part 1. Leader Coordinator Issuing Assignment Tokens by @jzakaryan in https://github.com/linkedin/brooklin/pull/919
+
+## New Contributors
+* @hshukla made their first contribution in https://github.com/linkedin/brooklin/pull/915
+
+**Full Changelog**: https://github.com/linkedin/brooklin/compare/4.1.0...5.1.0
 
 ## 4.1.0 — 2022-09-29
 
@@ -110,7 +124,7 @@ Initial open-source release
 ### Connectors
   - [KafkaConnector](https://github.com/linkedin/brooklin/wiki/Kafka-Connector)
   - [KafkaMirrorMakerConnector](https://github.com/linkedin/brooklin/wiki/Kafka-MirrorMaker-Connector)
-  
+
 ### Transport Providers
   - [KafkaTransportProvider](https://github.com/linkedin/brooklin/wiki/Kafka-Transport-Provider)
-  
+

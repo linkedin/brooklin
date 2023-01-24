@@ -51,4 +51,12 @@ public class TestCoordinatorConfig {
     CoordinatorConfig config2 = createCoordinatorConfig(props);
     Assert.assertEquals(config2.getStopPropagationTimeout(), 1000);
   }
+
+  @Test
+  public void testTaskStopTimeoutAndRetryConfigDefault() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    Assert.assertEquals(CoordinatorConfig.DEFAULT_TASK_STOP_CHECK_RETRY_PERIOD_MS, config.getTaskStopCheckRetryPeriodMs());
+    Assert.assertEquals(CoordinatorConfig.DEFAULT_TASK_STOP_CHECK_TIMEOUT_MS, config.getTaskStopCheckTimeoutMs());
+  }
 }

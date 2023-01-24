@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
@@ -199,7 +201,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Duration _heartbeatPeriod;
 
   private final Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
-  private final ScheduledExecutorService _executor = Executors.newSingleThreadScheduledExecutor();
 
   // make sure the scheduled retries are not duplicated
   private final AtomicBoolean _leaderDatastreamAddOrDeleteEventScheduled = new AtomicBoolean(false);
@@ -212,6 +213,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private volatile boolean _shutdown = false;
 
   private CoordinatorEventProcessor _eventThread;
+  private ScheduledExecutorService _scheduledExecutor;
+  private ExecutorService _tokenClaimExecutor;
   private Future<?> _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
   private Future<?> _leaderDoAssignmentScheduledFuture = null;
   private volatile boolean _zkSessionExpired = false;
@@ -237,7 +240,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
 
     _adapter = createZkAdapter();
-
     _eventQueue = new CoordinatorEventBlockingQueue();
     createEventThread();
 
@@ -261,6 +263,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Starting coordinator");
     startEventThread();
     _adapter.connect(_config.getReinitOnNewZkSession());
+
+    // Initializing executor services
+    _tokenClaimExecutor = Executors.newSingleThreadExecutor(
+        new ThreadFactoryBuilder().setNameFormat("CoordinatorTokenClaimExecutor-%d").build());
+    _scheduledExecutor = Executors.newSingleThreadScheduledExecutor(
+        new ThreadFactoryBuilder().setNameFormat("CoordinatorScheduledExecutor-%d").build());
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
@@ -287,7 +295,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleAssignmentChangeEvent(), true);
 
     // Queue up one heartbeat per period with a initial delay of 3 periods
-    _executor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
+    _scheduledExecutor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
@@ -357,6 +365,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             "Connector stop threw an exception for connectorType %s, " + "Swallowing it and continuing shutdown.",
             connectorType), ex);
       }
+    }
+
+    // Shutdown executor services
+    if (_scheduledExecutor != null) {
+      _scheduledExecutor.shutdown();
+    }
+    if (_tokenClaimExecutor != null) {
+      _tokenClaimExecutor.shutdown();
     }
 
     // Shutdown the event producer.
@@ -551,7 +567,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _eventQueue.put(CoordinatorEvent.createHandleAssignmentChangeEvent());
 
     // Queue up one heartbeat per period with a initial delay of 3 periods
-    _executor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
+    _scheduledExecutor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
 
     _zkSessionExpired = false;
@@ -699,17 +715,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     // now save the current assignment
+    List<DatastreamTask> oldAssignment = new ArrayList<>(_assignedDatastreamTasks.values());
     _assignedDatastreamTasks.clear();
     _assignedDatastreamTasks.putAll(currentAssignment.values()
         .stream()
         .flatMap(Collection::stream)
         .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())));
+    List<DatastreamTask> newAssignment = new ArrayList<>(_assignedDatastreamTasks.values());
 
     if ((totalTasks - submittedTasks) > 0) {
       _log.warn("Failed to submit {} tasks from currentAssignment. Queueing onAssignmentChange event again",
           totalTasks - submittedTasks);
       // Update the metric and queue the event only once for all the tasks that failed to be initialized
       retryHandleAssignmentChange(isDatastreamUpdate);
+    }
+
+    if (_config.getEnableAssignmentTokens()) {
+      try {
+        // Queue assignment token claim task
+        _tokenClaimExecutor.submit(() ->
+            maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment));
+      } catch (RejectedExecutionException ex) {
+        _log.warn("Failed to submit the task for claiming assignment tokens", ex);
+      }
     }
 
     _log.info("END: Coordinator::handleAssignmentChange, Duration: {} milliseconds",
@@ -744,19 +772,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     ConnectorInfo connectorInfo = _connectors.get(connectorType);
     ConnectorWrapper connector = connectorInfo.getConnector();
 
-    List<DatastreamTask> addedTasks = new ArrayList<>(assignment);
-    List<DatastreamTask> removedTasks;
     List<DatastreamTask> oldAssignment = _assignedDatastreamTasks.values()
         .stream()
         .filter(t -> t.getConnectorType().equals(connectorType))
         .collect(Collectors.toList());
+    List<DatastreamTask> addedTasks = getAddedTasks(assignment, oldAssignment);
+    List<DatastreamTask> removedTasks = getRemovedTasks(assignment, oldAssignment);
 
     // if there are any difference in the list of assignment. Note that if there are no difference
     // between the two lists, then the connector onAssignmentChange() is not called.
-    addedTasks.removeAll(oldAssignment);
-    oldAssignment.removeAll(assignment);
-    removedTasks = oldAssignment;
-
     if (isDatastreamUpdate || !addedTasks.isEmpty() || !removedTasks.isEmpty()) {
       // Populate the event producers before calling the connector with the list of tasks.
       addedTasks.stream()
@@ -767,6 +791,93 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     return null;
+  }
+
+  private List<DatastreamTask> getRemovedTasks(List<DatastreamTask> newAssignment, List<DatastreamTask> oldAssignment) {
+    Set<DatastreamTask> removedTasks = new HashSet<>(oldAssignment);
+    newAssignment.forEach(removedTasks::remove);
+    return new ArrayList<>(removedTasks);
+  }
+
+  private List<DatastreamTask> getAddedTasks(List<DatastreamTask> newAssignment, List<DatastreamTask> oldAssignment) {
+    Set<DatastreamTask> addedTasks = new HashSet<>(newAssignment);
+    oldAssignment.forEach(addedTasks::remove);
+    return new ArrayList<>(addedTasks);
+  }
+
+  @VisibleForTesting
+  void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
+      List<DatastreamTask> oldAssignment) {
+    // TODO Add metrics for number of streams that are inferred as stopping
+    Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
+    for (DatastreamTask task : newAssignment) {
+      String connectorType = task.getConnectorType();
+      newAssignmentPerConnector.computeIfAbsent(connectorType, k -> new ArrayList<>()).add(task);
+    }
+
+    Map<String, List<DatastreamTask>> oldAssignmentPerConnector = new HashMap<>();
+    for (DatastreamTask task : oldAssignment) {
+      String connectorType = task.getConnectorType();
+      oldAssignmentPerConnector.computeIfAbsent(connectorType, k -> new ArrayList<>()).add(task);
+    }
+
+    Set<String> allConnectors = new HashSet<>();
+    allConnectors.addAll(newAssignmentPerConnector.keySet());
+    allConnectors.addAll(oldAssignmentPerConnector.keySet());
+
+    // The follower nodes don't keep an up-to-date view of the datastreams Zk node and making them listen to changes
+    // to datastreams node risks overwhelming the ZK server with reads. Instead, the follower is inferring the stopping
+    // streams from the task assignment for each connector type. Even if that inference results in a falsely identified
+    // stopping stream, the attempt to claim the token will be a no-op.
+    allConnectors.parallelStream().forEach(connector -> {
+      List<DatastreamTask> oldTasks = oldAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
+      List<DatastreamTask> newTasks = newAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
+      List<DatastreamTask> removedTasks = getRemovedTasks(newTasks, oldTasks);
+
+      List<Datastream> stoppingStreams = inferStoppingDatastreamsFromAssignment(newTasks, removedTasks);
+      Set<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
+
+      if (!stoppingStreamNames.isEmpty()) {
+        _log.info("Trying to claim assignment tokens for connector {}, streams: {}", connector, stoppingStreamNames);
+
+        Set<String> stoppingDatastreamTasks = removedTasks.stream().
+            filter(t -> stoppingStreamNames.contains(t.getTaskPrefix())).
+            map(DatastreamTask::getId).collect(Collectors.toSet());
+
+        // TODO Evaluate whether we need to optimize here and make this call for each datastream
+        if (PollUtils.poll(() -> connectorTasksHaveStopped(connector, stoppingDatastreamTasks),
+            _config.getTaskStopCheckRetryPeriodMs(), _config.getTaskStopCheckTimeoutMs())) {
+          _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
+        } else {
+          _log.warn("Connector {} failed to stop its tasks in {}ms. No assignment tokens will be claimed",
+              connector, _config.getTaskStopCheckTimeoutMs());
+        }
+      } else {
+        _log.info("No streams have been inferred as stopping and no assignment tokens will be claimed");
+      }
+    });
+  }
+
+  @VisibleForTesting
+  boolean connectorTasksHaveStopped(String connectorName, Set<String> stoppingTasks) {
+    Set<String> activeTasks =
+        new HashSet<>(_connectors.get(connectorName).getConnector().getConnectorInstance().getActiveTasks());
+    return activeTasks.isEmpty() || stoppingTasks.isEmpty() || Collections.disjoint(activeTasks, stoppingTasks);
+  }
+
+  @VisibleForTesting
+  static List<Datastream> inferStoppingDatastreamsFromAssignment(List<DatastreamTask> newAssignment,
+      List<DatastreamTask> removedTasks) {
+    Map<String, List<Datastream>> taskPrefixToDatastream = removedTasks.stream().
+        collect(Collectors.toMap(DatastreamTask::getTaskPrefix, DatastreamTask::getDatastreams));
+
+    Set<String> removedPrefixes = removedTasks.stream().map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
+    Set<String> activePrefixes = newAssignment.stream().map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
+    removedPrefixes.removeAll(activePrefixes);
+
+    List<Datastream> stoppingStreams = removedPrefixes.stream().map(taskPrefixToDatastream::get).
+        flatMap(List::stream).collect(Collectors.toList());
+    return stoppingStreams;
   }
 
   private Future<Boolean> submitAssignment(String connectorType, List<DatastreamTask> assignment,
@@ -1053,7 +1164,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // there is no pending retry scheduled already.
       if (_leaderDatastreamAddOrDeleteEventScheduled.compareAndSet(false, true)) {
         _log.warn("Schedule retry for handling new datastream");
-        _leaderDatastreamAddOrDeleteEventScheduledFuture = _executor.schedule(() -> {
+        _leaderDatastreamAddOrDeleteEventScheduledFuture = _scheduledExecutor.schedule(() -> {
           _eventQueue.put(CoordinatorEvent.createHandleDatastreamAddOrDeleteEvent());
 
           // Allow further retry scheduling
@@ -1282,7 +1393,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info("Schedule retry for leader assigning tasks");
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
       _leaderDoAssignmentScheduled.set(true);
-      _leaderDoAssignmentScheduledFuture = _executor.schedule(() -> {
+      _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
         _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
@@ -1392,7 +1503,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_PARTITION_ASSIGNMENTS, 1);
     } else {
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_PARTITION_ASSIGNMENT_NUM_RETRIES, 1);
-      _executor.schedule(() -> {
+      _scheduledExecutor.schedule(() -> {
         _log.warn("Retry scheduled for leader partition assignment, dg {}", datastreamGroupName);
         // We need to schedule both LEADER_DO_ASSIGNMENT and leader partition assignment in case the tasks are
         // not locked because the assigned instance is dead. As we use a sticky assignment, the leader do assignment
@@ -1515,7 +1626,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }  else {
       _log.info("Schedule retry for leader movement tasks");
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_PARTITION_MOVEMENT_NUM_RETRIES, 1);
-      _executor.schedule(() ->
+      _scheduledExecutor.schedule(() ->
           _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp)), _config.getRetryIntervalMs(),
           TimeUnit.MILLISECONDS);
     }

@@ -788,4 +788,21 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       return taskEntry.getConnectorTask().getKafkaTopicPartitionTracker().getConsumptionLag();
     }
   }
+
+  /**
+   * {@inheritDoc}
+   */
+  public List<String> getActiveTasks() {
+    List<DatastreamTask> tasks = new ArrayList<>();
+
+    synchronized (_runningTasks) {
+      synchronized (_tasksPendingStop) {
+        tasks.addAll(_runningTasks.keySet());
+        tasks.addAll(_tasksPendingStop.keySet());
+      }
+    }
+
+    _logger.debug("Found {} active tasks assigned to the connector", tasks.size());
+    return tasks.stream().map(DatastreamTask::getId).collect(Collectors.toList());
+  }
 }

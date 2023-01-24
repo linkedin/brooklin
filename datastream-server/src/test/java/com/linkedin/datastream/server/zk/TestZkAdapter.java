@@ -6,7 +6,6 @@
 package com.linkedin.datastream.server.zk;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1111,8 +1110,44 @@ public class TestZkAdapter {
         KeyBuilder.datastreamAssignmentTokenForInstance(testCluster, datastreamGroup2.getTaskPrefix(), tokenNodes.get(0)));
     AssignmentToken token = AssignmentToken.fromJson(tokenData);
     Assert.assertEquals(token.getIssuedFor(), "instance2");
-    String hostname = InetAddress.getLocalHost().getHostName();
-    Assert.assertEquals(token.getIssuedBy(), hostname);
+    String localInstance = adapter.getInstanceName();
+    Assert.assertEquals(token.getIssuedBy(), localInstance);
+  }
+
+  @Test
+  public void testInstanceClaimsAssignmentTokensProperly() throws Exception {
+    String testCluster = "testInstanceClaimsAssignmentTokens";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter = createZkAdapter(testCluster);
+    adapter.connect();
+
+    // Creating datastream groups
+    Datastream[] datastreams = DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType,
+        "ketchupStream", "mayoStream");
+    Datastream ketchupStream = datastreams[0];
+    Datastream mayoStream = datastreams[1];
+    DatastreamGroup mayoDatastreamGroup = new DatastreamGroup(Collections.singletonList(mayoStream));
+
+    // Simulating a stop request for ketchup stream
+    zkClient.ensurePath(KeyBuilder.datastreamAssignmentTokens(testCluster, ketchupStream.getName()));
+    // Creating two assignment tokens for the stream and adding it to the stopping datastream groups list
+    zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(testCluster,
+        ketchupStream.getName(), adapter.getInstanceName()), "token", CreateMode.PERSISTENT);
+    zkClient.create(KeyBuilder.datastreamAssignmentTokenForInstance(testCluster,
+        ketchupStream.getName(), "someOtherInstance"), "token", CreateMode.PERSISTENT);
+
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setTaskPrefix(mayoDatastreamGroup.getTaskPrefix());
+    task1.setConnectorType(connectorType);
+
+    adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(ketchupStream), adapter.getInstanceName());
+
+    // Asserting that ZkAdapter claimed token for the given instance, and given instance only
+    List<String> nodes = zkClient.getChildren(
+        KeyBuilder.datastreamAssignmentTokens(testCluster, ketchupStream.getName()));
+    Assert.assertEquals(nodes.size(), 1);
+    Assert.assertEquals(nodes.get(0), "someOtherInstance"); // adapter didn't touch other instance's token
   }
 
   @Test

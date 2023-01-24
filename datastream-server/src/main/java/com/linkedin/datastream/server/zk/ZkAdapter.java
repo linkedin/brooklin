@@ -781,7 +781,6 @@ public class ZkAdapter {
    */
   private void issueAssignmentTokensForStoppingDatastreams(List<DatastreamGroup> stoppingDatastreamGroups,
       Map<DatastreamGroup, Set<String>> stoppingDgInstances) {
-    String hostname = getLocalHostName();
     for (DatastreamGroup stoppingGroup : stoppingDatastreamGroups) {
       for (Datastream stoppingStream : stoppingGroup.getDatastreams()) {
         String path = KeyBuilder.datastream(_cluster, stoppingStream.getName());
@@ -799,7 +798,7 @@ public class ZkAdapter {
         for (String instance : instances) {
           String assignmentTokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster,
               stoppingStream.getName(), instance);
-          AssignmentToken token = new AssignmentToken(hostname, instance);
+          AssignmentToken token = new AssignmentToken(_instanceName, instance, System.currentTimeMillis());
           _zkclient.create(assignmentTokenPath, token.toJson(), CreateMode.PERSISTENT);
         }
       }
@@ -843,16 +842,29 @@ public class ZkAdapter {
   }
 
   /**
-   * Gets the name of the local host
+   * Claims assignment tokens for the given datastreams and instance
+   * @param datastreams List of datastreams for which tokens are to be claimed
+   * @param instance Instance name
    */
-  private String getLocalHostName() {
-    String hostname = "localhost";
-    try {
-      hostname = InetAddress.getLocalHost().getHostName();
-    } catch (UnknownHostException ex) {
-      LOG.warn("Unable to obtain hostname for leader");
+  public void claimAssignmentTokensForDatastreams(List<Datastream> datastreams, String instance) {
+    for (Datastream stream : datastreams) {
+      String streamName = stream.getName();
+      String tokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster, streamName, instance);
+      if (_zkclient.exists(tokenPath)) {
+        if (instance.equals(_instanceName)) {
+          LOG.info("Claiming assignment token for datastream: {}", streamName);
+        } else {
+          LOG.info("Revoking assignment token for datastream: {}, instance: {}", streamName, instance);
+        }
+        try {
+          _zkclient.delete(tokenPath);
+        } catch (Exception ex) {
+          LOG.error("Failed to delete token {}", tokenPath, ex);
+        }
+      } else {
+        LOG.debug("Attempt to claim non-existing assignment token {}", tokenPath);
+      }
     }
-    return hostname;
   }
 
   /**
