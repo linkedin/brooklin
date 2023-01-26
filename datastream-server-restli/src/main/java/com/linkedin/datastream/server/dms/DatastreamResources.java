@@ -102,7 +102,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   // To support retries on the request timeouts
   public static final String CONFIG_STOP_TRANSITION_TIMEOUT_MS = "stopTransitionTimeoutMs";
   public static final String CONFIG_STOP_TRANSITION_RETRY_PERIOD_MS = "stopTransitionRetryPeriodMs";
-  private static final Long STOP_TRANSITION_TIMEOUT_MS_DEFAULT = Duration.ofMillis(60000).toMillis();
+  private static final Long STOP_TRANSITION_TIMEOUT_MS_DEFAULT = Duration.ofMillis(90000).toMillis();
   private static final Long STOP_TRANSITION_RETRY_PERIOD_MS_DEFAULT = Duration.ofMillis(1000).toMillis();
 
   private final DatastreamStore _store;
