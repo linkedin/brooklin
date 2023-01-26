@@ -2317,7 +2317,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     public enum Meter {
       NUM_REBALANCES("numRebalances"),
       NUM_FAILED_STOPS("numFailedStops"),
-      NUM_INFERRED_STOPPING_STREAMS("numInferredStoppingStreans"),
+      NUM_INFERRED_STOPPING_STREAMS("numInferredStoppingStreams"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
