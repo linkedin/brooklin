@@ -798,8 +798,12 @@ public class ZkAdapter {
         for (String instance : instances) {
           String assignmentTokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster,
               stoppingStream.getName(), instance);
-          AssignmentToken token = new AssignmentToken(_instanceName, instance, System.currentTimeMillis());
-          _zkclient.create(assignmentTokenPath, token.toJson(), CreateMode.PERSISTENT);
+          if (_zkclient.exists(assignmentTokenPath)) {
+            LOG.warn("Assignment token already issued for instance {}, stream {}", instance, stoppingStream.getName());
+          } else {
+            AssignmentToken token = new AssignmentToken(_instanceName, instance, System.currentTimeMillis());
+            _zkclient.create(assignmentTokenPath, token.toJson(), CreateMode.PERSISTENT);
+          }
         }
       }
     }
