@@ -809,7 +809,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
       List<DatastreamTask> oldAssignment) {
-    // TODO Add metrics for number of streams that are inferred as stopping
     Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
     for (DatastreamTask task : newAssignment) {
       String connectorType = task.getConnectorType();
@@ -839,6 +838,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Set<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
 
       if (!stoppingStreamNames.isEmpty()) {
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_INFERRED_STOPPING_STREAMS, stoppingStreams.size());
         _log.info("Trying to claim assignment tokens for connector {}, streams: {}", connector, stoppingStreamNames);
 
         Set<String> stoppingDatastreamTasks = removedTasks.stream().
@@ -2317,6 +2317,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     public enum Meter {
       NUM_REBALANCES("numRebalances"),
       NUM_FAILED_STOPS("numFailedStops"),
+      NUM_INFERRED_STOPPING_STREAMS("numInferredStoppingStreans"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
