@@ -1298,10 +1298,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /*
-   * If cleanUpOrphanNodes is set to true, it cleans up the orphan connector tasks not assigned to
+   * If isNewlyElectedLeader is set to true, it cleans up the orphan connector tasks not assigned to
    * any instance after old unused tasks are cleaned up.
    */
-  private void handleLeaderDoAssignment(boolean cleanUpOrphanNodes) {
+  private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -1314,7 +1314,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info("stopping datastreams: {}", stoppingDatastreamGroups);
       onDatastreamChange(datastreamGroups);
 
-      if (cleanUpOrphanNodes) {
+      if (isNewlyElectedLeader) {
         performPreAssignmentCleanup(datastreamGroups);
       }
 
@@ -1349,10 +1349,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         failedStreams = unclaimedTokens.keySet();
         Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
             map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
-        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
-            _config.getStopPropagationTimeout(), failedStreams, hosts);
+
+        if (!isNewlyElectedLeader) {
+          _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+              _config.getStopPropagationTimeout(), failedStreams, hosts);
+          _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
+        } else {
+          _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
+              "expecting the hosts {} to claim tokens but they didn't",
+              _config.getStopPropagationTimeout(), failedStreams, hosts);
+        }
+
         revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
-        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
       }
 
       // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
@@ -1383,7 +1391,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       instances.add(PAUSED_INSTANCE);
       _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
           newAssignmentsByInstance, instances);
-      if (cleanUpOrphanNodes) {
+      if (isNewlyElectedLeader) {
         performCleanupOrphanNodes();
       }
       _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBALANCES, 1);
@@ -1395,7 +1403,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
       _leaderDoAssignmentScheduled.set(true);
       _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
