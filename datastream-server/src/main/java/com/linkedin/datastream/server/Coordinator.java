@@ -1363,12 +1363,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
       }
 
-      // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
-
+      boolean forceStop = _config.getForceStopStreamsOnFailure();
       for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
         for (Datastream datastream : datastreamGroup.getDatastreams()) {
-          // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
-          if (!failedStreams.contains(datastream.getName())) {
+          // If no force stop is configured, only streams that were confirmed to have stopped successfully will be
+          // transitioned to STOPPED state
+          if (forceStop || !failedStreams.contains(datastream.getName())) {
             datastream.setStatus(DatastreamStatus.STOPPED);
             if (!_adapter.updateDatastream(datastream)) {
               _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
