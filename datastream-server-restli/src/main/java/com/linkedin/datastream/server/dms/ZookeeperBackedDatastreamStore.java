@@ -242,6 +242,18 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     _zkClient.delete(path);
   }
 
+  @Override
+  public void deleteAssignmentTokens(String key) {
+    String assignmentTokensPath = KeyBuilder.datastreamAssignmentTokens(_cluster, key);
+
+    if (!_zkClient.exists(assignmentTokensPath)) {
+      LOG.info("Assignment tokens path clear for datastream {}. Nothing to delete", key);
+      return;
+    }
+
+    _zkClient.deleteRecursively(assignmentTokensPath);
+  }
+
   private void notifyLeaderOfDataChange() {
     String dmsPath = KeyBuilder.datastreams(_cluster);
     // Update the /dms to notify that coordinator needs to act on a deleted or changed datastream.

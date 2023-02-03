@@ -478,7 +478,13 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           // this check helps in preventing any datastream from being stuck in STOPPING state indefinitely
           LOG.warn("Datastream {} is already in {} state. Notifying leader to initiate transition", d,
               d.getStatus());
-          _store.updateDatastream(d.getName(), d, true);
+          if (force) {
+            _store.deleteAssignmentTokens(d.getName());
+            d.setStatus(DatastreamStatus.STOPPED);
+            _store.updateDatastream(d.getName(), d, false);
+          } else {
+            _store.updateDatastream(d.getName(), d, true);
+          }
           _store.deleteDatastreamNumTasks(d.getName());
           // invoke post datastream state change action for recently stopped datastream
           invokePostDSStateChangeAction(d);
