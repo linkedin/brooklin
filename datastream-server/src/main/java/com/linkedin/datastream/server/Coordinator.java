@@ -1335,39 +1335,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // and schedule a retry. The retry should be able to diff the remaining ZooKeeper work
       if (_config.getEnableAssignmentTokens()) {
         _adapter.updateAllAssignmentsAndIssueTokens(newAssignmentsByInstance, stoppingDatastreamGroups);
+        try {
+          _tokenClaimExecutor.submit(() -> waitForStopToPropagateAndMarkDatastreamsStopped(stoppingDatastreamGroups));
+        } catch (RejectedExecutionException ex) {
+          _log.error("handleLeaderDoAssignment: Failed to submit the task that waits for stop propagation");
+          succeeded = false;
+        }
+
       } else {
         _adapter.updateAllAssignments(newAssignmentsByInstance);
-      }
-
-      Set<String> failedStreams = Collections.emptySet();
-      // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
-      if (_config.getEnableAssignmentTokens() &&
-          !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
-            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeout())) {
-        Map<String, List<AssignmentToken>> unclaimedTokens =
-            _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
-        failedStreams = unclaimedTokens.keySet();
-        Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
-            map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
-        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
-            _config.getStopPropagationTimeout(), failedStreams, hosts);
-        revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
-        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
-      }
-
-      // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
-
-      for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
-        for (Datastream datastream : datastreamGroup.getDatastreams()) {
-          // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
-          if (!failedStreams.contains(datastream.getName())) {
-            datastream.setStatus(DatastreamStatus.STOPPED);
-            if (!_adapter.updateDatastream(datastream)) {
-              _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
-              succeeded = false;
-            }
-          }
-        }
+        markDatastreamsStopped(stoppingDatastreamGroups, Collections.emptySet());
       }
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime exception.", e);
@@ -1391,13 +1368,51 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // schedule retry if failure
     if (!succeeded && !_leaderDoAssignmentScheduled.get()) {
-      _log.info("Schedule retry for leader assigning tasks");
-      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
-      _leaderDoAssignmentScheduled.set(true);
-      _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
-        _leaderDoAssignmentScheduled.set(false);
-      }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+      scheduleLeaderDoAssignmentRetry(cleanUpOrphanNodes);
+    }
+  }
+
+  void scheduleLeaderDoAssignmentRetry(boolean cleanUpOrphanNodes) {
+    _log.info("Schedule retry for leader assigning tasks");
+    _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
+    _leaderDoAssignmentScheduled.set(true);
+    _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
+      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
+      _leaderDoAssignmentScheduled.set(false);
+    }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+  }
+
+  private void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups) {
+    // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
+    Set<String> failedStreams = Collections.emptySet();
+    if (_config.getEnableAssignmentTokens() &&
+        !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
+            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeout())) {
+      Map<String, List<AssignmentToken>> unclaimedTokens =
+          _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
+      failedStreams = unclaimedTokens.keySet();
+      Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
+          map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
+      _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+          _config.getStopPropagationTimeout(), failedStreams, hosts);
+      revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
+      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
+    }
+
+    markDatastreamsStopped(stoppingDatastreamGroups, failedStreams);
+  }
+
+  private void markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
+    for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
+      for (Datastream datastream : datastreamGroup.getDatastreams()) {
+        // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
+        if (!failedStreams.contains(datastream.getName())) {
+          datastream.setStatus(DatastreamStatus.STOPPED);
+          if (!_adapter.updateDatastream(datastream)) {
+            _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
+          }
+        }
+      }
     }
   }
 
