@@ -98,6 +98,7 @@ import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -3054,6 +3055,80 @@ public class TestCoordinator {
     instance2.stop();
     instance1.getDatastreamCache().getZkclient().close();
     instance2.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testNewlyElectedLeaderRevokesAssignmentTokens() throws Exception {
+    String testCluster = "testNewlyElectedLeaderRevokesTokens";
+    String testConnectorType = "testConnectorType";
+    String datastreamName = "datastreamName";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(true));
+    props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, String.valueOf(1000));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator instance1 = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    instance1.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
+            DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new StickyMulticastStrategy(Optional.of(4), 1), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    // instance1 joined the cluster. Verify that it's the leader now
+    Assert.assertTrue(PollUtils.poll(() -> instance1.getIsLeader().getAsBoolean(), 100, 30000));
+
+    // Create a datastream
+    Datastream[] streams = DatastreamTestUtils.createDatastreams(testConnectorType, datastreamName);
+    Datastream datastream1 = streams[0];
+    datastream1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, datastreamName);
+    datastream1.getMetadata().put(DatastreamMetadataConstants.NUM_TASKS, String.valueOf(4));
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastream1);
+
+    // Wait for assignment to complete and assert that 4 tasks got assigned
+    Assert.assertTrue(waitTillAssignmentIsComplete(4, 3000, connector1));
+
+    // Create a second instance and add to the cluster
+    Coordinator instance2 = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    ZkAdapter spyZkAdapter2 = instance2.getZkAdapter();
+    instance2.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
+        new DummyTransportProviderAdminFactory().createTransportProviderAdmin(
+            DummyTransportProviderAdminFactory.PROVIDER_NAME, new Properties()));
+
+    TestHookConnector connector2 = new TestHookConnector("connector2", testConnectorType);
+    instance2.addConnector(testConnectorType, connector2, new StickyMulticastStrategy(Optional.of(4), 1), false,
+        new SourceBasedDeduper(), null);
+    instance2.start();
+    // Wait for assignment to complete and assert that 2 of the tasks moved to the new instance
+    Assert.assertTrue(waitTillAssignmentIsComplete(2, 3000, connector2));
+    Assert.assertEquals(connector2.getTasks().size(), 2);
+    Assert.assertEquals(connector1.getTasks().size(), 2);
+
+    // Simulate a stopping datastream without notifying the leader
+    ZookeeperBackedDatastreamStore dsStore = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient,
+        testCluster);
+    datastream1.setStatus(DatastreamStatus.STOPPING);
+    dsStore.updateDatastream(datastreamName, datastream1, false);
+
+    // Stop the first instance
+    instance1.stop();
+
+    // Verify that the second instance is now the leader
+    Assert.assertTrue(PollUtils.poll(() -> instance2.getIsLeader().getAsBoolean(), 100, 30000));
+    // Verify that the new leader issued tokens after becoming a leader
+    verify(spyZkAdapter2, atLeast(1)).updateAllAssignmentsAndIssueTokens(any(), any());
+    // Verify that the new leader didn't emit a metric for unclaimed tokens
+    String numFailedStopsMetricName = "Coordinator.numFailedStops";
+    Meter numFailedStops = DynamicMetricsManager.getInstance().getMetric(numFailedStopsMetricName);
+    Assert.assertEquals(numFailedStops.getCount(), 0);
   }
 
   @Test
