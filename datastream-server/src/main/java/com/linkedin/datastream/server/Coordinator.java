@@ -1344,7 +1344,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       } else {
         _adapter.updateAllAssignments(newAssignmentsByInstance);
-        markDatastreamsStopped(stoppingDatastreamGroups, Collections.emptySet());
+        succeeded = markDatastreamsStopped(stoppingDatastreamGroups, Collections.emptySet());
       }
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime exception.", e);
@@ -1402,7 +1402,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     markDatastreamsStopped(stoppingDatastreamGroups, failedStreams);
   }
 
-  private void markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
+  private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
+    boolean success = true;
     for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
       for (Datastream datastream : datastreamGroup.getDatastreams()) {
         // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
@@ -1410,10 +1411,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           datastream.setStatus(DatastreamStatus.STOPPED);
           if (!_adapter.updateDatastream(datastream)) {
             _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
+            success = false;
           }
         }
       }
     }
+    return success;
   }
 
   private void revokeUnclaimedAssignmentTokens(Map<String, List<AssignmentToken>> unclaimedTokens,
