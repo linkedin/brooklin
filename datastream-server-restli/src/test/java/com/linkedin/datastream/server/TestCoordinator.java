@@ -3124,7 +3124,12 @@ public class TestCoordinator {
     // Verify that the second instance is now the leader
     Assert.assertTrue(PollUtils.poll(() -> instance2.getIsLeader().getAsBoolean(), 100, 30000));
     // Verify that the new leader issued tokens after becoming a leader
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(datastream1));
     verify(spyZkAdapter2, atLeast(1)).updateAllAssignmentsAndIssueTokens(any(), any());
+    // Wait for the leader to clean tokens
+    PollUtils.poll(() -> spyZkAdapter2.getNumUnclaimedTokensForDatastreams(
+        Collections.singletonList(datastreamGroup)) == 0, 100, 1000);
+    verify(spyZkAdapter2, atLeast(1)).claimAssignmentTokensForDatastreams(any(), any());
     // Verify that the new leader didn't emit a metric for unclaimed tokens
     String numFailedStopsMetricName = "Coordinator.numFailedStops";
     Meter numFailedStops = DynamicMetricsManager.getInstance().getMetric(numFailedStopsMetricName);
