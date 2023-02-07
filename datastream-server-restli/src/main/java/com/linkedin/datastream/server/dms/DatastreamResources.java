@@ -479,6 +479,10 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           LOG.warn("Datastream {} is already in {} state. Notifying leader to initiate transition", d,
               d.getStatus());
           if (force) {
+            // force stop recover the setup (i.e. set the datastream to STOPPED state) and do cleanup in case
+            // leader failed to do so. This needs to be used only if attempts to stop a stream regularly fail
+            LOG.info("Force stop for datastream {} requested. Setting the datastream to STOPPED state and invoking cleanup",
+                d.getName());
             _store.deleteAssignmentTokens(d.getName());
             d.setStatus(DatastreamStatus.STOPPED);
             _store.updateDatastream(d.getName(), d, false);

@@ -1350,6 +1350,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
             map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
 
+        // We skip emitting the NUM_FAILED_STOPS metric in case of leader failover. This is because new leader may
+        // issue extra tokens and revoke them later.
         if (!isNewlyElectedLeader) {
           _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
               _config.getStopPropagationTimeout(), failedStreams, hosts);
