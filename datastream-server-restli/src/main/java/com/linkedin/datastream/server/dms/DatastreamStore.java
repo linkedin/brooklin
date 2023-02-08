@@ -71,5 +71,5 @@ public interface DatastreamStore {
    * Delete the assignment tokens (if any) associated with the provided key
    * @param key Name of the datastream whose assignment tokens have to be deleted
    */
-  void deleteAssignmentTokens(String key);
+  void forceCleanupDatastream(String key);
 }

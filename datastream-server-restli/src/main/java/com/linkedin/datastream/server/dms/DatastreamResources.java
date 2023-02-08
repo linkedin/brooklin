@@ -483,7 +483,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
             // leader failed to do so. This needs to be used only if attempts to stop a stream regularly fail
             LOG.info("Force stop for datastream {} requested. Setting the datastream to STOPPED state and invoking cleanup",
                 d.getName());
-            _store.deleteAssignmentTokens(d.getName());
+            _store.forceCleanupDatastream(d.getName());
             d.setStatus(DatastreamStatus.STOPPED);
             _store.updateDatastream(d.getName(), d, false);
           } else {

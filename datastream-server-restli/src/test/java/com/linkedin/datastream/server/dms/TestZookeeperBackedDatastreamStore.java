@@ -333,7 +333,7 @@ public class TestZookeeperBackedDatastreamStore {
     Assert.assertTrue(_zkClient.exists(token1Path));
     Assert.assertTrue(_zkClient.exists(token2Path));
 
-    _store.deleteAssignmentTokens(ds.getName());
+    _store.forceCleanupDatastream(ds.getName());
 
     // Make sure nodes for tokens were deleted
     Assert.assertFalse(_zkClient.exists(tokensRootPath));
