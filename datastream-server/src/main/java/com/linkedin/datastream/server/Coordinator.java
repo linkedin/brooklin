@@ -1372,12 +1372,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
-  void scheduleLeaderDoAssignmentRetry(boolean cleanUpOrphanNodes) {
+  private void scheduleLeaderDoAssignmentRetry(boolean isNewlyElectedLeader) {
     _log.info("Schedule retry for leader assigning tasks");
     _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
     _leaderDoAssignmentScheduled.set(true);
     _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
+      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
       _leaderDoAssignmentScheduled.set(false);
     }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
   }
