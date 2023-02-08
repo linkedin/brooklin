@@ -59,12 +59,12 @@ public class CoordinatorEvent {
 
   /**
    * Returns an event that indicates a new assignment needs to be done (this is a leader-specific event).
-   * cleanUpOrphanConnectorTasks should be set to true once when the coordinator becomes leader.
+   * isNewlyElectedLeader should be set to true once when the coordinator becomes leader.
    * If this is set to true, coordinator will check if there are any orphan connector tasks that have no
    * binding with any live instance, and will verify/clean those nodes from zookeeper.
    */
-  public static CoordinatorEvent createLeaderDoAssignmentEvent(boolean cleanUpOrphanConnectorTasks) {
-    return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT, cleanUpOrphanConnectorTasks);
+  public static CoordinatorEvent createLeaderDoAssignmentEvent(boolean isNewlyElectedLeader) {
+    return new CoordinatorEvent(EventType.LEADER_DO_ASSIGNMENT, isNewlyElectedLeader);
   }
 
   /**

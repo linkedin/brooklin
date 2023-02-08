@@ -449,10 +449,18 @@ public class TestDatastreamResources {
     Assert.assertNotNull(ds);
     Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPING);
 
+    // Setting status to STOPPING again explicitly to perform testing.
+    datastreamToCreate.setStatus(DatastreamStatus.STOPPING);
+    store.updateDatastream(datastreamName, datastreamToCreate, false);
+
+    // Attempting to force stop a datastream in stopping state
+    Assert.assertEquals(resource1.stop(pathKey, true).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.STOPPED);
+
     // Attempting to delete a datastream in stopping state, which should get executed without exception.
     Assert.assertEquals(resource1.delete(datastreamName).getStatus(), HttpStatus.S_200_OK);
     Assert.assertEquals(resource1.get(datastreamName).getStatus(), DatastreamStatus.DELETING);
-    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 4);
+    Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 6);
   }
 
   @Test

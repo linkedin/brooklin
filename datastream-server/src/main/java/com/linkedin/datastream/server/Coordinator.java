@@ -809,7 +809,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
       List<DatastreamTask> oldAssignment) {
-    // TODO Add metrics for number of streams that are inferred as stopping
     Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
     for (DatastreamTask task : newAssignment) {
       String connectorType = task.getConnectorType();
@@ -839,6 +838,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Set<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
 
       if (!stoppingStreamNames.isEmpty()) {
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_INFERRED_STOPPING_STREAMS, stoppingStreams.size());
         _log.info("Trying to claim assignment tokens for connector {}, streams: {}", connector, stoppingStreamNames);
 
         Set<String> stoppingDatastreamTasks = removedTasks.stream().
@@ -1298,10 +1298,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /*
-   * If cleanUpOrphanNodes is set to true, it cleans up the orphan connector tasks not assigned to
+   * If isNewlyElectedLeader is set to true, it cleans up the orphan connector tasks not assigned to
    * any instance after old unused tasks are cleaned up.
    */
-  private void handleLeaderDoAssignment(boolean cleanUpOrphanNodes) {
+  private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -1314,7 +1314,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info("stopping datastreams: {}", stoppingDatastreamGroups);
       onDatastreamChange(datastreamGroups);
 
-      if (cleanUpOrphanNodes) {
+      if (isNewlyElectedLeader) {
         performPreAssignmentCleanup(datastreamGroups);
       }
 
@@ -1349,18 +1349,28 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         failedStreams = unclaimedTokens.keySet();
         Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
             map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
-        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
-            _config.getStopPropagationTimeout(), failedStreams, hosts);
+
+        // We skip emitting the NUM_FAILED_STOPS metric in case of leader failover. This is because new leader may
+        // issue extra tokens and revoke them later.
+        if (!isNewlyElectedLeader) {
+          _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+              _config.getStopPropagationTimeout(), failedStreams, hosts);
+          _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
+        } else {
+          _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
+              "expecting the hosts {} to claim tokens but they didn't",
+              _config.getStopPropagationTimeout(), failedStreams, hosts);
+        }
+
         revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
-        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
       }
 
-      // TODO Explore introduction of UNKNOWN/WARN state for streams that failed to stop
-
+      boolean forceStop = _config.getForceStopStreamsOnFailure();
       for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
         for (Datastream datastream : datastreamGroup.getDatastreams()) {
-          // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
-          if (!failedStreams.contains(datastream.getName())) {
+          // If no force stop is configured, only streams that were confirmed to have stopped successfully will be
+          // transitioned to STOPPED state
+          if (forceStop || !failedStreams.contains(datastream.getName())) {
             datastream.setStatus(DatastreamStatus.STOPPED);
             if (!_adapter.updateDatastream(datastream)) {
               _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
@@ -1383,7 +1393,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       instances.add(PAUSED_INSTANCE);
       _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
           newAssignmentsByInstance, instances);
-      if (cleanUpOrphanNodes) {
+      if (isNewlyElectedLeader) {
         performCleanupOrphanNodes();
       }
       _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBALANCES, 1);
@@ -1395,7 +1405,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
       _leaderDoAssignmentScheduled.set(true);
       _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(cleanUpOrphanNodes));
+        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
         _leaderDoAssignmentScheduled.set(false);
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
@@ -2309,6 +2319,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     public enum Meter {
       NUM_REBALANCES("numRebalances"),
       NUM_FAILED_STOPS("numFailedStops"),
+      NUM_INFERRED_STOPPING_STREAMS("numInferredStoppingStreams"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),

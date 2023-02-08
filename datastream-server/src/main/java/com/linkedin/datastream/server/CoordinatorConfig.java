@@ -39,6 +39,8 @@ public final class CoordinatorConfig {
   public static final String CONFIG_TASK_STOP_CHECK_TIMEOUT_MS = PREFIX + "taskStopCheckTimeoutMs";
   // how long should the coordinator wait in between two consecutive calls to check if a connector's tasks have stopped
   public static final String CONFIG_TASK_STOP_CHECK_RETRY_PERIOD_MS = PREFIX + "taskStopCheckRetryPeriodMs";
+  // should the coordinator declare a stream stopped if there's no confirmation from at least one follower
+  public static final String CONFIG_FORCE_STOP_STREAMS_ON_FAILURE = PREFIX + "forceStopStreamsOnFailure";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60000;
@@ -65,6 +67,7 @@ public final class CoordinatorConfig {
   private final long _stopPropagationTimeout;
   private final long _taskStopCheckTimeoutMs;
   private final long _taskStopCheckRetryPeriodMs;
+  private final boolean _forceStopStreamsOnFailure;
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -95,6 +98,7 @@ public final class CoordinatorConfig {
     _taskStopCheckTimeoutMs = _properties.getLong(CONFIG_TASK_STOP_CHECK_TIMEOUT_MS, DEFAULT_TASK_STOP_CHECK_TIMEOUT_MS);
     _taskStopCheckRetryPeriodMs = _properties.getLong(CONFIG_TASK_STOP_CHECK_RETRY_PERIOD_MS,
         DEFAULT_TASK_STOP_CHECK_RETRY_PERIOD_MS);
+    _forceStopStreamsOnFailure = _properties.getBoolean(CONFIG_FORCE_STOP_STREAMS_ON_FAILURE, false);
   }
 
   public Properties getConfigProperties() {
@@ -171,5 +175,9 @@ public final class CoordinatorConfig {
 
   public long getStopPropagationTimeout() {
     return _stopPropagationTimeout;
+  }
+
+  public boolean getForceStopStreamsOnFailure() {
+    return _forceStopStreamsOnFailure;
   }
 }

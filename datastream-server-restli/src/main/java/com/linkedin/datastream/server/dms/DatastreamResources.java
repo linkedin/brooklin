@@ -102,7 +102,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   // To support retries on the request timeouts
   public static final String CONFIG_STOP_TRANSITION_TIMEOUT_MS = "stopTransitionTimeoutMs";
   public static final String CONFIG_STOP_TRANSITION_RETRY_PERIOD_MS = "stopTransitionRetryPeriodMs";
-  private static final Long STOP_TRANSITION_TIMEOUT_MS_DEFAULT = Duration.ofMillis(60000).toMillis();
+  private static final Long STOP_TRANSITION_TIMEOUT_MS_DEFAULT = Duration.ofMillis(90000).toMillis();
   private static final Long STOP_TRANSITION_RETRY_PERIOD_MS_DEFAULT = Duration.ofMillis(1000).toMillis();
 
   private final DatastreamStore _store;
@@ -478,7 +478,17 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           // this check helps in preventing any datastream from being stuck in STOPPING state indefinitely
           LOG.warn("Datastream {} is already in {} state. Notifying leader to initiate transition", d,
               d.getStatus());
-          _store.updateDatastream(d.getName(), d, true);
+          if (force) {
+            // force stop recover the setup (i.e. set the datastream to STOPPED state) and do cleanup in case
+            // leader failed to do so. This needs to be used only if attempts to stop a stream regularly fail
+            LOG.info("Force stop for datastream {} requested. Setting the datastream to STOPPED state and invoking cleanup",
+                d.getName());
+            _store.forceCleanupDatastream(d.getName());
+            d.setStatus(DatastreamStatus.STOPPED);
+            _store.updateDatastream(d.getName(), d, false);
+          } else {
+            _store.updateDatastream(d.getName(), d, true);
+          }
           _store.deleteDatastreamNumTasks(d.getName());
           // invoke post datastream state change action for recently stopped datastream
           invokePostDSStateChangeAction(d);

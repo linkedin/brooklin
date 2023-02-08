@@ -66,4 +66,10 @@ public interface DatastreamStore {
    * @param key Name of the original datastream whose numTasks znode is to be deleted
    */
   void deleteDatastreamNumTasks(String key);
+
+  /**
+   * Delete the assignment tokens (if any) associated with the provided key
+   * @param key Name of the datastream whose assignment tokens have to be deleted
+   */
+  void forceCleanupDatastream(String key);
 }
