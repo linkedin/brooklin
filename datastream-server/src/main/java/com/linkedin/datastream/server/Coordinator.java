@@ -1335,7 +1335,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (_config.getEnableAssignmentTokens()) {
         _adapter.updateAllAssignmentsAndIssueTokens(newAssignmentsByInstance, stoppingDatastreamGroups);
         try {
-          _tokenClaimExecutor.submit(() -> waitForStopToPropagateAndMarkDatastreamsStopped(stoppingDatastreamGroups));
+          _tokenClaimExecutor.submit(() -> waitForStopToPropagateAndMarkDatastreamsStopped(stoppingDatastreamGroups,
+              isNewlyElectedLeader));
         } catch (RejectedExecutionException ex) {
           _log.error("handleLeaderDoAssignment: Failed to submit the task that waits for stop propagation");
           succeeded = false;
@@ -1381,32 +1382,48 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
   }
 
-  private void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups) {
+  private void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups,
+      boolean isNewlyElectedLeader) {
     // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
     Set<String> failedStreams = Collections.emptySet();
     if (_config.getEnableAssignmentTokens() &&
         !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
-            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeout())) {
+            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeoutMs())) {
       Map<String, List<AssignmentToken>> unclaimedTokens =
           _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
       failedStreams = unclaimedTokens.keySet();
       Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
           map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
-      _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
-          _config.getStopPropagationTimeout(), failedStreams, hosts);
+
+      // We skip emitting the NUM_FAILED_STOPS metric in case of leader failover. This is because new leader may
+      // issue extra tokens and revoke them later.
+      if (!isNewlyElectedLeader) {
+        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+            _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
+      } else {
+        _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
+                "expecting the hosts {} to claim tokens but they didn't",
+            _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
+      }
       revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
-      _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
     }
 
-    markDatastreamsStopped(stoppingDatastreamGroups, failedStreams);
+    // TODO Explore if the STOPPING -> STOPPED transition can be converted into an event type and scheduled in the event queue
+    Set<String> finalFailedStreams = failedStreams;
+    if (!PollUtils.poll(() -> markDatastreamsStopped(stoppingDatastreamGroups, finalFailedStreams),
+        _config.getMarkDatastreamsStoppedRetryPeriodMs(), _config.getMarkDatastreamsStoppedTimeoutMs())) {
+      _log.error("Failed to mark streams STOPPED within {}ms. Giving up.", _config.getMarkDatastreamsStoppedTimeoutMs());
+    }
   }
 
   private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
     boolean success = true;
+    boolean forceStop = _config.getForceStopStreamsOnFailure();
     for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
       for (Datastream datastream : datastreamGroup.getDatastreams()) {
         // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
-        if (!failedStreams.contains(datastream.getName())) {
+        if (forceStop || !failedStreams.contains(datastream.getName())) {
           datastream.setStatus(DatastreamStatus.STOPPED);
           if (!_adapter.updateDatastream(datastream)) {
             _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
