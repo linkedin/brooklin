@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
+import org.apache.helix.zookeeper.exception.ZkClientException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -240,6 +241,22 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
     LOG.info("Deleting the zk path {} ", path);
     _zkClient.delete(path);
+  }
+
+  @Override
+  public void forceCleanupDatastream(String key) {
+    String assignmentTokensPath = KeyBuilder.datastreamAssignmentTokens(_cluster, key);
+
+    if (!_zkClient.exists(assignmentTokensPath)) {
+      LOG.info("Assignment tokens path clear for datastream {}. Nothing to delete", key);
+      return;
+    }
+
+    try {
+      _zkClient.deleteRecursively(assignmentTokensPath);
+    } catch (ZkClientException ex) {
+      LOG.error("Failed to cleanup assignment tokens for {}", key, ex);
+    }
   }
 
   private void notifyLeaderOfDataChange() {

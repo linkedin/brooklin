@@ -59,4 +59,14 @@ public class TestCoordinatorConfig {
     Assert.assertEquals(CoordinatorConfig.DEFAULT_TASK_STOP_CHECK_RETRY_PERIOD_MS, config.getTaskStopCheckRetryPeriodMs());
     Assert.assertEquals(CoordinatorConfig.DEFAULT_TASK_STOP_CHECK_TIMEOUT_MS, config.getTaskStopCheckTimeoutMs());
   }
+
+  @Test
+  public void testForceStopStreamsOnFailureConfig() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    Assert.assertFalse(config.getForceStopStreamsOnFailure());
+    props.put(CoordinatorConfig.CONFIG_FORCE_STOP_STREAMS_ON_FAILURE, "true");
+    config = createCoordinatorConfig(props);
+    Assert.assertTrue(config.getForceStopStreamsOnFailure());
+  }
 }

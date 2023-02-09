@@ -809,7 +809,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   void maybeClaimAssignmentTokensForStoppingStreams(List<DatastreamTask> newAssignment,
       List<DatastreamTask> oldAssignment) {
-    // TODO Add metrics for number of streams that are inferred as stopping
     Map<String, List<DatastreamTask>> newAssignmentPerConnector = new HashMap<>();
     for (DatastreamTask task : newAssignment) {
       String connectorType = task.getConnectorType();
@@ -1298,10 +1297,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   /*
-   * If cleanUpOrphanNodes is set to true, it cleans up the orphan connector tasks not assigned to
+   * If isNewlyElectedLeader is set to true, it cleans up the orphan connector tasks not assigned to
    * any instance after old unused tasks are cleaned up.
    */
-  private void handleLeaderDoAssignment(boolean cleanUpOrphanNodes) {
+  private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
@@ -1314,7 +1313,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info("stopping datastreams: {}", stoppingDatastreamGroups);
       onDatastreamChange(datastreamGroups);
 
-      if (cleanUpOrphanNodes) {
+      if (isNewlyElectedLeader) {
         performPreAssignmentCleanup(datastreamGroups);
       }
 
@@ -1360,7 +1359,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       instances.add(PAUSED_INSTANCE);
       _adapter.cleanUpDeadInstanceDataAndOtherUnusedTasks(previousAssignmentByInstance,
           newAssignmentsByInstance, instances);
-      if (cleanUpOrphanNodes) {
+      if (isNewlyElectedLeader) {
         performCleanupOrphanNodes();
       }
       _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_REBALANCES, 1);
@@ -1368,7 +1367,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // schedule retry if failure
     if (!succeeded && !_leaderDoAssignmentScheduled.get()) {
-      scheduleLeaderDoAssignmentRetry(cleanUpOrphanNodes);
+      scheduleLeaderDoAssignmentRetry(isNewlyElectedLeader);
     }
   }
 
@@ -2327,6 +2326,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     public enum Meter {
       NUM_REBALANCES("numRebalances"),
       NUM_FAILED_STOPS("numFailedStops"),
+      NUM_INFERRED_STOPPING_STREAMS("numInferredStoppingStreams"),
       NUM_ASSIGNMENT_CHANGES("numAssignmentChanges"),
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),

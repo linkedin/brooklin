@@ -314,4 +314,30 @@ public class TestZookeeperBackedDatastreamStore {
 
     Assert.assertNull(_store.getAssignedTaskInstance(datastreamName, null));
   }
+
+  @Test
+  public void testDeleteAssignmentTokens() {
+    Datastream ds = generateDatastream(0);
+    _store.createDatastream(ds.getName(), ds);
+
+    // Create assignment tokens under datastream
+    String tokensRootPath = KeyBuilder.datastreamAssignmentTokens(_clusterName, ds.getName());
+    String token1Path = KeyBuilder.datastreamAssignmentTokenForInstance(_clusterName, ds.getName(), "instance1");
+    String token2Path = KeyBuilder.datastreamAssignmentTokenForInstance(_clusterName, ds.getName(), "instance2");
+    _zkClient.create(tokensRootPath, null, CreateMode.PERSISTENT);
+    _zkClient.create(token1Path, null, CreateMode.PERSISTENT);
+    _zkClient.create(token2Path, null, CreateMode.PERSISTENT);
+
+    // Make sure nodes for tokens were created
+    Assert.assertTrue(_zkClient.exists(tokensRootPath));
+    Assert.assertTrue(_zkClient.exists(token1Path));
+    Assert.assertTrue(_zkClient.exists(token2Path));
+
+    _store.forceCleanupDatastream(ds.getName());
+
+    // Make sure nodes for tokens were deleted
+    Assert.assertFalse(_zkClient.exists(tokensRootPath));
+    Assert.assertFalse(_zkClient.exists(token1Path));
+    Assert.assertFalse(_zkClient.exists(token2Path));
+  }
 }
