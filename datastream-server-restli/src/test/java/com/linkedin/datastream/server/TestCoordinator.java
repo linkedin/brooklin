@@ -3491,9 +3491,10 @@ public class TestCoordinator {
         new SourceBasedDeduper(), null);
     Datastream testStream = DatastreamTestUtils.
         createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
-    testStream.setStatus(DatastreamStatus.STOPPING);
     coordinator.start();
     ZkAdapter zkAdapter = coordinator.getZkAdapter();
+    testStream.setStatus(DatastreamStatus.STOPPING);
+    zkAdapter.updateDatastream(testStream);
     DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(testStream));
 
     // Store an assignment token
