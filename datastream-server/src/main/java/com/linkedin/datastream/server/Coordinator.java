@@ -1382,8 +1382,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
   }
 
-  private void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups,
+  @VisibleForTesting
+  void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups,
       boolean isNewlyElectedLeader) {
+    _log.info("waitForStopToPropagateAndMarkDatastreamsStopped started in thread {}", Thread.currentThread().getName());
     // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
     Set<String> failedStreams = Collections.emptySet();
     if (_config.getEnableAssignmentTokens() &&
@@ -1397,16 +1399,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // We skip emitting the NUM_FAILED_STOPS metric in case of leader failover. This is because new leader may
       // issue extra tokens and revoke them later.
-      if (!isNewlyElectedLeader) {
+      if (!isNewlyElectedLeader && !failedStreams.isEmpty()) {
         _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
             _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
         _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
-      } else {
+      } else if (!failedStreams.isEmpty()) {
         _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
                 "expecting the hosts {} to claim tokens but they didn't",
             _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
       }
       revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
+      _log.info("waitForStopToPropagateAndMarkDatastreamsStopped stopped in thread {}", Thread.currentThread().getName());
     }
 
     // TODO Explore if the STOPPING -> STOPPED transition can be converted into an event type and scheduled in the event queue
@@ -1415,6 +1418,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _config.getMarkDatastreamsStoppedRetryPeriodMs(), _config.getMarkDatastreamsStoppedTimeoutMs())) {
       _log.error("Failed to mark streams STOPPED within {}ms. Giving up.", _config.getMarkDatastreamsStoppedTimeoutMs());
     }
+    _log.info("Executing waitForStopToPropagateAndMarkDatastreamsStopped in thread {}", Thread.currentThread().getName());
   }
 
   private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {

@@ -24,12 +24,16 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.Validate;
+import org.apache.zookeeper.CreateMode;
 import org.jetbrains.annotations.NotNull;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
@@ -3062,6 +3066,9 @@ public class TestCoordinator {
     String testCluster = "testNewlyElectedLeaderRevokesTokens";
     String testConnectorType = "testConnectorType";
     String datastreamName = "datastreamName";
+    String numFailedStopsMetricName = "Coordinator.numFailedStops";
+    Meter numFailedStopsMeter = DynamicMetricsManager.getInstance().getMetric(numFailedStopsMetricName);
+    long numFailedStopsBefore = numFailedStopsMeter.getCount();
 
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
@@ -3131,9 +3138,9 @@ public class TestCoordinator {
         Collections.singletonList(datastreamGroup)) == 0, 100, 1000);
     verify(spyZkAdapter2, atLeast(1)).claimAssignmentTokensForDatastreams(any(), any());
     // Verify that the new leader didn't emit a metric for unclaimed tokens
-    String numFailedStopsMetricName = "Coordinator.numFailedStops";
-    Meter numFailedStops = DynamicMetricsManager.getInstance().getMetric(numFailedStopsMetricName);
-    Assert.assertEquals(numFailedStops.getCount(), 0);
+    long numFailedStopsAfter = numFailedStopsMeter.getCount();
+    long countEmitted = numFailedStopsAfter - numFailedStopsBefore;
+    Assert.assertEquals(countEmitted, 0);
   }
 
   @Test
@@ -3377,6 +3384,140 @@ public class TestCoordinator {
     Assert.assertFalse(coordinator.connectorTasksHaveStopped(connectorName, allTaskIds));
     Assert.assertTrue(coordinator.connectorTasksHaveStopped(connectorName,
         new HashSet<>(Collections.singletonList(allTasks.get(1).getId()))));
+  }
+
+  @Test
+  public void testLeaderDoesNotPollForTokensIfFeatureIsDisabled() throws Exception {
+    String testCluster = "testLeaderDoesNotPollForTokensIfFeatureIsDisabled";
+    String connectorName = "connector";
+    String streamName = "stream";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(false));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator coordinator = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    Connector connector = Mockito.mock(Connector.class);
+    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    Datastream testStream = DatastreamTestUtils.
+        createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
+    coordinator.start();
+    ZkAdapter zkAdapter = coordinator.getZkAdapter();
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(testStream));
+
+    // Verify that ZK won't be polled for tokens if the feature is disabled
+    coordinator.waitForStopToPropagateAndMarkDatastreamsStopped(Collections.singletonList(datastreamGroup), false);
+    verify(zkAdapter, times(0)).getNumUnclaimedTokensForDatastreams(any());
+    verify(zkAdapter, times(0)).getUnclaimedAssignmentTokensForDatastreams(any());
+    coordinator.stop();
+  }
+
+  @Test
+  public void testLeaderPollsForTokensAndRevokesThemIfTheyAreUnclaimed() throws Exception {
+    String testCluster = "testLeaderPollsForTokensAndRevokesThemIfTheyAreUnclaimed";
+    String connectorName = "connector";
+    String streamName = "stream";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(true));
+    props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, String.valueOf(6000));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator coordinator = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    Connector connector = Mockito.mock(Connector.class);
+    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    Datastream testStream = DatastreamTestUtils.
+        createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
+    testStream.setStatus(DatastreamStatus.STOPPING);
+    coordinator.start();
+    ZkAdapter zkAdapter = coordinator.getZkAdapter();
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(testStream));
+
+    // Store an assignment token
+    AssignmentToken token = new AssignmentToken("localhost", "i1", System.currentTimeMillis());
+    String tokenRoot = KeyBuilder.datastreamAssignmentTokens(testCluster, streamName);
+    String tokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(testCluster, streamName, "i1");
+    zkClient.ensurePath(tokenRoot);
+    zkClient.create(tokenPath, token.toJson(), CreateMode.PERSISTENT);
+
+    // Verify that ZK will be polled for tokens if the feature is enabled
+    coordinator.waitForStopToPropagateAndMarkDatastreamsStopped(Collections.singletonList(datastreamGroup), false);
+    verify(zkAdapter, atLeast(1)).getNumUnclaimedTokensForDatastreams(any());
+    verify(zkAdapter, atLeast(1)).getUnclaimedAssignmentTokensForDatastreams(any());
+
+    // Verify that the leader updated the meter for failing stopped streams
+    String numFailedStopsMetricName = "Coordinator.numFailedStops";
+    Meter meter = DynamicMetricsManager.getInstance().getMetric(numFailedStopsMetricName);
+    Assert.assertEquals(meter.getCount(), 1);
+
+    // Verify that the leader revoked the token (it should be deleted)
+    Assert.assertFalse(zkClient.exists(tokenPath));
+
+    // Verify that the leader DID NOT transition the failed datastream to stopped state
+    verify(zkAdapter, times(0)).updateDatastream(testStream);
+  }
+
+  @Test
+  public void testLeaderPollsForTokensAndMarksTheDatastreamStoppedIfTheyAreClaimed() throws Exception {
+    String testCluster = "testLeaderPollsForTokensAndMarksTheDatastreamStoppedIfTheyAreClaimed";
+    String connectorName = "connector";
+    String streamName = "stream";
+
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(true));
+    props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, String.valueOf(6000));
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
+    Coordinator coordinator = new TestCoordinatorWithSpyZkAdapter(_cachedDatastreamReader, props);
+    Connector connector = Mockito.mock(Connector.class);
+    coordinator.addConnector(connectorName, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    Datastream testStream = DatastreamTestUtils.
+        createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
+    testStream.setStatus(DatastreamStatus.STOPPING);
+    coordinator.start();
+    ZkAdapter zkAdapter = coordinator.getZkAdapter();
+    DatastreamGroup datastreamGroup = new DatastreamGroup(Collections.singletonList(testStream));
+
+    // Store an assignment token
+    AssignmentToken token = new AssignmentToken("localhost", "i1", System.currentTimeMillis());
+    String tokenRoot = KeyBuilder.datastreamAssignmentTokens(testCluster, streamName);
+    String tokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(testCluster, streamName, "i1");
+    zkClient.ensurePath(tokenRoot);
+    zkClient.create(tokenPath, token.toJson(), CreateMode.PERSISTENT);
+
+    ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
+    // Delete the token in 2 seconds (to simulate a follower claiming it)
+    scheduledExecutorService.schedule(() -> zkClient.delete(tokenPath), 2, TimeUnit.SECONDS);
+
+    // Verify that ZK will be polled for tokens if the feature is enabled
+    coordinator.waitForStopToPropagateAndMarkDatastreamsStopped(Collections.singletonList(datastreamGroup), false);
+    verify(zkAdapter, atLeast(1)).getNumUnclaimedTokensForDatastreams(any());
+
+    // Verify that the leader didn't emit a metric for numFailedStops (since tokens were claimed)
+    String numFailedStopsMetricName = "Coordinator.numFailedStops";
+    Meter meter = DynamicMetricsManager.getInstance().getMetric(numFailedStopsMetricName);
+    Assert.assertEquals(meter.getCount(), 0);
+
+    // Verify that the leader transitioned the failed datastream to stopped state
+    verify(zkAdapter, atLeast(1)).updateDatastream(testStream);
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
