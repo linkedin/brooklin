@@ -1424,10 +1424,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
     boolean success = true;
     boolean forceStop = _config.getForceStopStreamsOnFailure();
+    Set<String> stoppingStreams =
+        fetchDatastreamGroupsWithStatus(Collections.singletonList(DatastreamStatus.STOPPING)).
+            stream().flatMap(dg -> dg.getDatastreams().stream()).map(Datastream::getName).
+            collect(Collectors.toSet());
     for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
       for (Datastream datastream : datastreamGroup.getDatastreams()) {
         // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
-        if (forceStop || !failedStreams.contains(datastream.getName())) {
+        if (stoppingStreams.contains(datastream.getName()) &&
+            (forceStop || !failedStreams.contains(datastream.getName()))) {
           datastream.setStatus(DatastreamStatus.STOPPED);
           if (!_adapter.updateDatastream(datastream)) {
             _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
