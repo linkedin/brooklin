@@ -266,10 +266,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _adapter.connect(_config.getReinitOnNewZkSession());
 
     // Initializing executor services
-    _tokenClaimExecutor = Executors.newSingleThreadExecutor(
-        new ThreadFactoryBuilder().setNameFormat("CoordinatorTokenClaimExecutor-%d").build());
     _scheduledExecutor = Executors.newSingleThreadScheduledExecutor(
         new ThreadFactoryBuilder().setNameFormat("CoordinatorScheduledExecutor-%d").build());
+    // TODO Assess whether having a single threaded executor for token claim tasks is sufficient or it will be exhausted
+    _tokenClaimExecutor = Executors.newSingleThreadExecutor(
+        new ThreadFactoryBuilder().setNameFormat("CoordinatorTokenClaimExecutor-%d").build());
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
