@@ -44,12 +44,12 @@ public class TestCoordinatorConfig {
   public void testStopPropagationTimeoutConfig() {
     Properties props = new Properties();
     CoordinatorConfig config = createCoordinatorConfig(props);
-    Assert.assertEquals(CoordinatorConfig.DEFAULT_STOP_PROPAGATION_TIMEOUT_MS, config.getStopPropagationTimeout());
+    Assert.assertEquals(CoordinatorConfig.DEFAULT_STOP_PROPAGATION_TIMEOUT_MS, config.getStopPropagationTimeoutMs());
 
     String stopPropagationTimeoutValue = "1000";
     props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, stopPropagationTimeoutValue);
     CoordinatorConfig config2 = createCoordinatorConfig(props);
-    Assert.assertEquals(config2.getStopPropagationTimeout(), 1000);
+    Assert.assertEquals(config2.getStopPropagationTimeoutMs(), 1000);
   }
 
   @Test

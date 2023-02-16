@@ -266,10 +266,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _adapter.connect(_config.getReinitOnNewZkSession());
 
     // Initializing executor services
-    _tokenClaimExecutor = Executors.newSingleThreadExecutor(
-        new ThreadFactoryBuilder().setNameFormat("CoordinatorTokenClaimExecutor-%d").build());
     _scheduledExecutor = Executors.newSingleThreadScheduledExecutor(
         new ThreadFactoryBuilder().setNameFormat("CoordinatorScheduledExecutor-%d").build());
+    // TODO Assess whether having a single threaded executor for token claim tasks is sufficient or it will be exhausted
+    _tokenClaimExecutor = Executors.newSingleThreadExecutor(
+        new ThreadFactoryBuilder().setNameFormat("CoordinatorTokenClaimExecutor-%d").build());
 
     for (String connectorType : _connectors.keySet()) {
       ConnectorInfo connectorInfo = _connectors.get(connectorType);
@@ -838,7 +839,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Set<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
 
       if (!stoppingStreamNames.isEmpty()) {
-        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_INFERRED_STOPPING_STREAMS, stoppingStreams.size());
         _log.info("Trying to claim assignment tokens for connector {}, streams: {}", connector, stoppingStreamNames);
 
         Set<String> stoppingDatastreamTasks = removedTasks.stream().
@@ -1335,49 +1335,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // and schedule a retry. The retry should be able to diff the remaining ZooKeeper work
       if (_config.getEnableAssignmentTokens()) {
         _adapter.updateAllAssignmentsAndIssueTokens(newAssignmentsByInstance, stoppingDatastreamGroups);
+        try {
+          _tokenClaimExecutor.submit(() -> waitForStopToPropagateAndMarkDatastreamsStopped(stoppingDatastreamGroups,
+              isNewlyElectedLeader));
+        } catch (RejectedExecutionException ex) {
+          _log.error("handleLeaderDoAssignment: Failed to submit the task that waits for stop propagation");
+          succeeded = false;
+        }
+
       } else {
         _adapter.updateAllAssignments(newAssignmentsByInstance);
-      }
-
-      Set<String> failedStreams = Collections.emptySet();
-      // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
-      if (_config.getEnableAssignmentTokens() &&
-          !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
-            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeout())) {
-        Map<String, List<AssignmentToken>> unclaimedTokens =
-            _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
-        failedStreams = unclaimedTokens.keySet();
-        Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
-            map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
-
-        // We skip emitting the NUM_FAILED_STOPS metric in case of leader failover. This is because new leader may
-        // issue extra tokens and revoke them later.
-        if (!isNewlyElectedLeader) {
-          _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
-              _config.getStopPropagationTimeout(), failedStreams, hosts);
-          _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
-        } else {
-          _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
-              "expecting the hosts {} to claim tokens but they didn't",
-              _config.getStopPropagationTimeout(), failedStreams, hosts);
-        }
-
-        revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
-      }
-
-      boolean forceStop = _config.getForceStopStreamsOnFailure();
-      for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
-        for (Datastream datastream : datastreamGroup.getDatastreams()) {
-          // If no force stop is configured, only streams that were confirmed to have stopped successfully will be
-          // transitioned to STOPPED state
-          if (forceStop || !failedStreams.contains(datastream.getName())) {
-            datastream.setStatus(DatastreamStatus.STOPPED);
-            if (!_adapter.updateDatastream(datastream)) {
-              _log.warn("Failed to update datastream: {} to stopped state", datastream.getName());
-              succeeded = false;
-            }
-          }
-        }
+        succeeded = markDatastreamsStopped(stoppingDatastreamGroups, Collections.emptySet());
       }
     } catch (RuntimeException e) {
       _log.error("handleLeaderDoAssignment: runtime exception.", e);
@@ -1401,14 +1369,80 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // schedule retry if failure
     if (!succeeded && !_leaderDoAssignmentScheduled.get()) {
-      _log.info("Schedule retry for leader assigning tasks");
-      _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
-      _leaderDoAssignmentScheduled.set(true);
-      _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-        _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
-        _leaderDoAssignmentScheduled.set(false);
-      }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+      scheduleLeaderDoAssignmentRetry(isNewlyElectedLeader);
     }
+  }
+
+  private void scheduleLeaderDoAssignmentRetry(boolean isNewlyElectedLeader) {
+    _log.info("Schedule retry for leader assigning tasks");
+    _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
+    _leaderDoAssignmentScheduled.set(true);
+    _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
+      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
+      _leaderDoAssignmentScheduled.set(false);
+    }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+  }
+
+  @VisibleForTesting
+  void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups,
+      boolean isNewlyElectedLeader) {
+    _log.info("waitForStopToPropagateAndMarkDatastreamsStopped started in thread {}", Thread.currentThread().getName());
+    // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
+    Set<String> failedStreams = Collections.emptySet();
+    if (_config.getEnableAssignmentTokens() &&
+        !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
+            STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeoutMs())) {
+      Map<String, List<AssignmentToken>> unclaimedTokens =
+          _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
+      failedStreams = unclaimedTokens.keySet();
+      Set<String> hosts = unclaimedTokens.values().stream().flatMap(List::stream).
+          map(AssignmentToken::getIssuedFor).collect(Collectors.toSet());
+
+      // We skip emitting the NUM_FAILED_STOPS metric in case of leader failover. This is because new leader may
+      // issue extra tokens and revoke them later.
+      if (!isNewlyElectedLeader && !failedStreams.isEmpty()) {
+        _log.error("Stop failed to propagate within {}ms for streams: {}. The following hosts failed to claim their token(s): {}",
+            _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
+      } else if (!failedStreams.isEmpty()) {
+        _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
+                "expecting the hosts {} to claim tokens but they didn't",
+            _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
+      }
+      revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
+      _log.info("waitForStopToPropagateAndMarkDatastreamsStopped stopped in thread {}", Thread.currentThread().getName());
+    }
+
+    // TODO Explore if the STOPPING -> STOPPED transition can be converted into an event type and scheduled in the event queue
+    Set<String> finalFailedStreams = failedStreams;
+    if (!PollUtils.poll(() -> markDatastreamsStopped(stoppingDatastreamGroups, finalFailedStreams),
+        _config.getMarkDatastreamsStoppedRetryPeriodMs(), _config.getMarkDatastreamsStoppedTimeoutMs())) {
+      _log.error("Failed to mark streams STOPPED within {}ms. Giving up.", _config.getMarkDatastreamsStoppedTimeoutMs());
+    }
+    _log.info("Executing waitForStopToPropagateAndMarkDatastreamsStopped in thread {}", Thread.currentThread().getName());
+  }
+
+  private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
+    boolean success = true;
+    boolean forceStop = _config.getForceStopStreamsOnFailure();
+    Set<String> stoppingStreams =
+        fetchDatastreamGroupsWithStatus(Collections.singletonList(DatastreamStatus.STOPPING)).
+            stream().flatMap(dg -> dg.getDatastreams().stream()).map(Datastream::getName).
+            collect(Collectors.toSet());
+    for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
+      for (Datastream datastream : datastreamGroup.getDatastreams()) {
+        // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
+        if (stoppingStreams.contains(datastream.getName()) &&
+            (forceStop || !failedStreams.contains(datastream.getName()))) {
+          datastream.setStatus(DatastreamStatus.STOPPED);
+          if (!_adapter.updateDatastream(datastream)) {
+            _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
+            success = false;
+          }
+        }
+      }
+    }
+    return success;
   }
 
   private void revokeUnclaimedAssignmentTokens(Map<String, List<AssignmentToken>> unclaimedTokens,
