@@ -168,6 +168,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final long EVENT_THREAD_SHORT_JOIN_TIMEOUT = 3000L;
   // how long should the leader wait between consecutive polls to zookeeper to confirm that the datastreams have stopped
   private static final long STOP_PROPAGATION_RETRY_MS = 5000L;
+  // how many threads will the token claims executor use for assignment tokens feature. There's a risk that this will get
+  // exhausted when there are more concurrent stop requests than threads in the thread pool
+  private static final int TOKEN_CLAIM_THREAD_POOL_SIZE = 8;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
@@ -268,8 +271,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Initializing executor services
     _scheduledExecutor = Executors.newSingleThreadScheduledExecutor(
         new ThreadFactoryBuilder().setNameFormat("CoordinatorScheduledExecutor-%d").build());
-    // TODO Assess whether having a single threaded executor for token claim tasks is sufficient or it will be exhausted
-    _tokenClaimExecutor = Executors.newSingleThreadExecutor(
+    _tokenClaimExecutor = Executors.newFixedThreadPool(TOKEN_CLAIM_THREAD_POOL_SIZE,
         new ThreadFactoryBuilder().setNameFormat("CoordinatorTokenClaimExecutor-%d").build());
 
     for (String connectorType : _connectors.keySet()) {
@@ -735,6 +737,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (_config.getEnableAssignmentTokens()) {
       try {
         // Queue assignment token claim task
+        List<String> oldAssignmentTaskNames = oldAssignment.stream().map(DatastreamTask::getDatastreamTaskName).
+            collect(Collectors.toList());
+        List<String> newAssignmentTaskNames = newAssignment.stream().map(DatastreamTask::getDatastreamTaskName).
+            collect(Collectors.toList());
+        _log.debug("Claiming assignment tokens. Old assignment: {}", oldAssignmentTaskNames);
+        _log.debug("Claiming assignment tokens. New assignment: {}", newAssignmentTaskNames);
         _tokenClaimExecutor.submit(() ->
             maybeClaimAssignmentTokensForStoppingStreams(newAssignment, oldAssignment));
       } catch (RejectedExecutionException ex) {
@@ -834,27 +842,40 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       List<DatastreamTask> oldTasks = oldAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
       List<DatastreamTask> newTasks = newAssignmentPerConnector.getOrDefault(connector, Collections.emptyList());
       List<DatastreamTask> removedTasks = getRemovedTasks(newTasks, oldTasks);
+      List<String> removedTaskNames = removedTasks.stream().map(DatastreamTask::getDatastreamTaskName).
+          collect(Collectors.toList());
+      _log.debug("Removed tasks from connector {}: {}", connector, removedTaskNames);
 
-      List<Datastream> stoppingStreams = inferStoppingDatastreamsFromAssignment(newTasks, removedTasks);
-      Set<String> stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
+      List<Datastream> stoppingStreams = Collections.emptyList();
+      Set<String> stoppingStreamNames = Collections.emptySet();
+
+      try {
+        stoppingStreams = inferStoppingDatastreamsFromAssignment(newTasks, removedTasks);
+        stoppingStreamNames = stoppingStreams.stream().map(Datastream::getName).collect(Collectors.toSet());
+      } catch (Exception ex) {
+        _log.error("Failed to infer stopping streams. ", ex);
+      }
 
       if (!stoppingStreamNames.isEmpty()) {
+        _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_INFERRED_STOPPING_STREAMS, stoppingStreams.size());
         _log.info("Trying to claim assignment tokens for connector {}, streams: {}", connector, stoppingStreamNames);
 
+        Set<String> finalStoppingStreamNames = stoppingStreamNames;
         Set<String> stoppingDatastreamTasks = removedTasks.stream().
-            filter(t -> stoppingStreamNames.contains(t.getTaskPrefix())).
+            filter(t -> finalStoppingStreamNames.contains(t.getTaskPrefix())).
             map(DatastreamTask::getId).collect(Collectors.toSet());
 
         // TODO Evaluate whether we need to optimize here and make this call for each datastream
         if (PollUtils.poll(() -> connectorTasksHaveStopped(connector, stoppingDatastreamTasks),
             _config.getTaskStopCheckRetryPeriodMs(), _config.getTaskStopCheckTimeoutMs())) {
-          _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName());
+          _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName(), false);
         } else {
           _log.warn("Connector {} failed to stop its tasks in {}ms. No assignment tokens will be claimed",
               connector, _config.getTaskStopCheckTimeoutMs());
         }
       } else {
-        _log.info("No streams have been inferred as stopping and no assignment tokens will be claimed");
+        _log.info("No streams have been inferred as stopping for connector {} and no assignment tokens will be claimed",
+            connector);
       }
     });
   }
@@ -869,15 +890,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   static List<Datastream> inferStoppingDatastreamsFromAssignment(List<DatastreamTask> newAssignment,
       List<DatastreamTask> removedTasks) {
-    Map<String, List<Datastream>> taskPrefixToDatastream = removedTasks.stream().
-        collect(Collectors.toMap(DatastreamTask::getTaskPrefix, DatastreamTask::getDatastreams));
+    Map<String, Set<Datastream>> taskPrefixToDatastream = new HashMap<>();
+    for (DatastreamTask task : removedTasks) {
+      taskPrefixToDatastream.computeIfAbsent(task.getTaskPrefix(), k -> new HashSet<>()).
+          addAll(task.getDatastreams());
+    }
 
     Set<String> removedPrefixes = removedTasks.stream().map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
     Set<String> activePrefixes = newAssignment.stream().map(DatastreamTask::getTaskPrefix).collect(Collectors.toSet());
     removedPrefixes.removeAll(activePrefixes);
 
     List<Datastream> stoppingStreams = removedPrefixes.stream().map(taskPrefixToDatastream::get).
-        flatMap(List::stream).collect(Collectors.toList());
+        flatMap(Set::stream).collect(Collectors.toList());
     return stoppingStreams;
   }
 
@@ -1460,7 +1484,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       List<String> instances = unclaimedTokens.get(streamName).stream().map(AssignmentToken::getIssuedFor).
           collect(Collectors.toList());
-      instances.forEach(i -> _adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(stream), i));
+      instances.forEach(i -> _adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(stream), i, true));
     }
   }
 

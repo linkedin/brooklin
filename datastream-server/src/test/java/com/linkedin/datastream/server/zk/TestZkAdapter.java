@@ -1141,7 +1141,7 @@ public class TestZkAdapter {
     task1.setTaskPrefix(mayoDatastreamGroup.getTaskPrefix());
     task1.setConnectorType(connectorType);
 
-    adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(ketchupStream), adapter.getInstanceName());
+    adapter.claimAssignmentTokensForDatastreams(Collections.singletonList(ketchupStream), adapter.getInstanceName(), false);
 
     // Asserting that ZkAdapter claimed token for the given instance, and given instance only
     List<String> nodes = zkClient.getChildren(

@@ -445,7 +445,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
-    LOG.info("Received request to stop datastream {}", datastream);
+    LOG.info("Received request to stop datastream {}, force: {}", datastream, force);
 
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,

@@ -3136,7 +3136,7 @@ public class TestCoordinator {
     // Wait for the leader to clean tokens
     PollUtils.poll(() -> spyZkAdapter2.getNumUnclaimedTokensForDatastreams(
         Collections.singletonList(datastreamGroup)) == 0, 100, 1000);
-    verify(spyZkAdapter2, atLeast(1)).claimAssignmentTokensForDatastreams(any(), any());
+    verify(spyZkAdapter2, atLeast(1)).claimAssignmentTokensForDatastreams(any(), any(), anyBoolean());
     // Verify that the new leader didn't emit a metric for unclaimed tokens
     long numFailedStopsAfter = numFailedStopsMeter.getCount();
     long countEmitted = numFailedStopsAfter - numFailedStopsBefore;
@@ -3297,11 +3297,11 @@ public class TestCoordinator {
     // (2) For eggBagelStream, since the bagel connector has no tasks in the new assignment (connector stopped case)
     CollectionContainsMatcher<Datastream> deepDishStreamMatcher = new CollectionContainsMatcher<>(pizzaStreams[1]);
     CollectionContainsMatcher<Datastream> eggBagelStreamMatcher = new CollectionContainsMatcher<>(bagelStreams[0]);
-    verify(spyZkAdapter, times(2)).claimAssignmentTokensForDatastreams(any(), any());
+    verify(spyZkAdapter, times(2)).claimAssignmentTokensForDatastreams(any(), any(), anyBoolean());
     verify(spyZkAdapter, times(1)).
-        claimAssignmentTokensForDatastreams(argThat(deepDishStreamMatcher), any());
+        claimAssignmentTokensForDatastreams(argThat(deepDishStreamMatcher), any(), anyBoolean());
     verify(spyZkAdapter, times(1)).
-        claimAssignmentTokensForDatastreams(argThat(eggBagelStreamMatcher), any());
+        claimAssignmentTokensForDatastreams(argThat(eggBagelStreamMatcher), any(), anyBoolean());
 
     zkClient.close();
     coordinator.stop();
@@ -3348,7 +3348,7 @@ public class TestCoordinator {
     // (1) Active tasks are queried from the connector at least once
     // (2) No tokens are claimed for the stream since the task never stops
     verify(mockConnector, Mockito.atLeast(1)).getActiveTasks();
-    verify(spyZkAdapter, times(0)).claimAssignmentTokensForDatastreams(any(), any());
+    verify(spyZkAdapter, times(0)).claimAssignmentTokensForDatastreams(any(), any(), anyBoolean());
   }
 
   @Test
