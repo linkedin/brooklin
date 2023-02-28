@@ -1,5 +1,5 @@
 allprojects {
-  version = "5.2.7"
+  version = "5.2.7-SNAPSHOT"
 }
 
 subprojects {
