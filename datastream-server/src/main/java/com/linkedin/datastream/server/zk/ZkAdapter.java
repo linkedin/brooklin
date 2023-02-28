@@ -855,10 +855,10 @@ public class ZkAdapter {
       String streamName = stream.getName();
       String tokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster, streamName, instance);
       if (_zkclient.exists(tokenPath)) {
-        if (!revoke) {
-          LOG.info("Claiming assignment token for datastream: {}", streamName);
-        } else {
+        if (revoke) {
           LOG.info("Revoking assignment token for datastream: {}, instance: {}", streamName, instance);
+        } else {
+          LOG.info("Claiming assignment token for datastream: {}", streamName);
         }
         try {
           _zkclient.delete(tokenPath);
