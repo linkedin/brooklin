@@ -793,7 +793,7 @@ public class ZkAdapter {
         String assignmentTokensPath = KeyBuilder.datastreamAssignmentTokens(_cluster, stoppingStream.getName());
         _zkclient.ensurePath(assignmentTokensPath);
 
-        Set<String> instances = stoppingDgInstances.get(stoppingGroup);
+        Set<String> instances = stoppingDgInstances.getOrDefault(stoppingGroup, Collections.emptySet());
         LOG.info("Issuing assignment tokens for stream {} and {} instance(s)", stoppingStream.getName(), instances.size());
         for (String instance : instances) {
           String assignmentTokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster,
@@ -850,15 +850,15 @@ public class ZkAdapter {
    * @param datastreams List of datastreams for which tokens are to be claimed
    * @param instance Instance name
    */
-  public void claimAssignmentTokensForDatastreams(List<Datastream> datastreams, String instance) {
+  public void claimAssignmentTokensForDatastreams(List<Datastream> datastreams, String instance, boolean revoke) {
     for (Datastream stream : datastreams) {
       String streamName = stream.getName();
       String tokenPath = KeyBuilder.datastreamAssignmentTokenForInstance(_cluster, streamName, instance);
       if (_zkclient.exists(tokenPath)) {
-        if (instance.equals(_instanceName)) {
-          LOG.info("Claiming assignment token for datastream: {}", streamName);
-        } else {
+        if (revoke) {
           LOG.info("Revoking assignment token for datastream: {}, instance: {}", streamName, instance);
+        } else {
+          LOG.info("Claiming assignment token for datastream: {}", streamName);
         }
         try {
           _zkclient.delete(tokenPath);
