@@ -50,6 +50,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.ImmutableList;
 
+import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamConstants;
@@ -3519,6 +3520,298 @@ public class TestCoordinator {
 
     // Verify that the leader transitioned the failed datastream to stopped state
     verify(zkAdapter, atLeast(1)).updateDatastream(testStream);
+  }
+
+  @Test
+  public void testHappyPathThroughputViolatingTopicsHandling() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandling";
+    String connectorName = "connector";
+    String streamName = "testThroughputViolatingTopicsHandlingStream";
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testStream = DatastreamTestUtils.
+        createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    StringArray throughputViolations = new StringArray();
+    throughputViolations.add("FooTopic");
+    throughputViolations.add("BarTopic");
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(throughputViolations);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(testStream.getName());
+    resource.reportThroughputViolatingTopics(pathKey, throughputViolations);
+
+    Thread.sleep(5000);
+    Set<String> fetchedViolatingTopicsFromStore =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream));
+
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), fetchedViolatingTopicsFromStore.size());
+    Assert.assertTrue(requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForSingleDatastream() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastream";
+    String connectorName = "testConnector";
+    String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastream";
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testStream =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName)[0];
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(testStream.getName());
+
+    // Case 1:
+    // Reporting 3 topics of a datastream as throughput violating ones.
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(Arrays.asList("FooTopic", "BarTopic", "ZenTopic"));
+
+    resource.reportThroughputViolatingTopics(pathKey, new StringArray(requestedThroughputViolatingTopics));
+
+    Thread.sleep(1000);
+
+    Set<String> fetchedViolatingTopicsFromStore =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream));
+
+    // Comparing the reported topics information with the persisted information in ZK.
+    Assert.assertTrue(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), fetchedViolatingTopicsFromStore.size());
+    Assert.assertTrue(requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore));
+
+    // Case 2:
+    // Removing one of the previously reported topics and also reporting a newer topic as throughput violating one.
+    requestedThroughputViolatingTopics.remove("ZenTopic");
+    requestedThroughputViolatingTopics.add("XingTopic");
+
+    resource.reportThroughputViolatingTopics(pathKey, new StringArray(requestedThroughputViolatingTopics));
+    Thread.sleep(1000);
+
+    fetchedViolatingTopicsFromStore =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream));
+
+    // Comparing the reported topics information with the persisted information in ZK. Expecting to see
+    // the change in the persistent store.
+    Assert.assertTrue(
+        zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), fetchedViolatingTopicsFromStore.size());
+    Assert.assertTrue(requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore));
+
+    // Case 3:
+    // When there are no throughput violating topics anymore, reporting an empty set.
+    requestedThroughputViolatingTopics.clear();
+
+    resource.reportThroughputViolatingTopics(pathKey, new StringArray(requestedThroughputViolatingTopics));
+    Thread.sleep(1000);
+
+    fetchedViolatingTopicsFromStore =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream));
+
+    // The persisted store should also be flushed accordingly.
+    Assert.assertFalse(
+        zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), fetchedViolatingTopicsFromStore.size());
+    Assert.assertTrue(requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForMultipleDatastreams() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForMultipleDatastreams";
+    String connectorName = "testConnector";
+    String streamName1 = "testThroughputViolatingTopicsHandlingForMultipleDatastreams1";
+    String streamName2 = "testThroughputViolatingTopicsHandlingForMultipleDatastreams2";
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testStream1 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName1)[0];
+    Datastream testStream2 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName2)[0];
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Mock PathKeys
+    PathKeys pathKey1 = Mockito.mock(PathKeys.class);
+    PathKeys pathKey2 = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey1.getAsString(DatastreamResources.KEY_NAME)).thenReturn(testStream1.getName());
+    Mockito.when(pathKey2.getAsString(DatastreamResources.KEY_NAME)).thenReturn(testStream2.getName());
+
+    // Case 1:
+    // Reporting 3 topics of one datastream and 2 topics of another datastream as throughput violating ones.
+    Set<String> requestedThroughputViolatingTopicsForFirstDatastream = new HashSet<>(Arrays.asList("FooTopic", "BarTopic", "ZenTopic"));
+    Set<String> requestedThroughputViolatingTopicsForSecondDatastream = new HashSet<>(Arrays.asList("OneTopic", "TwoTopic"));
+
+    resource.reportThroughputViolatingTopics(pathKey1, new StringArray(requestedThroughputViolatingTopicsForFirstDatastream));
+    resource.reportThroughputViolatingTopics(pathKey2, new StringArray(requestedThroughputViolatingTopicsForSecondDatastream));
+
+    Thread.sleep(1000);
+
+    Set<String> fetchedViolatingTopicsFromStoreForFirstDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream1));
+    Set<String> fetchedViolatingTopicsFromStoreForSecondDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream2));
+
+    // Comparing the reported topics information with the persisted information in ZK for the first datastream.
+    Assert.assertTrue(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream1.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForFirstDatastream.size(), fetchedViolatingTopicsFromStoreForFirstDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForFirstDatastream.containsAll(fetchedViolatingTopicsFromStoreForFirstDatastream));
+
+    // Comparing the reported topics information with the persisted information in ZK for the second datastream.
+    Assert.assertTrue(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream2.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForSecondDatastream.size(), fetchedViolatingTopicsFromStoreForSecondDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForSecondDatastream.containsAll(fetchedViolatingTopicsFromStoreForSecondDatastream));
+
+    // Case 2:
+    // When there are no throughput violating topics anymore, reporting an empty set for the first datastream.
+    requestedThroughputViolatingTopicsForFirstDatastream.clear();
+
+    // Reporting a newer topic as throughput violating for the second datastream.
+    requestedThroughputViolatingTopicsForSecondDatastream.add("ThreeTopic");
+
+    resource.reportThroughputViolatingTopics(pathKey1, new StringArray(requestedThroughputViolatingTopicsForFirstDatastream));
+    resource.reportThroughputViolatingTopics(pathKey2, new StringArray(requestedThroughputViolatingTopicsForSecondDatastream));
+
+    Thread.sleep(1000);
+
+    fetchedViolatingTopicsFromStoreForFirstDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream1));
+    fetchedViolatingTopicsFromStoreForSecondDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream2));
+
+    // The persisted store should also be flushed accordingly for the first datastream.
+    Assert.assertFalse(
+        zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream1.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForFirstDatastream.size(), fetchedViolatingTopicsFromStoreForFirstDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForFirstDatastream.containsAll(fetchedViolatingTopicsFromStoreForFirstDatastream));
+
+    // Comparing the reported topics information with the persisted information in ZK for the second datastream.
+    Assert.assertTrue(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream2.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForSecondDatastream.size(), fetchedViolatingTopicsFromStoreForSecondDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForSecondDatastream.containsAll(fetchedViolatingTopicsFromStoreForSecondDatastream));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForMultipleDatastreamsWithDelete() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForMultipleDatastreamsWithDelete";
+    String connectorName = "testConnector";
+    String streamName1 = "testThroughputViolatingTopicsHandlingForMultipleDatastreamsWithDelete1";
+    String streamName2 = "testThroughputViolatingTopicsHandlingForMultipleDatastreamsWithDelete2";
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    Connector mockConnector = Mockito.mock(Connector.class);
+    coordinator.addConnector(connectorName, mockConnector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    Datastream testStream1 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName1)[0];
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setConnectorType(connectorName);
+    task1.setTaskPrefix(streamName1);
+    task1.setDatastreams(Collections.singletonList(testStream1));
+
+    Datastream testStream2 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorName, streamName2)[0];
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    task2.setConnectorType(connectorName);
+    task2.setTaskPrefix(streamName2);
+    task2.setDatastreams(Collections.singletonList(testStream2));
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Mock PathKeys
+    PathKeys pathKey1 = Mockito.mock(PathKeys.class);
+    PathKeys pathKey2 = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey1.getAsString(DatastreamResources.KEY_NAME)).thenReturn(testStream1.getName());
+    Mockito.when(pathKey2.getAsString(DatastreamResources.KEY_NAME)).thenReturn(testStream2.getName());
+
+    // Case 1:
+    // Reporting 3 topics of one datastream and 2 topics of another datastream as throughput violating ones.
+    Set<String> requestedThroughputViolatingTopicsForFirstDatastream = new HashSet<>(Arrays.asList("FooTopic", "BarTopic", "ZenTopic"));
+    Set<String> requestedThroughputViolatingTopicsForSecondDatastream = new HashSet<>(Arrays.asList("OneTopic", "TwoTopic"));
+
+    resource.reportThroughputViolatingTopics(pathKey1, new StringArray(requestedThroughputViolatingTopicsForFirstDatastream));
+    resource.reportThroughputViolatingTopics(pathKey2, new StringArray(requestedThroughputViolatingTopicsForSecondDatastream));
+
+    Thread.sleep(1000);
+
+    Set<String> fetchedViolatingTopicsFromStoreForFirstDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream1));
+    Set<String> fetchedViolatingTopicsFromStoreForSecondDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream2));
+
+    // Comparing the reported topics information with the persisted information in ZK for the first datastream.
+    Assert.assertTrue(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream1.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForFirstDatastream.size(), fetchedViolatingTopicsFromStoreForFirstDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForFirstDatastream.containsAll(fetchedViolatingTopicsFromStoreForFirstDatastream));
+
+    // Comparing the reported topics information with the persisted information in ZK for the second datastream.
+    Assert.assertTrue(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream2.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForSecondDatastream.size(), fetchedViolatingTopicsFromStoreForSecondDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForSecondDatastream.containsAll(fetchedViolatingTopicsFromStoreForSecondDatastream));
+
+    // Case 2:
+    // When there are no throughput violating topics anymore, reporting an empty set for the first datastream.
+    requestedThroughputViolatingTopicsForFirstDatastream.clear();
+
+    // And deleting the second datastream
+    resource.delete(testStream2.getName());
+
+    resource.reportThroughputViolatingTopics(pathKey1, new StringArray(requestedThroughputViolatingTopicsForFirstDatastream));
+
+    Thread.sleep(1000);
+
+    fetchedViolatingTopicsFromStoreForFirstDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream1));
+    fetchedViolatingTopicsFromStoreForSecondDatastream =
+        coordinator.getZkAdapter().getThroughputViolatingTopics(Collections.singletonList(testStream2));
+
+    // The persisted store should also be flushed accordingly for the first datastream.
+    Assert.assertFalse(
+        zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream1.getName())));
+    Assert.assertEquals(requestedThroughputViolatingTopicsForFirstDatastream.size(), fetchedViolatingTopicsFromStoreForFirstDatastream.size());
+    Assert.assertTrue(requestedThroughputViolatingTopicsForFirstDatastream.containsAll(fetchedViolatingTopicsFromStoreForFirstDatastream));
+
+    // After delete, the second datastream data should also be cleared in the store and cache.
+    Assert.assertFalse(zkClient.exists(KeyBuilder.throughputViolationsPerDatastream(testCluster, testStream2.getName())));
+    Assert.assertEquals(0, fetchedViolatingTopicsFromStoreForSecondDatastream.size());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

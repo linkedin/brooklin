@@ -164,6 +164,14 @@
             "doc" : "StringMap of format &lt;source, comma separated list of partitions or \"*\"&gt;.\n                         <pre>Example: <\"FooTopic\", \"0,13,2\"> or <\"FooTopic\",\"*\"></pre>"
           } ]
         }, {
+          "name" : "reportThroughputViolatingTopics",
+          "doc" : "This endpoint handles the management of throughput violating topics. These topics' metrics and\n SLAs are reported separately as their throughput are not within brooklin's permissible bounds.",
+          "parameters" : [ {
+            "name" : "throughputViolations",
+            "type" : "{ \"type\" : \"array\", \"items\" : \"string\" }",
+            "doc" : "StringArray of list of topics"
+          } ]
+        }, {
           "name" : "resume",
           "doc" : "Resume a datastream\nService Returns: Result HTTP status",
           "parameters" : [ {

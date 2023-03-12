@@ -944,7 +944,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     tasks.forEach(_cpProvider::unassignDatastreamTask);
   }
 
-  private void initializeTask(DatastreamTask task, Set<DatastreamTask> failedDatastreamTasks, boolean retryAndSaveError) {
+  private void initializeTask(DatastreamTask task, Set<DatastreamTask> failedDatastreamTasks,
+      boolean retryAndSaveError) {
     try {
       DatastreamTaskImpl taskImpl = (DatastreamTaskImpl) task;
       assignSerdes(taskImpl);
@@ -952,7 +953,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       boolean customCheckpointing = getCustomCheckpointing(task);
       TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
       TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
-      EventProducer producer = new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
+
+      Function<DatastreamTask, Set<String>> throughputViolatingTopicsProvider =
+          _config.getEnableThroughputViolatingTopicsHandling() ?
+              (t) -> _adapter.getThroughputViolatingTopics(t.getDatastreams()) :
+              (t) -> new HashSet<>();
+
+      EventProducer producer =
+          new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing,
+              throughputViolatingTopicsProvider);
 
       taskImpl.setEventProducer(producer);
       Map<Integer, String> checkpoints = producer.loadCheckpoints(task);

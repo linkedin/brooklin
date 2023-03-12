@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.MetricRegistry;
 
+import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
@@ -739,6 +740,51 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     return new ActionResult<>(HttpStatus.S_200_OK);
   }
 
+  /**
+   * This endpoint handles the management of throughput violating topics. These topics' metrics and
+   * SLAs are reported separately as their throughput are not within brooklin's permissible bounds.
+   * @param pathKeys Datastream resource key
+   * @param throughputViolations StringArray of list of topics
+   * */
+  @Action(name = "reportThroughputViolatingTopics", resourceLevel = ResourceLevel.ENTITY)
+  public ActionResult<Void> reportThroughputViolatingTopics(@PathKeysParam PathKeys pathKeys,
+      @ActionParam("throughputViolations") StringArray throughputViolations) {
+
+    // Get datastream.
+    String datastreamName = pathKeys.getAsString(KEY_NAME);
+    // Log for debugging purposes.
+    LOG.info("reportThroughputViolatingTopics called for datastream: {}, with topics: {}", datastreamName,
+        throughputViolations);
+
+    // Null check
+    if (throughputViolations == null) {
+      LOG.error("NULL input for throughput violating topics not supported.");
+      return new ActionResult<>(HttpStatus.S_400_BAD_REQUEST);
+    }
+
+    // If empty array is reported, it is inferred that no topics for this datastream are violating anymore.
+    Set<String> throughputViolatingTopics = new HashSet<>(new ArrayList<>(throughputViolations));
+    if (throughputViolatingTopics.isEmpty()) {
+      // Cleaning up the throughput violating datastream entry.
+      _store.deleteThroughputViolatingDatastreamEntry(datastreamName);
+      LOG.info("Completed request to report datastream: {}, with empty throughput violating topics list.",
+          datastreamName);
+      return new ActionResult<>(HttpStatus.S_200_OK);
+    }
+
+    // If non-empty array is reported, the topics are persisted and handled accordingly by the server code.
+    try {
+      _store.createOrUpdateThroughputViolatingDatastreamEntry(datastreamName, throughputViolatingTopics);
+    } catch (DatastreamException e) {
+      _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_500_INTERNAL_SERVER_ERROR,
+          "Could not add/update datastream's throughput violating topics: " + datastreamName, e);
+    }
+
+    LOG.info("Completed request to report datastream: {}, throughput violating topics: {}", datastreamName,
+        throughputViolatingTopics);
+    return new ActionResult<>(HttpStatus.S_200_OK);
+  }
+
   @Override
   public UpdateResponse delete(String datastreamName) {
     final Datastream datastream = _store.getDatastream(datastreamName);
@@ -761,6 +807,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       datastream.setStatus(DatastreamStatus.DELETING);
       invokePostDSStateChangeAction(datastream);
 
+      // Cleaning up the throughput violating datastream entry
+      _store.deleteThroughputViolatingDatastreamEntry(datastreamName);
       return new UpdateResponse(HttpStatus.S_200_OK);
     } catch (Exception e) {
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);

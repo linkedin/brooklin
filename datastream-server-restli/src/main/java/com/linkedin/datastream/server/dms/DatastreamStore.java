@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server.dms;
 
+import java.util.Set;
 import java.util.stream.Stream;
 
 import com.linkedin.datastream.common.Datastream;
@@ -72,4 +73,19 @@ public interface DatastreamStore {
    * @param key Name of the datastream whose assignment tokens have to be deleted
    */
   void forceCleanupDatastream(String key);
+
+  /**
+   * Creates or Updates the datastream entry in the persistent store with the latest list of violating topics.
+   * @param key Name of the datastream whose topics have to be handled.
+   * @param throughputViolatingTopics topics, of which at least one partition violates the brooklin's permissible
+   *                                 throughput thresholds.
+   */
+  void createOrUpdateThroughputViolatingDatastreamEntry(String key, Set<String> throughputViolatingTopics) throws DatastreamException;
+
+  /**
+   * Deletes the datastream entry in the persistent store when none of the topics for the datastream
+   * are violating brooklin permissible throughput thresholds.
+   * @param key Name of the datastream whose entry has to be deleted.
+   */
+  void deleteThroughputViolatingDatastreamEntry(String key);
 }

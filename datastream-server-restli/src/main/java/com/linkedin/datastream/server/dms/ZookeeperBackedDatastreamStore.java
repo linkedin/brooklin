@@ -22,6 +22,7 @@ import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamException;
 import com.linkedin.datastream.common.DatastreamStatus;
 import com.linkedin.datastream.common.DatastreamUtils;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.CachedDatastreamReader;
 import com.linkedin.datastream.server.HostTargetAssignment;
@@ -256,6 +257,61 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       _zkClient.deleteRecursively(assignmentTokensPath);
     } catch (ZkClientException ex) {
       LOG.error("Failed to cleanup assignment tokens for {}", key, ex);
+    }
+  }
+
+  /**
+   * Creates or Updates the datastream entry in the persistent store with the latest list of violating topics.
+   * @param key Name of the datastream whose topics have to be handled.
+   * @param throughputViolatingTopics topics, of which at least one partition violates the brooklin's permissible
+   *                                 throughput thresholds.
+   */
+  @Override
+  public void createOrUpdateThroughputViolatingDatastreamEntry(String key, Set<String> throughputViolatingTopics)
+      throws DatastreamException {
+    String throughputViolatingDatastreamPath = KeyBuilder.throughputViolationsPerDatastream(_cluster, key);
+
+    // If a set of violating topics exists already, remove and create a new entry to trigger a child change notification.
+    if (_zkClient.exists(throughputViolatingDatastreamPath)) {
+      LOG.info(
+          "Throughput violating datastream path exists for datastream {}. Will recreate the same path with newer set of topics",
+          key);
+      try {
+        _zkClient.deleteRecursively(throughputViolatingDatastreamPath);
+      } catch (Exception e) {
+        LOG.warn("Failed to delete the existing throughput violating datastream entry", e);
+        throw new DatastreamException(e);
+      }
+    }
+
+    try {
+      _zkClient.ensurePath(throughputViolatingDatastreamPath);
+      _zkClient.writeData(throughputViolatingDatastreamPath,
+          JsonUtils.toJson(new ZkAdapter.ThroughputViolations(throughputViolatingTopics)));
+    } catch (Exception e) {
+      LOG.warn("Failed to create a newer throughput violating datastream entry", e);
+      throw new DatastreamException(e);
+    }
+  }
+
+  /**
+   * Deletes the datastream entry in the persistent store when none of the topics for the datastream
+   * are violating brooklin permissible throughput thresholds.
+   * @param key Name of the datastream whose entry has to be deleted.
+   */
+  @Override
+  public void deleteThroughputViolatingDatastreamEntry(String key) {
+    String throughputViolatingDatastreamPath = KeyBuilder.throughputViolationsPerDatastream(_cluster, key);
+
+    if (!_zkClient.exists(throughputViolatingDatastreamPath)) {
+      LOG.info("Throughput violating datastream path clear for datastream {}. Nothing to delete", key);
+      return;
+    }
+
+    try {
+      _zkClient.deleteRecursively(throughputViolatingDatastreamPath);
+    } catch (ZkClientException ex) {
+      LOG.error("Failed to cleanup throughput violating datastream for {}", key, ex);
     }
   }
 

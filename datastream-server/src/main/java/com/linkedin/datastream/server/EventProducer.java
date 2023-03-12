@@ -14,8 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import org.apache.commons.lang3.Validate;
 import org.apache.kafka.common.TopicPartition;
@@ -105,6 +107,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final boolean _enablePerTopicMetrics;
   private final boolean _enablePerTopicEventLatencyMetrics;
   private final Duration _flushInterval;
+  private final Function<DatastreamTask, Set<String>> _throughputViolatingTopicsProvider;
 
   private Instant _lastFlushTime = Instant.now();
   private long _lastEventsOutsideAltSlaLogTimeMs = System.currentTimeMillis();
@@ -120,7 +123,8 @@ public class EventProducer implements DatastreamEventProducer {
    *                            provided checkpointing.
    */
   public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
-      Properties config, boolean customCheckpointing) {
+      Properties config, boolean customCheckpointing,
+      Function<DatastreamTask, Set<String>> throughputViolatingTopicsProvider) {
     Validate.notNull(transportProvider, "null transport provider");
     Validate.notNull(checkpointProvider, "null checkpoint provider");
     Validate.notNull(config, "null config");
@@ -129,6 +133,7 @@ public class EventProducer implements DatastreamEventProducer {
     _transportProvider = transportProvider;
     _producerId = PRODUCER_ID_SEED.getAndIncrement();
     _logger = LoggerFactory.getLogger(String.format("%s:%d", MODULE, _producerId));
+    _throughputViolatingTopicsProvider = throughputViolatingTopicsProvider;
 
     if (customCheckpointing) {
       _checkpointProvider = new NoOpCheckpointProvider();
@@ -342,6 +347,13 @@ public class EventProducer implements DatastreamEventProducer {
   private void reportMetrics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp, long eventsSendTimestamp) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = getDatastreamName();
+
+    Set<String> throughputViolatingTopics = _throughputViolatingTopicsProvider.apply(_datastreamTask);
+    if (throughputViolatingTopics.contains(metadata.getTopic())) {
+      _logger.warn(
+          "Management of separate metrics and SLA reporting for throughput violating topics not implemented yet");
+    }
+
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {

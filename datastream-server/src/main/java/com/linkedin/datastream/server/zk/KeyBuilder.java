@@ -101,6 +101,15 @@ public final class KeyBuilder {
   private static final String DATASTREAM_NUMTASKS = DATASTREAM + "/" + NUM_TASKS;
 
   /**
+   * throughput violating datastreams
+   */
+  private static final String THROUGHPUT_VIOLATIONS = "/%s/throughputViolations";
+
+  /**
+   * throughput violating topics stored for each datastream
+   */
+  private static final String THROUGHPUT_VIOLATIONS_PER_DATASTREAM = "/%s/throughputViolations/%s";
+  /**
    * Get the root level ZooKeeper znode of a Brooklin cluster
    * @param clusterName Brooklin cluster name
    */
@@ -372,5 +381,23 @@ public final class KeyBuilder {
    */
   public static String getTargetAssignmentBase(String cluster, String connectorType) {
     return String.format(TARGET_ASSIGNMENT_BASE, cluster, connectorType).replaceAll("//", "/'");
+  }
+
+  /**
+   * Get all the throughput violating datastreams
+   * @param cluster Brooklin cluster name
+   * @return throughput violating datastreams
+   */
+  public static String throughputViolations(String cluster) {
+    return String.format(THROUGHPUT_VIOLATIONS, cluster);
+  }
+
+  /**
+   * Get all the throughput violating topics per datastream
+   * @param cluster Brooklin cluster name
+   * @return throughput violating topics per datastream
+   */
+  public static String throughputViolationsPerDatastream(String cluster, String datastream) {
+    return String.format(THROUGHPUT_VIOLATIONS_PER_DATASTREAM, cluster, datastream);
   }
 }

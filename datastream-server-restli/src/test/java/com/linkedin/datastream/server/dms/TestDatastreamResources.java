@@ -27,6 +27,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.linkedin.data.template.StringArray;
 import com.linkedin.data.template.StringMap;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.DatastreamRestClientFactory;
@@ -1074,6 +1075,45 @@ public class TestDatastreamResources {
     Assert.assertEquals(queryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()),
         remainingQueryStreams.stream().map(Datastream::getName).collect(Collectors.toSet()));
   }
+
+  @Test
+  public void testReportThroughputViolatingTopicsHappyPath() {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    Assert.assertNull(resource.create(datastreamToCreate).getError());
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    StringArray throughputViolations = new StringArray();
+    throughputViolations.add("FooTopic");
+    throughputViolations.add("BarTopic");
+
+    ActionResult<Void> response = resource.reportThroughputViolatingTopics(pathKey, throughputViolations);
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_200_OK);
+  }
+
+  @Test
+  public void testReportThroughputViolatingTopicsBadPath() {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+
+    // Create a Datastream.
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    Assert.assertNull(resource.create(datastreamToCreate).getError());
+
+    // Mock PathKeys
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    ActionResult<Void> response = resource.reportThroughputViolatingTopics(pathKey, null);
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_400_BAD_REQUEST);
+  }
+
 
   // This test is flaky, Need to deflake this before enabling the test.
   // This doesn't fail often, So need to run several times before you can catch the flakiness.

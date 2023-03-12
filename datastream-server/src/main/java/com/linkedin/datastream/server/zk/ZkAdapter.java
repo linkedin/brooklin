@@ -26,6 +26,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -48,6 +51,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.AssignmentToken;
 import com.linkedin.datastream.server.DatastreamGroup;
@@ -151,9 +155,49 @@ public class ZkAdapter {
   private ZkBackedDMSDatastreamList _datastreamList = null;
   private ZkTargetAssignmentProvider _targetAssignmentProvider = null;
   private ZkBackedLiveInstanceListProvider _liveInstancesProvider = null;
+  private ZKThroughputViolatingTopicsProvider _throughputViolatingTopicsProvider = null;
 
   // Cache all live DatastreamTasks per instance for assignment strategy
   private Map<String, Set<DatastreamTask>> _liveTaskMap = new HashMap<>();
+
+  // Cache all the throughput violating topics per datastream
+  private final Map<String, Set<String>> _throughputViolatingTopicsMap = new HashMap<>();
+
+  // As the _throughputViolatingTopicsMap may be updated by watcher thread and read by multiple task threads concurrently.
+  private final ReadWriteLock _throughputViolatingTopicsMapReadWriteLock = new ReentrantReadWriteLock();
+  private final Lock _throughputViolatingTopicsMapWriteLock = _throughputViolatingTopicsMapReadWriteLock.writeLock();
+  private final Lock _throughputViolatingTopicsMapReadLock = _throughputViolatingTopicsMapReadWriteLock.readLock();
+
+
+  /**
+   * ThroughputViolations class keeps track of the throughput violations per datastream and
+   * also provides a wrapper for JSON SerDe.
+   */
+  public static class ThroughputViolations {
+    /**
+     * Set of throughput violating topics, of which at least one partition violates the
+     * brooklin's permissible throughput thresholds.
+     */
+    public Set<String> violatingTopics;
+
+    /**
+     * Kept an empty constructor for SerDe purposes.
+     */
+    public ThroughputViolations() {
+    }
+
+    /**
+     * Constructor to initialize an object per datastream with violating topics.
+     */
+    public ThroughputViolations(Set<String> violatingTopics) {
+      this.violatingTopics = violatingTopics;
+    }
+
+    @Override
+    public int hashCode() {
+      return this.violatingTopics.hashCode();
+    }
+  }
 
   // cleanup orphan lock in separate thread.
   private final ScheduledExecutorService _scheduledExecutorServiceOrphanLockCleanup = Executors.newScheduledThreadPool(1,
@@ -287,6 +331,12 @@ public class ZkAdapter {
     // under /{cluster}/instances/{instance}
     if (_assignmentListProvider == null) {
       _assignmentListProvider = new ZkBackedTaskListProvider(_cluster, _instanceName);
+    }
+
+    // both leader and follower also listens to the znode with throughput violating datastreams
+    // under /{cluster}/throughputViolations/
+    if (_throughputViolatingTopicsProvider == null) {
+      _throughputViolatingTopicsProvider = new ZKThroughputViolatingTopicsProvider(_cluster);
     }
 
     // start with follower state, then join leader election
@@ -612,6 +662,21 @@ public class ZkAdapter {
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
     LOG.info("All live tasks: " + _liveTaskMap);
     return new HashMap<>(_liveTaskMap);
+  }
+
+  /**
+   * Fetch all the throughput violating topics per datastream from cache.
+   * */
+  public Set<String> getThroughputViolatingTopics(List<Datastream> datastreams) {
+    _throughputViolatingTopicsMapReadLock.lock();
+    try {
+      return datastreams.stream()
+          .flatMap(
+              datastream -> _throughputViolatingTopicsMap.getOrDefault(datastream.getName(), new HashSet<>()).stream())
+          .collect(Collectors.toSet());
+    } finally {
+      _throughputViolatingTopicsMapReadLock.unlock();
+    }
   }
 
   /**
@@ -1881,6 +1946,65 @@ public class ZkAdapter {
     @Override
     public void handleDataDeleted(String dataPath) {
       // do nothing
+    }
+  }
+
+  /**
+   * ZKThroughputViolatingTopicsProvider, provides information about all the throughput violating
+   * topics per datastream for a given instance. In addition, it notifies the listener about the
+   * child changes that happened to the datastream node under the throughputViolations node.
+   */
+  private class ZKThroughputViolatingTopicsProvider implements IZkChildListener {
+    private final String _path;
+
+    public ZKThroughputViolatingTopicsProvider(String cluster) {
+      _path = KeyBuilder.throughputViolations(cluster);
+      try {
+        if (_zkclient.exists(_path)) {
+          populateThroughputViolatingTopicsMap(_zkclient.getChildren(_path));
+        }
+      } catch (Exception exception) {
+        LOG.error("Received error while linking ZKThroughputViolatingTopicsProvider: ", exception);
+      }
+      LOG.info("ZKThroughputViolatingTopicsProvider::Subscribing to the changes under the path " + _path);
+      _zkclient.subscribeChildChanges(_path, this);
+    }
+
+    public void close() {
+      LOG.info("ZKThroughputViolatingTopicsProvider::Unsubscribing to the changes under the path " + _path);
+      _zkclient.unsubscribeChildChanges(_path, this);
+    }
+
+    private void populateThroughputViolatingTopicsMap(List<String> currentChildren) {
+      _throughputViolatingTopicsMapWriteLock.lock();
+      try {
+        // clearing the cache as we would only maintain the latest reported information everytime
+        _throughputViolatingTopicsMap.clear();
+
+        for (String datastream : currentChildren) {
+          ThroughputViolations throughputViolations;
+          try {
+            String throughputViolatingTopics =
+                _zkclient.ensureReadData(KeyBuilder.throughputViolationsPerDatastream(_cluster, datastream));
+            throughputViolations = JsonUtils.fromJson(throughputViolatingTopics, ThroughputViolations.class);
+          } catch (ZkNoNodeException e) {
+            throughputViolations = null;
+          }
+          if (throughputViolations != null) {
+            _throughputViolatingTopicsMap.put(datastream, new HashSet<>(throughputViolations.violatingTopics));
+          }
+        }
+      } finally {
+        _throughputViolatingTopicsMapWriteLock.unlock();
+      }
+    }
+
+    @Override
+    public void handleChildChange(String parentPath, List<String> currentChildren) throws Exception {
+      LOG.info(String.format(
+          "ZKThroughputViolatingTopicsProvider::Received Child change notification on the throughput violations "
+              + "datastream list – parentPath %s, children %s", parentPath, currentChildren));
+      populateThroughputViolatingTopicsMap(currentChildren);
     }
   }
 
