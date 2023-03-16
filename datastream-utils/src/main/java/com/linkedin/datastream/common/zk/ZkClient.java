@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.common.zk;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Random;
@@ -31,6 +32,7 @@ public class ZkClient extends org.apache.helix.zookeeper.impl.client.ZkClient {
   public static final int DEFAULT_CONNECTION_TIMEOUT = 60 * 1000;
   public static final int DEFAULT_SESSION_TIMEOUT = 30 * 1000;
   public static final int DEFAULT_OPERATION_RETRY_TIMEOUT = -1;
+  public static final Charset ZK_STRING_SERIALIZER_CHARSET = StandardCharsets.UTF_8;
 
   private static final Logger LOG = LoggerFactory.getLogger(ZkClient.class);
 
@@ -218,7 +220,7 @@ public class ZkClient extends org.apache.helix.zookeeper.impl.client.ZkClient {
     @Override
     public byte[] serialize(Object data) throws ZkMarshallingError {
       byte[] ret = null;
-      ret = ((String) data).getBytes(StandardCharsets.UTF_8);
+      ret = ((String) data).getBytes(ZK_STRING_SERIALIZER_CHARSET);
       return ret;
     }
 
@@ -226,7 +228,7 @@ public class ZkClient extends org.apache.helix.zookeeper.impl.client.ZkClient {
     public Object deserialize(byte[] bytes) throws ZkMarshallingError {
       String data = null;
       if (bytes != null) {
-        data = new String(bytes, StandardCharsets.UTF_8);
+        data = new String(bytes, ZK_STRING_SERIALIZER_CHARSET);
       }
       return data;
     }

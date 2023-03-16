@@ -38,7 +38,8 @@ import static com.linkedin.datastream.server.Coordinator.PAUSED_INSTANCE;
 public class ZookeeperBackedDatastreamStore implements DatastreamStore {
 
   private static final Logger LOG = LoggerFactory.getLogger(ZookeeperBackedDatastreamStore.class.getName());
-
+  private static final Double ONE_MEBIBYTE = (double) (1024 * 1024);
+  private static final Double ZNODE_BLOB_SIZE_LIMIT = ONE_MEBIBYTE;
   private final ZkClient _zkClient;
   private final String _cluster;
   private final CachedDatastreamReader _datastreamCache;
@@ -127,6 +128,12 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
       throw new DatastreamException("Datastream does not exists, can not be updated: " + key);
     }
 
+    // As this limit is ZK specific, adding this validation check specifically in ZookeeperBackedDatastreamStore.
+    double datastreamBlobSizeInMBs = getBlobSizeInMBs(DatastreamUtils.toJSON(datastream));
+    Validate.isTrue(datastreamBlobSizeInMBs <= ZNODE_BLOB_SIZE_LIMIT,
+        String.format("Encoded blob size: %.2f exceeded the znode threshold of %.2f. Datastream: %s cannot be updated.",
+            datastreamBlobSizeInMBs, ZNODE_BLOB_SIZE_LIMIT, datastream.getName()));
+
     Objects.requireNonNull(datastream.getMetadata()).remove("numTasks");
     String json = DatastreamUtils.toJSON(datastream);
     _zkClient.writeData(getZnodePath(key), json);
@@ -139,6 +146,12 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
   public void createDatastream(String key, Datastream datastream) {
     Validate.notNull(datastream, "null datastream");
     Validate.notNull(key, "null key for datastream" + datastream);
+
+    // As this limit is ZK specific, adding this validation check specifically in ZookeeperBackedDatastreamStore.
+    double datastreamBlobSizeInMBs = getBlobSizeInMBs(DatastreamUtils.toJSON(datastream));
+    Validate.isTrue(datastreamBlobSizeInMBs <= ZNODE_BLOB_SIZE_LIMIT,
+        String.format("Encoded blob size: %.2f exceeded the znode threshold of %.2f. Datastream: %s cannot be created.",
+            datastreamBlobSizeInMBs, ZNODE_BLOB_SIZE_LIMIT, datastream.getName()));
 
     String path = getZnodePath(key);
     if (_zkClient.exists(path)) {
@@ -263,5 +276,13 @@ public class ZookeeperBackedDatastreamStore implements DatastreamStore {
     String dmsPath = KeyBuilder.datastreams(_cluster);
     // Update the /dms to notify that coordinator needs to act on a deleted or changed datastream.
     _zkClient.updateDataSerialized(dmsPath, old -> String.valueOf(System.currentTimeMillis()));
+  }
+
+  // Gets the size of the encoded blob (default charset UTF) in MBs
+  private double getBlobSizeInMBs(String stringEncodedBlob) {
+    if (Objects.nonNull(stringEncodedBlob) && !stringEncodedBlob.isEmpty()) {
+      return ((double) stringEncodedBlob.getBytes(ZkClient.ZK_STRING_SERIALIZER_CHARSET).length) / ONE_MEBIBYTE;
+    }
+    return 0;
   }
 }

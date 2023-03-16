@@ -8,6 +8,7 @@ package com.linkedin.datastream.server;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -71,7 +72,7 @@ public class TestEventProducer {
     };
 
     EventProducer eventProducer = new EventProducer(task, transport,
-        new NoOpCheckpointProvider(), new Properties(), false);
+        new NoOpCheckpointProvider(), new Properties(), false, (t) -> new HashSet<>());
 
     int eventCount = 5;
     for (int i = 0; i < eventCount; i++) {
@@ -122,7 +123,7 @@ public class TestEventProducer {
     };
 
     EventProducer eventProducer = new EventProducer(task, transport,
-        new NoOpCheckpointProvider(), new Properties(), false);
+        new NoOpCheckpointProvider(), new Properties(), false, (t) -> new HashSet<>());
 
     int eventCount = 5;
     for (int i = 0; i < eventCount; i++) {
@@ -142,7 +143,8 @@ public class TestEventProducer {
 
     Properties props = new Properties();
     props.put(EventProducer.CONFIG_ENABLE_PER_TOPIC_METRICS, Boolean.FALSE.toString());
-    EventProducer eventProducer = new EventProducer(task, transport, new NoOpCheckpointProvider(), props, false);
+    EventProducer eventProducer =
+        new EventProducer(task, transport, new NoOpCheckpointProvider(), props, false, (t) -> new HashSet<>());
 
     eventProducer.send(createDatastreamProducerRecord(), (m, e) -> {
     });

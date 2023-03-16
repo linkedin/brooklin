@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -29,6 +30,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -3519,6 +3521,284 @@ public class TestCoordinator {
 
     // Verify that the leader transitioned the failed datastream to stopped state
     verify(zkAdapter, atLeast(1)).updateDatastream(testStream);
+  }
+
+  @Test
+  public void testUpdateInvocationWhenThroughputViolatingTopicsHandlingDisabled() throws Exception {
+    String testCluster = "testUpdateInvocationWhenThroughputViolatingTopicsHandlingDisabled";
+    String connectorType = "connectorType";
+    String streamName = "testUpdateInvocationWhenThroughputViolatingTopicsHandlingDisabled";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.FALSE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testStream =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName)[0];
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Reporting 3 topics of a datastream as throughput violating ones.
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(Arrays.asList("FooTopic", "BarTopic", "ZenTopic"));
+
+    // Wait for the Datastream to be in the Ready status. After which, we'll update the datastream.
+    PollUtils.poll(() -> store.getDatastream(testStream.getName()).getStatus().equals(DatastreamStatus.READY),
+        Duration.ofMillis(200).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    Datastream testStreamGet = store.getDatastream(testStream.getName());
+
+    Objects.requireNonNull(testStreamGet.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+    resource.update(testStreamGet.getName(), testStreamGet);
+
+    // Since the feature is disabled, we expect to see no reporting of any topics in the server.
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, new HashSet<>()),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testCreateInvocationWhenThroughputViolatingTopicsHandlingDisabled() throws Exception {
+    String testCluster = "testCreateInvocationWhenThroughputViolatingTopicsHandlingDisabled";
+    String connectorType = "connectorType";
+    String streamName = "testCreateInvocationWhenThroughputViolatingTopicsHandlingDisabled";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.FALSE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Reporting 3 topics of a datastream as throughput violating ones during the datastream create call.
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(Arrays.asList("OneTopic", "TwoTopic", "ThreeTopic"));
+
+    Datastream testStream = DatastreamTestUtils.createDatastreams(connectorType, streamName)[0];
+
+    Objects.requireNonNull(testStream.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+
+    resource.create(testStream);
+
+    // Since the feature is disabled, we expect to see no reporting of any topics in the server.
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStream, coordinator, new HashSet<>()),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForSingleDatastream() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastream";
+    String connectorType = "connectorType";
+    String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastream";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testStream =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName)[0];
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Case 1:
+    // Reporting 3 topics of a datastream as throughput violating ones.
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(Arrays.asList("FooTopic", "BarTopic", "ZenTopic"));
+
+    // Wait for the Datastream to be in the Ready status. After which, we'll update the datastream.
+    PollUtils.poll(() -> store.getDatastream(testStream.getName()).getStatus().equals(DatastreamStatus.READY),
+        Duration.ofMillis(200).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    Datastream testStreamGet = store.getDatastream(testStream.getName());
+
+    Objects.requireNonNull(testStreamGet.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+    resource.update(testStreamGet.getName(), testStreamGet);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    // Case 2:
+    // Removing one of the previously reported topics and also reporting a newer topic as throughput violating one.
+    requestedThroughputViolatingTopics.remove("ZenTopic");
+    requestedThroughputViolatingTopics.add("XingTopic");
+
+    // Getting the stream again from ZK to update.
+    testStreamGet = store.getDatastream(testStreamGet.getName());
+
+    Objects.requireNonNull(testStreamGet.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+    resource.update(testStreamGet.getName(), testStreamGet);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    // Case 3:
+    // When there are no throughput violating topics anymore, reporting an empty set.
+    requestedThroughputViolatingTopics.clear();
+
+    // Getting the stream again from ZK to update.
+    testStreamGet = store.getDatastream(testStreamGet.getName());
+
+    Objects.requireNonNull(testStreamGet.getMetadata()).put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, "");
+    resource.update(testStreamGet.getName(), testStreamGet);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreate() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreate";
+    String connectorType = "connectorType";
+    String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreate";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Case 1:
+    // Reporting 3 topics of a datastream as throughput violating ones during the datastream create call.
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(Arrays.asList("OneTopic", "TwoTopic", "ThreeTopic"));
+
+    Datastream testStream = DatastreamTestUtils.createDatastreams(connectorType, streamName)[0];
+
+    Objects.requireNonNull(testStream.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+
+    resource.create(testStream);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStream, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForMultipleDatastreams() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForMultipleDatastreams";
+    String connectorType = "connectorType";
+    String streamName1 = "testThroughputViolatingTopicsHandlingForMultipleDatastreams1";
+    String streamName2 = "testThroughputViolatingTopicsHandlingForMultipleDatastreams2";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testStream1 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName1)[0];
+    Datastream testStream2 =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName2)[0];
+
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Case 1:
+    // When there are no throughput violating topics anymore, reporting an empty set for the first datastream.
+    Set<String> requestedThroughputViolatingTopicsForFirstDatastream = new HashSet<>();
+
+    // Reporting 3 topics as throughput violating for the second datastream.
+    Set<String> requestedThroughputViolatingTopicsForSecondDatastream =
+        new HashSet<>(Arrays.asList("OneTopic", "TwoTopic", "ThreeTopic"));
+
+    // Wait for the Datastreams to be in the Ready status. After which, we'll update the datastreams.
+    PollUtils.poll(() -> store.getDatastream(testStream1.getName()).getStatus().equals(DatastreamStatus.READY),
+        Duration.ofMillis(200).toMillis(), Duration.ofMillis(2000).toMillis());
+    PollUtils.poll(() -> store.getDatastream(testStream2.getName()).getStatus().equals(DatastreamStatus.READY),
+        Duration.ofMillis(200).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    Datastream testStream1Get = store.getDatastream(testStream1.getName());
+    Datastream testStream2Get = store.getDatastream(testStream2.getName());
+
+    Objects.requireNonNull(testStream1Get.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopicsForFirstDatastream));
+
+    Objects.requireNonNull(testStream2Get.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopicsForSecondDatastream));
+
+    resource.update(testStream1Get.getName(), testStream1Get);
+    resource.update(testStream2Get.getName(), testStream2Get);
+
+    PollUtils.poll(validateIfViolatingTopicsAreReflectedInServer(testStream1Get, coordinator,
+            requestedThroughputViolatingTopicsForFirstDatastream), Duration.ofMillis(500).toMillis(),
+        Duration.ofMillis(3000).toMillis());
+
+    PollUtils.poll(validateIfViolatingTopicsAreReflectedInServer(testStream2Get, coordinator,
+            requestedThroughputViolatingTopicsForSecondDatastream), Duration.ofMillis(500).toMillis(),
+        Duration.ofMillis(3000).toMillis());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  // This helper function helps compare the requesting topics with the topics reflected in the server.
+  private BooleanSupplier validateIfViolatingTopicsAreReflectedInServer(Datastream testStream, Coordinator coordinator,
+      Set<String> requestedThroughputViolatingTopics) {
+    Set<String> fetchedViolatingTopicsFromStore =
+        coordinator.getThroughputViolatingTopics(Collections.singletonList(testStream));
+
+    // Comparing the reported topics information with the cached for the second datastream.
+    return () -> requestedThroughputViolatingTopics.size() == fetchedViolatingTopicsFromStore.size()
+        && requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore);
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

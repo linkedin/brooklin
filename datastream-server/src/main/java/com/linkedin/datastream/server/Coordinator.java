@@ -31,6 +31,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -223,6 +226,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Future<?> _leaderDoAssignmentScheduledFuture = null;
   private volatile boolean _zkSessionExpired = false;
 
+  // Cache all the throughput violating topics per datastream
+  private final Map<String, Set<String>> _throughputViolatingTopicsMap = new HashMap<>();
+  private final Function<DatastreamTask, Set<String>> _throughputViolatingTopicsProvider;
+
+  // As the _throughputViolatingTopicsMap may be updated by watcher thread and read by multiple task threads concurrently.
+  private final ReadWriteLock _throughputViolatingTopicsMapReadWriteLock = new ReentrantReadWriteLock();
+  private final Lock _throughputViolatingTopicsMapWriteLock = _throughputViolatingTopicsMapReadWriteLock.writeLock();
+  private final Lock _throughputViolatingTopicsMapReadLock = _throughputViolatingTopicsMapReadWriteLock.readLock();
+
   /**
    * Constructor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
@@ -252,6 +264,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _cpProvider = new ZookeeperCheckpointProvider(_adapter);
     _metrics = new CoordinatorMetrics(this);
+
+    // Callback initialization – helps fetch throughput violating topics for given datastreams dynamically in runtime.
+    _throughputViolatingTopicsProvider =
+        isThroughputViolatingTopicsHandlingEnabled() ? (t) -> getThroughputViolatingTopics(t.getDatastreams())
+            : (t) -> new HashSet<>();
   }
 
   @VisibleForTesting
@@ -450,11 +467,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onDatastreamUpdate() {
     _log.info("Coordinator::onDatastreamUpdate is called");
+    List<DatastreamGroup> datastreamGroups;
     // We need this synchronization to protect the updates on _assignedDatastreamTasks
     synchronized (_assignedDatastreamTasks) {
       // On datastream update the CachedDatastreamReader won't refresh its data, so we need to invalidate the cache
       _datastreamCache.invalidateAllCache();
-      List<DatastreamGroup> datastreamGroups = _datastreamCache.getDatastreamGroups();
+      datastreamGroups = _datastreamCache.getDatastreamGroups();
       // Refresh the datastream task
       _assignedDatastreamTasks.values().forEach(task -> {
         Optional<DatastreamGroup> dg =
@@ -466,8 +484,67 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         }
       });
     }
+
+    if (isThroughputViolatingTopicsHandlingEnabled()) {
+      _log.info(
+          "Populating the datastream violating topics to host level cache from the datastream objects on the update trigger");
+      try {
+        populateThroughputViolatingTopicsMap(datastreamGroups);
+      } catch (Exception exception) {
+        _log.error(
+            "Received an exception while populating the datastream violating topics to host level cache from the "
+                + "datastream objects on the update trigger", exception);
+      }
+    }
     queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleDatastreamChangeEvent(), true);
     _log.info("Coordinator::onDatastreamUpdate completed successfully");
+  }
+
+  // This helper function populates the violations to local cache from the datastream metadata on every update call.
+  // Also note that updates to this local cache follows the behavior of replace-all, and not incremental.
+  private void populateThroughputViolatingTopicsMap(List<DatastreamGroup> datastreamGroups) {
+    _throughputViolatingTopicsMapWriteLock.lock();
+    try {
+      // clearing the cache as we would only maintain the latest reported information everytime.
+      _throughputViolatingTopicsMap.clear();
+
+      // fetching new violations from the datastream object.
+      datastreamGroups.forEach(datastreamGroup -> datastreamGroup.getDatastreams().forEach(datastream -> {
+        String commaSeparatedViolatingTopics = Objects.requireNonNull(datastream.getMetadata())
+            .get(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS);
+        if (Objects.nonNull(commaSeparatedViolatingTopics) && !commaSeparatedViolatingTopics.isEmpty()) {
+          String[] violatingTopics = commaSeparatedViolatingTopics.split(",");
+          if (violatingTopics.length > 0) {
+            _throughputViolatingTopicsMap.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
+          }
+        }
+      }));
+    } finally {
+      _throughputViolatingTopicsMapWriteLock.unlock();
+    }
+  }
+
+  /**
+   * Fetch all the throughput violating topics per datastream from cache.
+   * */
+  @VisibleForTesting
+  Set<String> getThroughputViolatingTopics(List<Datastream> datastreams) {
+    _throughputViolatingTopicsMapReadLock.lock();
+    try {
+      return datastreams.stream()
+          .flatMap(
+              datastream -> _throughputViolatingTopicsMap.getOrDefault(datastream.getName(), new HashSet<>()).stream())
+          .collect(Collectors.toSet());
+    } finally {
+      _throughputViolatingTopicsMapReadLock.unlock();
+    }
+  }
+
+  // This feature enables handling the management of throughput violating topics.
+  // Latency metrics and SLAs would be reported separately for these topics if their
+  // per partition throughput is not within brooklin's permissible bounds.
+  public boolean isThroughputViolatingTopicsHandlingEnabled() {
+    return _config.getEnableThroughputViolatingTopicsHandling();
   }
 
   /**
@@ -604,6 +681,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   public void onAssignmentChange() {
     _log.info("Coordinator::onAssignmentChange is called");
     queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleAssignmentChangeEvent(), true);
+
+    if (isThroughputViolatingTopicsHandlingEnabled()) {
+      try {
+        // On creating a datastream if the metadata contains any throughput violating topics, we populate the host level cache
+        List<DatastreamGroup> datastreamGroups = _adapter.getInstanceAssignment(_adapter.getInstanceName())
+            .stream()
+            .map(task -> new DatastreamGroup(getDatastreamTask(task).getDatastreams()))
+            .collect(Collectors.toList());
+        _log.info(
+            "Populating the datastream violating topics to host level cache from the datastream objects on the create trigger");
+        populateThroughputViolatingTopicsMap(datastreamGroups);
+      } catch (Exception exception) {
+        _log.error(
+            "Received an exception while populating the datastream violating topics to host level cache from the "
+                + "datastream objects on the create trigger", exception);
+      }
+    }
     _log.info("Coordinator::onAssignmentChange completed successfully");
   }
 
@@ -952,7 +1046,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       boolean customCheckpointing = getCustomCheckpointing(task);
       TransportProviderAdmin tpAdmin = _transportProviderAdmins.get(task.getTransportProviderName());
       TransportProvider transportProvider = tpAdmin.assignTransportProvider(task);
-      EventProducer producer = new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing);
+
+      EventProducer producer =
+          new EventProducer(task, transportProvider, _cpProvider, _eventProducerConfig, customCheckpointing,
+              _throughputViolatingTopicsProvider);
 
       taskImpl.setEventProducer(producer);
       Map<Integer, String> checkpoints = producer.loadCheckpoints(task);
