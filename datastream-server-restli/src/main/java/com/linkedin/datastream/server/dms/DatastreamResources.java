@@ -298,6 +298,18 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Failed to validate datastream updates: ", e);
     }
 
+    // 7. flush throughput violating topics entry while updating the datastream if the corresponding feature is disabled.
+    if (!_coordinator.isThroughputViolatingTopicsHandlingEnabled()) {
+      for (String key : datastreamMap.keySet()) {
+        if (Objects.requireNonNull(datastreamMap.get(key).getMetadata())
+            .containsKey(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS)) {
+          datastreamMap.get(key)
+              .getMetadata()
+              .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, StringUtils.EMPTY);
+        }
+      }
+    }
+
     try {
       // ZooKeeper has sequential consistency. So don't switch the order below: we need to make sure the datastreams
       // are updated before we touch the "assignments" node to avoid race condition
@@ -907,6 +919,14 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         datastream.setName(trimmedDatastreamName);
         LOG.info("Leading and/or trailing whitespace found in datastream name. Name trimmed from '{}' to '{}'",
             datastreamName, trimmedDatastreamName);
+      }
+
+      // Flush throughput violating topics entry while creating the datastream if the corresponding feature is disabled.
+      if (!_coordinator.isThroughputViolatingTopicsHandlingEnabled()) {
+        if (Objects.requireNonNull(datastream.getMetadata())
+            .containsKey(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS)) {
+          datastream.getMetadata().put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, StringUtils.EMPTY);
+        }
       }
 
       Instant startTime = Instant.now();

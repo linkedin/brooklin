@@ -46,6 +46,7 @@ public final class CoordinatorConfig {
   // how long should the coordinator wait between attempts to mark stopping datastreams stopped
   public static final String CONFIG_MARK_DATASTREAMS_STOPPED_RETRY_PERIOD_MS = PREFIX + "markDatastreamsStoppedRetryPeriodMs";
 
+  public static final String CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING = PREFIX + "enableThroughputViolatingTopicsHandling";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
@@ -77,6 +78,8 @@ public final class CoordinatorConfig {
   private final boolean _forceStopStreamsOnFailure;
   private final long _markDatastreamsStoppedTimeoutMs;
   private final long _markDatastreamsStoppedRetryPeriodMs;
+  private final boolean _enableThroughputViolatingTopicsHandling;
+
 
   /**
    * Construct an instance of CoordinatorConfig
@@ -112,7 +115,8 @@ public final class CoordinatorConfig {
         DEFAULT_MARK_DATASTREMS_STOPPED_TIMEOUT_MS);
     _markDatastreamsStoppedRetryPeriodMs = _properties.getLong(CONFIG_MARK_DATASTREAMS_STOPPED_RETRY_PERIOD_MS,
         DEFAULT_MARK_DATASTREMS_STOPPED_RETRY_PERIOD_MS);
-
+    _enableThroughputViolatingTopicsHandling = _properties.getBoolean(
+        CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, false);
   }
 
   public Properties getConfigProperties() {
@@ -173,6 +177,10 @@ public final class CoordinatorConfig {
 
   public int getMaxAssignmentRetryCount() {
     return _maxAssignmentRetryCount;
+  }
+
+  public boolean getEnableThroughputViolatingTopicsHandling() {
+    return _enableThroughputViolatingTopicsHandling;
   }
 
   // Configuration properties for Assignment Tokens Feature

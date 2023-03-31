@@ -130,4 +130,10 @@ public class DatastreamMetadataConstants {
    * Datastream metadata that represents number of tasks
    */
   public static final String NUM_TASKS = "numTasks";
+
+  /**
+   * Datastream metadata that represents the throughput violating topics. The topics; of
+   * which at least one partition violates the brooklin's permissible throughput bounds.
+   */
+  public static final String THROUGHPUT_VIOLATING_TOPICS = "throughputViolatingTopics";
 }
