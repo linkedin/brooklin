@@ -510,14 +510,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // fetching new violations from the datastream object.
       datastreamGroups.forEach(datastreamGroup -> datastreamGroup.getDatastreams().forEach(datastream -> {
+        // parse csv formatted violations metadata-string for every datastream
         String commaSeparatedViolatingTopics = Objects.requireNonNull(datastream.getMetadata())
-            .get(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS);
-        if (Objects.nonNull(commaSeparatedViolatingTopics) && !commaSeparatedViolatingTopics.isEmpty()) {
-          String[] violatingTopics = commaSeparatedViolatingTopics.split(",");
-          if (violatingTopics.length > 0) {
-            _throughputViolatingTopicsMap.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
-          }
+            .getOrDefault(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, StringUtils.EMPTY);
+        String[] violatingTopics = Arrays.stream(commaSeparatedViolatingTopics.split(","))
+            .filter(s -> !s.trim().isEmpty())
+            .toArray(String[]::new);
+
+        if (violatingTopics.length > 0) {
+          _throughputViolatingTopicsMap.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
+          _log.info("For datastream {}, Successfully reported throughput violating topics : {}", datastream.getName(),
+              violatingTopics);
         }
+        _metrics.registerOrSetGauge(
+            String.format("%s.%s", CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM,
+                datastream.getName()), () -> violatingTopics.length);
       }));
     } finally {
       _throughputViolatingTopicsMapWriteLock.unlock();
@@ -2307,6 +2314,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
     private static final String IS_LEADER = "isLeader";
     private static final String ZK_SESSION_EXPIRED = "zkSessionExpired";
+    public static final String NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM = "numThroughputViolatingTopics";
 
     // Connector common metrics
     private static final String NUM_DATASTREAMS = "numDatastreams";
@@ -2459,6 +2467,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     private void registerGauge(String metricName, Supplier<?> valueSupplier) {
       _dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier);
+      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
+    }
+
+    // registers a new gauge or updates the supplier for the gauge if it already exists
+    private <T> void registerOrSetGauge(String metricName, Supplier<T> valueSupplier) {
+      _dynamicMetricsManager.setGauge(_dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier),
+          valueSupplier);
       _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
     }
 

@@ -58,6 +58,8 @@ public class EventProducer implements DatastreamEventProducer {
 
   static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
+  static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
+  static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
 
   private static final String MODULE = EventProducer.class.getSimpleName();
   private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
@@ -348,30 +350,12 @@ public class EventProducer implements DatastreamEventProducer {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = getDatastreamName();
 
-    if (_throughputViolatingTopicsProvider.apply(_datastreamTask).contains(metadata.getTopic())) {
-      // TODO (Shrinand): Handle metrics reporting for throughput violating topics.
-    }
-
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      // Using a time sliding window for reporting latency specifically.
-      // Otherwise we report very stuck max value for slow source
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName,
-          EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE, EVENTS_LATENCY_MS_STRING,
-          LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
-          EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
-
-      // Only update the per topic latency metric here if 'enablePerTopicMetrics' is false, otherwise this will
-      // update the metric twice.
-      if (_enablePerTopicEventLatencyMetrics && !_enablePerTopicMetrics) {
-        _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(),
-            EVENTS_LATENCY_MS_STRING, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
-      }
+      reportEventLatencyMetrics(metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
 
       reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
           EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
@@ -406,14 +390,72 @@ public class EventProducer implements DatastreamEventProducer {
     // Report the time it took to just send the events to destination
     if (eventsSendTimestamp > 0) {
       long sendLatency = System.currentTimeMillis() - eventsSendTimestamp;
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, topicOrDatastreamName, EVENTS_SEND_LATENCY_MS_STRING,
-          sendLatency);
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE, EVENTS_SEND_LATENCY_MS_STRING, sendLatency);
-      _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(),
-          EVENTS_SEND_LATENCY_MS_STRING, sendLatency);
+      reportSendLatencyMetrics(metadata, sendLatency, EVENTS_SEND_LATENCY_MS_STRING);
     }
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
+  }
+
+  /**
+   * Only for the throughput violating topics!
+   * <br>
+   * <br>
+   * Report metrics on every send callback from the transport provider. Because this can be invoked multiple times
+   * per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
+   * to avoid overcounting.
+   */
+  private void reportMetricsForThroughputViolatingTopics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp,
+      long eventsSendTimestamp) {
+    // Treat all events within this record equally (assume same timestamp)
+    if (eventsSourceTimestamp > 0) {
+      // Report availability metrics
+      reportEventLatencyMetrics(metadata, eventsSourceTimestamp, THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), TOTAL_EVENTS_PRODUCED,
+          1);
+    }
+
+    // Report the time it took to just send the events to destination
+    if (eventsSendTimestamp > 0) {
+      long sendLatency = System.currentTimeMillis() - eventsSendTimestamp;
+      reportSendLatencyMetrics(metadata, sendLatency, THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING);
+    }
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
+  }
+
+  // Report Event Latency metrics for aggregate, connector and topic/datastream
+  private void reportEventLatencyMetrics(DatastreamRecordMetadata metadata, long sourceToDestinationLatencyMs,
+      String eventLatencyMetricName) {
+    String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : getDatastreamName();
+    // Using a time sliding window for reporting latency specifically.
+    // Otherwise we report very stuck max value for slow source
+    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName,
+        eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE,
+        eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
+        eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+
+    // Only update the per topic latency metric here if 'enablePerTopicMetrics' is false, otherwise this will
+    // update the metric twice.
+    if (_enablePerTopicEventLatencyMetrics && !_enablePerTopicMetrics) {
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(),
+          eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS,
+          sourceToDestinationLatencyMs);
+    }
+  }
+
+  // Report Send to destination Latency metrics for aggregate, connector and topic/datastream
+  private void reportSendLatencyMetrics(DatastreamRecordMetadata metadata, long sendLatency,
+      String sendLatencyMetricName) {
+    String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : getDatastreamName();
+    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, topicOrDatastreamName,
+        sendLatencyMetricName, sendLatency);
+    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, AGGREGATE,
+        sendLatencyMetricName, sendLatency);
+    _dynamicMetricsManager.createOrUpdateHistogram(MODULE, _datastreamTask.getConnectorType(),
+        sendLatencyMetricName, sendLatency);
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
@@ -427,7 +469,12 @@ public class EventProducer implements DatastreamEventProducer {
       } else {
         // Report metrics
         checkpoint(metadata.getPartition(), metadata.getCheckpoint());
-        reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+        // Reporting separate metrics for throughput violating topics.
+        if (_throughputViolatingTopicsProvider.apply(_datastreamTask).contains(metadata.getTopic())) {
+          reportMetricsForThroughputViolatingTopics(metadata, eventSourceTimestamp, eventSendTimestamp);
+        } else {
+          reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+        }
       }
     } catch (Exception e) {
       // Propagate the exception caught to the caller as a send callback exception to take any action such as retries.
