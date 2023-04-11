@@ -92,14 +92,14 @@ public class BrooklinEnvelope {
   }
 
   /**
-   * Get the Kafka headers
+   * Get the Generic headers
    */
   public Object getHeaders() {
     return _headers;
   }
 
   /**
-   * Set the Kafka headers
+   * Set the Generic headers
    */
   public void setHeaders(Object headers) {
     _headers = headers;
