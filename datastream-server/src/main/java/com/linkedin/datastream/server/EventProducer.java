@@ -355,7 +355,7 @@ public class EventProducer implements DatastreamEventProducer {
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      reportEventLatencyMetrics(metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
+      reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
 
       reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
           EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
@@ -406,13 +406,32 @@ public class EventProducer implements DatastreamEventProducer {
    */
   private void reportMetricsForThroughputViolatingTopics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp,
       long eventsSendTimestamp) {
+    String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : getDatastreamName();
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
-      reportEventLatencyMetrics(metadata, eventsSourceTimestamp, THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING);
+      long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
+      reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING);
+
+      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
+          EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
+
+      if (_logger.isDebugEnabled()) {
+        if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
+          _logger.debug(
+              "Event latency of {} for source {}, datastream {}, topic {}, partition {} exceeded SLA of {} milliseconds",
+              sourceToDestinationLatencyMs, _datastreamTask.getDatastreamSource().getConnectionString(), getDatastreamName(),
+              metadata.getTopic(), metadata.getPartition(), _availabilityThresholdAlternateSlaMs);
+        }
+      }
+
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, AGGREGATE, TOTAL_EVENTS_PRODUCED, 1);
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, _datastreamTask.getConnectorType(), TOTAL_EVENTS_PRODUCED,
           1);
+
+      // Log information about events if either warn logging is enabled or logging for topic partitions outside
+      // alternate SLA is enabled
+      performSlaRelatedLogging(metadata, eventsSourceTimestamp, sourceToDestinationLatencyMs);
     }
 
     // Report the time it took to just send the events to destination
@@ -425,24 +444,22 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   // Report Event Latency metrics for aggregate, connector and topic/datastream
-  private void reportEventLatencyMetrics(DatastreamRecordMetadata metadata, long sourceToDestinationLatencyMs,
-      String eventLatencyMetricName) {
-    String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : getDatastreamName();
+  private void reportEventLatencyMetrics(String topicOrDatastreamName, DatastreamRecordMetadata metadata,
+      long sourceToDestinationLatencyMs, String eventLatencyMetricName) {
     // Using a time sliding window for reporting latency specifically.
     // Otherwise we report very stuck max value for slow source
-    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName,
-        eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
-    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE,
-        eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, topicOrDatastreamName, eventLatencyMetricName,
+        LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
+    _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, AGGREGATE, eventLatencyMetricName,
+        LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
     _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, _datastreamTask.getConnectorType(),
         eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
 
     // Only update the per topic latency metric here if 'enablePerTopicMetrics' is false, otherwise this will
     // update the metric twice.
     if (_enablePerTopicEventLatencyMetrics && !_enablePerTopicMetrics) {
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(),
-          eventLatencyMetricName, LATENCY_SLIDING_WINDOW_LENGTH_MS,
-          sourceToDestinationLatencyMs);
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, metadata.getTopic(), eventLatencyMetricName,
+          LATENCY_SLIDING_WINDOW_LENGTH_MS, sourceToDestinationLatencyMs);
     }
   }
 

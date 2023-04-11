@@ -86,6 +86,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
 import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
@@ -510,9 +511,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // fetching new violations from the datastream object.
       datastreamGroups.forEach(datastreamGroup -> datastreamGroup.getDatastreams().forEach(datastream -> {
+        if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(THROUGHPUT_VIOLATING_TOPICS)) {
+          // if the throughput violating metadata field does not exist, we skip handling logic and reporting metrics
+          return;
+        }
         // parse csv formatted violations metadata-string for every datastream
-        String commaSeparatedViolatingTopics = Objects.requireNonNull(datastream.getMetadata())
-            .getOrDefault(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, StringUtils.EMPTY);
+        String commaSeparatedViolatingTopics = datastream.getMetadata().get(THROUGHPUT_VIOLATING_TOPICS);
         String[] violatingTopics = Arrays.stream(commaSeparatedViolatingTopics.split(","))
             .filter(s -> !s.trim().isEmpty())
             .toArray(String[]::new);
@@ -2297,6 +2301,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   CoordinatorConfig getConfig() {
     return _config;
+  }
+
+  @VisibleForTesting
+  String getNumThroughputViolatingTopicsMetricName() {
+    return CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM;
   }
 
   /**

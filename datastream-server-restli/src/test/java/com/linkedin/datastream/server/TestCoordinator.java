@@ -3613,12 +3613,12 @@ public class TestCoordinator {
     String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastream";
     String connectorType = "connectorType";
     String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastream";
-    String numThroughputViolatingTopicsMetric =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(), "numThroughputViolatingTopics", streamName);
 
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3652,8 +3652,7 @@ public class TestCoordinator {
         Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
 
     // Validate the count in the metrics
-    Gauge<Integer> gauge =
-        DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
     Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
 
     // Case 2:
@@ -3728,12 +3727,12 @@ public class TestCoordinator {
     String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreate";
     String connectorType = "connectorType";
     String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreate";
-    String numThroughputViolatingTopicsMetric =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(), "numThroughputViolatingTopics", streamName);
 
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3774,14 +3773,16 @@ public class TestCoordinator {
     String connectorType = "connectorType";
     String streamName1 = "testThroughputViolatingTopicsHandlingForMultipleDatastreams1";
     String streamName2 = "testThroughputViolatingTopicsHandlingForMultipleDatastreams2";
-    String numThroughputViolatingTopicsMetricForFirstDatastream =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(), "numThroughputViolatingTopics", streamName1);
-    String numThroughputViolatingTopicsMetricForSecondDatastream =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(), "numThroughputViolatingTopics", streamName2);
 
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetricForFirstDatastream =
+        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName1);
+    String numThroughputViolatingTopicsMetricForSecondDatastream =
+        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName2);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3887,6 +3888,52 @@ public class TestCoordinator {
         DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetricForSecondDatastream);
     Assert.assertEquals(requestedThroughputViolatingTopicsForSecondDatastream.size(),
         (int) gaugeForSecondDatastream.getValue());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreateWithMalformedMetadata() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreateWithMalformedMetadata";
+    String connectorType = "connectorType";
+    String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreateWithMalformedMetadata";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Case 1:
+    // Reporting 4 topics of a datastream as throughput violating ones during the datastream create call.
+    Set<String> requestedThroughputViolatingTopics =
+        new HashSet<>(Arrays.asList("OneTopic", "TwoTopic", "ThreeTopic", "FourTopic"));
+    String malformedMetadata = ",OneTopic,    ,TwoTopic, ThreeTopic,,, FourTopic, ";
+
+    Datastream testStream = DatastreamTestUtils.createDatastreams(connectorType, streamName)[0];
+
+    Objects.requireNonNull(testStream.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, malformedMetadata);
+
+    resource.create(testStream);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStream, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    // Validate the count in the metrics
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
 
     coordinator.stop();
     zkClient.close();
