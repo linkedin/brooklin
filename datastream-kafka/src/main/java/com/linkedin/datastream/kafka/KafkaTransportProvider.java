@@ -112,7 +112,14 @@ public class KafkaTransportProvider implements TransportProvider {
     Headers headers = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
-      headers = envelope.getHeaders() instanceof Headers ? (Headers) envelope.getHeaders() : null;
+      if (envelope.getHeaders() != null) {
+        if (!(envelope.getHeaders() instanceof Headers)) {
+          throw new DatastreamRuntimeException(
+              String.format("Unsupported header encountered %s in kafka transport provider for record %s",
+                  envelope.getHeaders(), record));
+        }
+        headers = (Headers) envelope.getHeaders();
+      }
       if (envelope.key().isPresent() && envelope.key().get() instanceof byte[]) {
         keyValue = (byte[]) envelope.key().get();
       }
