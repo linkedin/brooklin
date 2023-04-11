@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka.mirrormaker;
 
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,14 +20,18 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.io.Charsets;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -154,6 +159,55 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   }
 
   @Test
+  public void testConsumeFromSingleTopicWithHeaders() throws Exception {
+    String connectorName = "testConsumeFromSingleTopicWithHeaders";
+
+    String yummyTopic = "YummyPizza";
+
+    createTopic(_adminClient, yummyTopic);
+
+    // create a datastream to consume from topics ending in "Pizza"
+    Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    MockDatastreamEventProducer datastreamProducer = new MockDatastreamEventProducer();
+    task.setEventProducer(datastreamProducer);
+
+    KafkaMirrorMakerConnectorTask connectorTask =
+        KafkaMirrorMakerConnectorTestUtils.createKafkaMirrorMakerConnectorTask(task, connectorName);
+    KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
+
+    Headers genericHeaders = new RecordHeaders().add("headerKey", "headerValue".getBytes(Charsets.UTF_8));
+    // produce an event to the topic with generic headers
+    KafkaMirrorMakerConnectorTestUtils.produceEventsWithHeaders(yummyTopic, 10, _kafkaCluster, genericHeaders);
+
+    if (!PollUtils.poll(() -> datastreamProducer.getEvents().size() == 10, POLL_PERIOD_MS, POLL_TIMEOUT_MS)) {
+      Assert.fail("did not transfer the msgs within timeout. transferred " + datastreamProducer.getEvents().size());
+    }
+
+    List<DatastreamProducerRecord> records = datastreamProducer.getEvents();
+    for (DatastreamProducerRecord record : records) {
+      String destinationTopic = record.getDestination().get();
+      Assert.assertTrue(destinationTopic.endsWith("Pizza"),
+          "Unexpected event consumed from Datastream and sent to topic: " + destinationTopic);
+      Assert.assertEquals(genericHeaders, record.getEvents().get(0).getHeaders());
+    }
+
+    // Verify that metrics created through DynamicMetricsManager match those returned by getMetricInfos() given the
+    // connector name of interest.
+    MetricsTestUtils.verifyMetrics(new MetricsAware() {
+      @Override
+      public List<BrooklinMetricInfo> getMetricInfos() {
+        return KafkaMirrorMakerConnectorTask.getMetricInfos(connectorName);
+      }
+    }, DynamicMetricsManager.getInstance(), s -> s.startsWith(connectorName));
+
+    connectorTask.stop();
+    Assert.assertTrue(connectorTask.awaitStop(CONNECTOR_AWAIT_STOP_TIMEOUT_MS, TimeUnit.MILLISECONDS),
+        "did not shut down on time");
+  }
+
+  @Test
   public void testConsumeFromMultipleTopicsWithDestinationTopicPrefixMetadata() throws Exception {
     String yummyTopic = "YummyPizza";
     String saltyTopic = "SaltyPizza";
@@ -227,7 +281,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     // produce an event half of the partitions
     Set<Integer> expectedPartitionsWithData = new HashSet<>();
     for (int i = 0; i < partitionCount; i += 2) {
-      KafkaMirrorMakerConnectorTestUtils.produceEventsToPartition(yummyTopic, i, 1, _kafkaCluster);
+      KafkaMirrorMakerConnectorTestUtils.produceEventsToPartition(yummyTopic, i, 1, _kafkaCluster, null);
       expectedPartitionsWithData.add(i);
     }
 

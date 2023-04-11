@@ -112,7 +112,7 @@ public class KafkaTransportProvider implements TransportProvider {
     Headers headers = null;
     if (event instanceof BrooklinEnvelope) {
       BrooklinEnvelope envelope = (BrooklinEnvelope) event;
-      headers = envelope.getHeaders();
+      headers = envelope.getHeaders() instanceof Headers ? (Headers) envelope.getHeaders() : null;
       if (envelope.key().isPresent() && envelope.key().get() instanceof byte[]) {
         keyValue = (byte[]) envelope.key().get();
       }

@@ -61,7 +61,7 @@ public class TestKafkaConsumerOffsets extends BaseKafkaZkTest {
 
     // produce messages to each topic partition
     topics.forEach(topic -> IntStream.range(0, PARTITION_COUNT).forEach(partition ->
-        KafkaMirrorMakerConnectorTestUtils.produceEventsToPartition(topic, partition, PARTITION_MESSAGE_COUNT, _kafkaCluster)));
+        KafkaMirrorMakerConnectorTestUtils.produceEventsToPartition(topic, partition, PARTITION_MESSAGE_COUNT, _kafkaCluster, null)));
 
     connector.onAssignmentChange(Collections.singletonList(task));
 

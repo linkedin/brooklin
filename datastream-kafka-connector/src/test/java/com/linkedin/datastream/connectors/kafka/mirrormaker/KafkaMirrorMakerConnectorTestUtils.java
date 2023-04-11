@@ -16,6 +16,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.testng.Assert;
 
@@ -52,19 +53,23 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static void produceEvents(String topic, int destinationPartition, int numEvents,
       DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
-    produceEventsToPartition(topic, destinationPartition, numEvents, kafkaCluster);
+    produceEventsToPartition(topic, destinationPartition, numEvents, kafkaCluster, null);
   }
 
   static void produceEvents(String topic, int numEvents, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
-    produceEventsToPartition(topic, null, numEvents, kafkaCluster);
+    produceEventsToPartition(topic, null, numEvents, kafkaCluster, null);
+  }
+
+  static void produceEventsWithHeaders(String topic, int numEvents, DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster, Headers headers) {
+    produceEventsToPartition(topic, null, numEvents, kafkaCluster, headers);
   }
 
   static void produceEventsToPartition(String topic, Integer destinationPartition, int numEvents,
-      DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster) {
+      DatastreamEmbeddedZookeeperKafkaCluster kafkaCluster, Headers headers) {
     try (Producer<byte[], byte[]> producer = new KafkaProducer<>(getKafkaProducerProperties(kafkaCluster))) {
       for (int i = 0; i < numEvents; i++) {
         producer.send(new ProducerRecord<>(topic, destinationPartition, ("key-" + i).getBytes(Charsets.UTF_8),
-            ("value-" + i).getBytes(Charsets.UTF_8)), (metadata, exception) -> {
+            ("value-" + i).getBytes(Charsets.UTF_8), headers), (metadata, exception) -> {
           if (exception != null) {
             throw new RuntimeException("Failed to send message.", exception);
           }

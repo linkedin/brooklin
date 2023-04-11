@@ -11,7 +11,6 @@ import java.util.Optional;
 
 import org.apache.avro.reflect.Nullable;
 import org.apache.commons.lang.Validate;
-import org.apache.kafka.common.header.Headers;
 
 
 /**
@@ -30,7 +29,7 @@ public class BrooklinEnvelope {
 
   private Map<String, String> _metadata;
 
-  private Headers _headers;
+  private Object _headers;
 
   /**
    * Construct a BrooklinEnvelope using record key, value, and metadata
@@ -59,11 +58,11 @@ public class BrooklinEnvelope {
    * @param key The record key (e.g. primary key)
    * @param value The new record value
    * @param previousValue The old record value
-   * @param headers Kafka headers to associate with the change event
+   * @param headers Generic headers to associate with the event
    * @param metadata Additional metadata to associate with the change event
    */
   public BrooklinEnvelope(@Nullable Object key, @Nullable Object value, @Nullable Object previousValue,
-      @Nullable Headers headers, Map<String, String> metadata) {
+      @Nullable Object headers, Map<String, String> metadata) {
     Validate.notNull(metadata, "metadata cannot be null");
     setKey(key);
     setValue(value);
@@ -95,14 +94,14 @@ public class BrooklinEnvelope {
   /**
    * Get the Kafka headers
    */
-  public Headers getHeaders() {
+  public Object getHeaders() {
     return _headers;
   }
 
   /**
    * Set the Kafka headers
    */
-  public void setHeaders(Headers headers) {
+  public void setHeaders(Object headers) {
     _headers = headers;
   }
 
