@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -125,7 +124,7 @@ public class EventProducer implements DatastreamEventProducer {
    */
   public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
       Properties config, boolean customCheckpointing) {
-    this(task, transportProvider, checkpointProvider, config, customCheckpointing, (t) -> new HashSet<>());
+    this(task, transportProvider, checkpointProvider, config, customCheckpointing, (t) -> Collections.emptySet());
   }
 
   /**
