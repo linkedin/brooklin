@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -121,6 +122,20 @@ public class EventProducer implements DatastreamEventProducer {
    * @param config the config options
    * @param customCheckpointing decides whether producer should use custom checkpointing or the datastream server
    *                            provided checkpointing.
+   */
+  public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
+      Properties config, boolean customCheckpointing) {
+    this(task, transportProvider, checkpointProvider, config, customCheckpointing, (t) -> new HashSet<>());
+  }
+
+  /**
+   * Construct an EventProducer instance.
+   * @param transportProvider the transport provider
+   * @param checkpointProvider the checkpoint provider
+   * @param config the config options
+   * @param customCheckpointing decides whether producer should use custom checkpointing or the datastream server
+   *                            provided checkpointing.
+   * @param throughputViolatingTopicsProvider function parameter per task to find the throughput violating topics
    */
   public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
       Properties config, boolean customCheckpointing,
