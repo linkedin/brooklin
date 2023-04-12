@@ -154,7 +154,6 @@ project(':datastream-common') {
     compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
     compile "com.intellij:annotations:$intellijAnnotationsVersion"
     compile "com.google.guava:guava:$guavaVersion"
-    compile "com.linkedin.kafka:kafka-clients:$kafkaVersion"
     compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
     compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
@@ -172,6 +171,7 @@ project(':datastream-server-api') {
 project(':datastream-utils') {
   dependencies {
     compile project(':datastream-common')
+    compile "com.linkedin.kafka:kafka-clients:$kafkaVersion"
     compile "org.apache.helix:zookeeper-api:$helixZkclientVersion"
     compile "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
     compile "com.google.guava:guava:$guavaVersion"
