@@ -123,6 +123,20 @@ public class EventProducer implements DatastreamEventProducer {
    *                            provided checkpointing.
    */
   public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
+      Properties config, boolean customCheckpointing) {
+    this(task, transportProvider, checkpointProvider, config, customCheckpointing, (t) -> Collections.emptySet());
+  }
+
+  /**
+   * Construct an EventProducer instance.
+   * @param transportProvider the transport provider
+   * @param checkpointProvider the checkpoint provider
+   * @param config the config options
+   * @param customCheckpointing decides whether producer should use custom checkpointing or the datastream server
+   *                            provided checkpointing.
+   * @param throughputViolatingTopicsProvider function parameter per task to find the throughput violating topics
+   */
+  public EventProducer(DatastreamTask task, TransportProvider transportProvider, CheckpointProvider checkpointProvider,
       Properties config, boolean customCheckpointing,
       Function<DatastreamTask, Set<String>> throughputViolatingTopicsProvider) {
     Validate.notNull(transportProvider, "null transport provider");
