@@ -424,7 +424,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       // Kafka rejects a poll if there is empty assignment
       return ConsumerRecords.EMPTY;
     } else {
-      return _consumer.poll(pollInterval);
+      return _consumer.poll(Duration.ofMillis(pollInterval));
     }
   }
 

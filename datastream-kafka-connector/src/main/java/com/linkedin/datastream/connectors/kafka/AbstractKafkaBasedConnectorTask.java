@@ -508,7 +508,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   protected ConsumerRecords<?, ?> consumerPoll(long pollInterval) {
-    return _consumer.poll(pollInterval);
+    return _consumer.poll(Duration.ofMillis(pollInterval));
   }
 
   /**
