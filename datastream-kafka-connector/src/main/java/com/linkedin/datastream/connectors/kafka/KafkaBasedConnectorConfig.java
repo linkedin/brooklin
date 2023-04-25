@@ -55,7 +55,7 @@ public class KafkaBasedConnectorConfig {
   private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
   private static final boolean DEFAULT_ENABLE_ADDITIONAL_METRICS = Boolean.TRUE;
   private static final boolean DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = Boolean.FALSE;
-  private static final long DEFAULT_TASK_INTERRUPT_TIMEOUT_MS = 75 * 1000;
+  private static final long DEFAULT_TASK_INTERRUPT_TIMEOUT_MS = Duration.ofSeconds(75).toMillis();
   private static final long POST_TASK_INTERRUPT_TIMEOUT_MS = Duration.ofSeconds(15).toMillis();
 
   private final Properties _consumerProps;
