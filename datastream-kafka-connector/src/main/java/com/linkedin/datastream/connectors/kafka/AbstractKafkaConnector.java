@@ -79,10 +79,6 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAware {
 
   public static final String IS_GROUP_ID_HASHING_ENABLED = "isGroupIdHashingEnabled";
-
-  private static final Duration CANCEL_TASK_TIMEOUT = Duration.ofSeconds(75);
-  private static final Duration POST_CANCEL_TASK_TIMEOUT = Duration.ofSeconds(15);
-  private static final Duration SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT = CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT);
   static final Duration MIN_DAEMON_THREAD_STARTUP_DELAY = Duration.ofMinutes(2);
 
   private static final String NUM_TASK_RESTARTS = "numTaskRestarts";
@@ -336,7 +332,7 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
     _shutdownExecutorService.submit(() -> {
       List<DatastreamTask> toRemoveTasks = stopTaskFutures.stream().map(stopTaskFuture -> {
         try {
-          return stopTaskFuture.get(CANCEL_TASK_TIMEOUT.plus(POST_CANCEL_TASK_TIMEOUT).toMillis(),
+          return stopTaskFuture.get(_config.getTaskInterruptTimeoutMs() + _config.getPostTaskInterruptTimeoutMs(),
               TimeUnit.MILLISECONDS);
         } catch (ExecutionException | InterruptedException | TimeoutException e) {
           _logger.warn("Stop task future failed with exception", e);
@@ -377,17 +373,17 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       connectorTaskEntry.setPendingStop();
       AbstractKafkaBasedConnectorTask connectorTask = connectorTaskEntry.getConnectorTask();
       connectorTask.stop();
-      boolean stopped = connectorTask.awaitStop(CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+      boolean stopped = connectorTask.awaitStop(_config.getTaskInterruptTimeoutMs(), TimeUnit.MILLISECONDS);
       if (!stopped) {
         _logger.warn("Connector task for datastream task {} took longer than {} ms to stop. Interrupting the thread.",
-            datastreamTask.getDatastreamTaskName(), CANCEL_TASK_TIMEOUT.toMillis());
+            datastreamTask.getDatastreamTaskName(), _config.getTaskInterruptTimeoutMs());
         connectorTaskEntry.getThread().interrupt();
         // Check that the thread really got interrupted and log a message if it seems like the thread is still running.
         // Threads which don't check for the interrupt status may land up running forever, and we would like to
         // at least know of such cases for debugging purposes.
-        if (!connectorTask.awaitStop(POST_CANCEL_TASK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+        if (!connectorTask.awaitStop(_config.getPostTaskInterruptTimeoutMs(), TimeUnit.MILLISECONDS)) {
           _logger.warn("Connector task for datastream task {} did not stop even after {} ms.", datastreamTask,
-              POST_CANCEL_TASK_TIMEOUT.toMillis());
+              _config.getPostTaskInterruptTimeoutMs());
           updateTaskStopFailureMetric(1);
           return null;
         }
@@ -438,8 +434,9 @@ public abstract class AbstractKafkaConnector implements Connector, DiagnosticsAw
       _tasksPendingStop.clear();
     }
     _logger.info("Start to shut down the shutdown executor and wait up to {} ms.",
-        SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
-    ThreadUtils.shutdownExecutor(_shutdownExecutorService, SHUTDOWN_EXECUTOR_SHUTDOWN_TIMEOUT, _logger);
+        _config.getShutdownExecutorShutdownTimeoutMs());
+    ThreadUtils.shutdownExecutor(_shutdownExecutorService,
+        Duration.ofMillis(_config.getShutdownExecutorShutdownTimeoutMs()), _logger);
     _logger.info("Connector stopped.");
   }
 

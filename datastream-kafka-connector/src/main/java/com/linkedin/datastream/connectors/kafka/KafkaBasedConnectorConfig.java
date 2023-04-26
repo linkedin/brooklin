@@ -20,7 +20,6 @@ import com.linkedin.datastream.server.callbackstatus.CallbackStatusWithComparabl
  * Configs for Kafka-based connectors.
  */
 public class KafkaBasedConnectorConfig {
-
   public static final String DOMAIN_KAFKA_CONSUMER = "consumer";
   public static final String CONFIG_COMMIT_INTERVAL_MILLIS = "commitIntervalMs";
   public static final String CONFIG_COMMIT_TIMEOUT_MILLIS = "commitTimeoutMs";
@@ -39,6 +38,9 @@ public class KafkaBasedConnectorConfig {
   public static final String PROCESSING_DELAY_LOG_THRESHOLD_MILLIS = "processingDelayLogThreshold";
   private static final String CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS = "callbackStatusStrategyFactoryClass";
 
+  // how long will the connector wait for a task to shut down before interrupting the task thread
+  private static final String CONFIG_TASK_INTERRUPT_TIMEOUT_MS = "taskKillTimeoutMs";
+
   // config value to enable Kafka partition management for KafkaMirrorConnector
   public static final String ENABLE_PARTITION_ASSIGNMENT = "enablePartitionAssignment";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
@@ -53,6 +55,8 @@ public class KafkaBasedConnectorConfig {
   private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = Duration.ofSeconds(30).toMillis();
   private static final boolean DEFAULT_ENABLE_ADDITIONAL_METRICS = Boolean.TRUE;
   private static final boolean DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = Boolean.FALSE;
+  private static final long DEFAULT_TASK_INTERRUPT_TIMEOUT_MS = Duration.ofSeconds(75).toMillis();
+  private static final long POST_TASK_INTERRUPT_TIMEOUT_MS = Duration.ofSeconds(15).toMillis();
 
   private final Properties _consumerProps;
   private final VerifiableProperties _connectorProps;
@@ -74,6 +78,7 @@ public class KafkaBasedConnectorConfig {
   private final int _daemonThreadIntervalSeconds;
   private final long _nonGoodStateThresholdMillis;
   private final boolean _enablePartitionAssignment;
+  private final long _taskInterruptTimeoutMs;
 
   // Kafka based pub sub framework uses Long as their offset type, hence instantiating a Long parameterized factory
   private final CallbackStatusFactory<Long> _callbackStatusStrategyFactory;
@@ -115,6 +120,7 @@ public class KafkaBasedConnectorConfig {
     _includeDatastreamNameInConsumerClientId = verifiableProperties.getBoolean(
         INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
+    _taskInterruptTimeoutMs = verifiableProperties.getLong(CONFIG_TASK_INTERRUPT_TIMEOUT_MS, DEFAULT_TASK_INTERRUPT_TIMEOUT_MS);
 
     String callbackStatusStrategyFactoryClass = verifiableProperties.getString(CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS,
         CallbackStatusWithComparableOffsetsFactory.class.getName());
@@ -209,6 +215,18 @@ public class KafkaBasedConnectorConfig {
 
   public boolean getEnablePartitionAssignment() {
     return _enablePartitionAssignment;
+  }
+
+  public long getTaskInterruptTimeoutMs() {
+    return _taskInterruptTimeoutMs;
+  }
+
+  public long getPostTaskInterruptTimeoutMs() {
+    return POST_TASK_INTERRUPT_TIMEOUT_MS;
+  }
+
+  public long getShutdownExecutorShutdownTimeoutMs() {
+    return _taskInterruptTimeoutMs + POST_TASK_INTERRUPT_TIMEOUT_MS;
   }
 
   public CallbackStatusFactory<Long> getCallbackStatusStrategyFactory() {
