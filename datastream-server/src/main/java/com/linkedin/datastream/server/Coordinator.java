@@ -86,6 +86,7 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.common.DatastreamUtils.hasValidDestination;
 import static com.linkedin.datastream.common.DatastreamUtils.isReuseAllowed;
@@ -510,14 +511,24 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // fetching new violations from the datastream object.
       datastreamGroups.forEach(datastreamGroup -> datastreamGroup.getDatastreams().forEach(datastream -> {
-        String commaSeparatedViolatingTopics = Objects.requireNonNull(datastream.getMetadata())
-            .get(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS);
-        if (Objects.nonNull(commaSeparatedViolatingTopics) && !commaSeparatedViolatingTopics.isEmpty()) {
-          String[] violatingTopics = commaSeparatedViolatingTopics.split(",");
-          if (violatingTopics.length > 0) {
-            _throughputViolatingTopicsMap.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
-          }
+        if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(THROUGHPUT_VIOLATING_TOPICS)) {
+          // if the throughput violating metadata field does not exist, we skip handling logic and reporting metrics
+          return;
         }
+        // parse csv formatted violations metadata-string for every datastream
+        String commaSeparatedViolatingTopics = datastream.getMetadata().get(THROUGHPUT_VIOLATING_TOPICS);
+        String[] violatingTopics = Arrays.stream(commaSeparatedViolatingTopics.split(","))
+            .filter(s -> !s.trim().isEmpty())
+            .toArray(String[]::new);
+
+        if (violatingTopics.length > 0) {
+          _throughputViolatingTopicsMap.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
+          _log.info("For datastream {}, Successfully reported throughput violating topics : {}", datastream.getName(),
+              violatingTopics);
+        }
+        _metrics.registerOrSetGauge(
+            String.format("%s.%s", CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM,
+                datastream.getName()), () -> violatingTopics.length);
       }));
     } finally {
       _throughputViolatingTopicsMapWriteLock.unlock();
@@ -2292,6 +2303,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return _config;
   }
 
+  @VisibleForTesting
+  String getNumThroughputViolatingTopicsMetricName() {
+    return CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM;
+  }
+
   /**
    * Encapsulates metric registration and update for the {@link Coordinator}
    */
@@ -2307,6 +2323,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
     private static final String IS_LEADER = "isLeader";
     private static final String ZK_SESSION_EXPIRED = "zkSessionExpired";
+    public static final String NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM = "numThroughputViolatingTopics";
 
     // Connector common metrics
     private static final String NUM_DATASTREAMS = "numDatastreams";
@@ -2459,6 +2476,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     private void registerGauge(String metricName, Supplier<?> valueSupplier) {
       _dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier);
+      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
+    }
+
+    // registers a new gauge or updates the supplier for the gauge if it already exists
+    private <T> void registerOrSetGauge(String metricName, Supplier<T> valueSupplier) {
+      _dynamicMetricsManager.setGauge(_dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier),
+          valueSupplier);
       _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
     }
 

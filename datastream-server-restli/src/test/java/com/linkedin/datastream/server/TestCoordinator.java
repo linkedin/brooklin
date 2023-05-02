@@ -3617,6 +3617,8 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3649,10 +3651,16 @@ public class TestCoordinator {
         validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
         Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
 
+    // Validate the count in the metrics
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
+
     // Case 2:
-    // Removing one of the previously reported topics and also reporting a newer topic as throughput violating one.
+    // Removing one of the previously reported topics.
     requestedThroughputViolatingTopics.remove("ZenTopic");
+    // And also reporting couple newer topic as throughput violating ones.
     requestedThroughputViolatingTopics.add("XingTopic");
+    requestedThroughputViolatingTopics.add("DangTopic");
 
     // Getting the stream again from ZK to update.
     testStreamGet = store.getDatastream(testStreamGet.getName());
@@ -3666,6 +3674,10 @@ public class TestCoordinator {
         validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
         Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
 
+    // Validate the count in the metrics
+    gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
+
     // Case 3:
     // When there are no throughput violating topics anymore, reporting an empty set.
     requestedThroughputViolatingTopics.clear();
@@ -3673,12 +3685,37 @@ public class TestCoordinator {
     // Getting the stream again from ZK to update.
     testStreamGet = store.getDatastream(testStreamGet.getName());
 
-    Objects.requireNonNull(testStreamGet.getMetadata()).put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, "");
+    Objects.requireNonNull(testStreamGet.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, "");
     resource.update(testStreamGet.getName(), testStreamGet);
 
     PollUtils.poll(
         validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
         Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    // Validate the count in the metrics
+    gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
+
+    // Case 4:
+    // Reporting yet another newer topic as throughput violating one.
+    requestedThroughputViolatingTopics.add("YingTopic");
+
+    // Getting the stream again from ZK to update.
+    testStreamGet = store.getDatastream(testStreamGet.getName());
+
+    Objects.requireNonNull(testStreamGet.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+    resource.update(testStreamGet.getName(), testStreamGet);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStreamGet, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    // Validate the count in the metrics
+    gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
 
     coordinator.stop();
     zkClient.close();
@@ -3694,6 +3731,8 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3719,6 +3758,10 @@ public class TestCoordinator {
         validateIfViolatingTopicsAreReflectedInServer(testStream, coordinator, requestedThroughputViolatingTopics),
         Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
 
+    // Validate the count in the metrics
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
+
     coordinator.stop();
     zkClient.close();
     coordinator.getDatastreamCache().getZkclient().close();
@@ -3734,6 +3777,12 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetricForFirstDatastream =
+        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName1);
+    String numThroughputViolatingTopicsMetricForSecondDatastream =
+        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName2);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3784,6 +3833,107 @@ public class TestCoordinator {
     PollUtils.poll(validateIfViolatingTopicsAreReflectedInServer(testStream2Get, coordinator,
             requestedThroughputViolatingTopicsForSecondDatastream), Duration.ofMillis(500).toMillis(),
         Duration.ofMillis(3000).toMillis());
+
+    // Validate the count in the metrics
+    Gauge<Integer> gaugeForFirstDatastream =
+        DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetricForFirstDatastream);
+    Assert.assertEquals(requestedThroughputViolatingTopicsForFirstDatastream.size(),
+        (int) gaugeForFirstDatastream.getValue());
+
+    Gauge<Integer> gaugeForSecondDatastream =
+        DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetricForSecondDatastream);
+    Assert.assertEquals(requestedThroughputViolatingTopicsForSecondDatastream.size(),
+        (int) gaugeForSecondDatastream.getValue());
+
+    // Case 2:
+    // Reporting one new topic as throughput violating for the first and second datastream.
+    requestedThroughputViolatingTopicsForFirstDatastream.add("OneTopic");
+    requestedThroughputViolatingTopicsForSecondDatastream.add("FourTopic");
+
+    // Wait for the Datastreams to be in the Ready status. After which, we'll update the datastreams.
+    PollUtils.poll(() -> store.getDatastream(testStream1.getName()).getStatus().equals(DatastreamStatus.READY),
+        Duration.ofMillis(200).toMillis(), Duration.ofMillis(2000).toMillis());
+    PollUtils.poll(() -> store.getDatastream(testStream2.getName()).getStatus().equals(DatastreamStatus.READY),
+        Duration.ofMillis(200).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    testStream1Get = store.getDatastream(testStream1.getName());
+    testStream2Get = store.getDatastream(testStream2.getName());
+
+    Objects.requireNonNull(testStream1Get.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopicsForFirstDatastream));
+
+    Objects.requireNonNull(testStream2Get.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopicsForSecondDatastream));
+
+    resource.update(testStream1Get.getName(), testStream1Get);
+    resource.update(testStream2Get.getName(), testStream2Get);
+
+    PollUtils.poll(validateIfViolatingTopicsAreReflectedInServer(testStream1Get, coordinator,
+            requestedThroughputViolatingTopicsForFirstDatastream), Duration.ofMillis(500).toMillis(),
+        Duration.ofMillis(3000).toMillis());
+
+    PollUtils.poll(validateIfViolatingTopicsAreReflectedInServer(testStream2Get, coordinator,
+            requestedThroughputViolatingTopicsForSecondDatastream), Duration.ofMillis(500).toMillis(),
+        Duration.ofMillis(3000).toMillis());
+
+    // Validate the count in the metrics
+    gaugeForFirstDatastream =
+        DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetricForFirstDatastream);
+    Assert.assertEquals(requestedThroughputViolatingTopicsForFirstDatastream.size(),
+        (int) gaugeForFirstDatastream.getValue());
+
+    gaugeForSecondDatastream =
+        DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetricForSecondDatastream);
+    Assert.assertEquals(requestedThroughputViolatingTopicsForSecondDatastream.size(),
+        (int) gaugeForSecondDatastream.getValue());
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreateWithMalformedMetadata() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreateWithMalformedMetadata";
+    String connectorType = "connectorType";
+    String streamName = "testThroughputViolatingTopicsHandlingForSingleDatastreamOnCreateWithMalformedMetadata";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
+        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    // Case 1:
+    // Reporting 4 topics of a datastream as throughput violating ones during the datastream create call.
+    Set<String> requestedThroughputViolatingTopics =
+        new HashSet<>(Arrays.asList("OneTopic", "TwoTopic", "ThreeTopic", "FourTopic"));
+    String malformedMetadata = ",OneTopic,    ,TwoTopic, ThreeTopic,,, FourTopic, ";
+
+    Datastream testStream = DatastreamTestUtils.createDatastreams(connectorType, streamName)[0];
+
+    Objects.requireNonNull(testStream.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, malformedMetadata);
+
+    resource.create(testStream);
+
+    PollUtils.poll(
+        validateIfViolatingTopicsAreReflectedInServer(testStream, coordinator, requestedThroughputViolatingTopics),
+        Duration.ofMillis(1000).toMillis(), Duration.ofMillis(2000).toMillis());
+
+    // Validate the count in the metrics
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(numThroughputViolatingTopicsMetric);
+    Assert.assertEquals(requestedThroughputViolatingTopics.size(), (int) gauge.getValue());
 
     coordinator.stop();
     zkClient.close();

@@ -306,6 +306,9 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           datastreamMap.get(key)
               .getMetadata()
               .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, StringUtils.EMPTY);
+          LOG.info(
+              "Feature handling throughput violations disabled. Flushed throughput violating topics for datastream {}",
+              datastreamMap.get(key).getName());
         }
       }
     }
@@ -926,6 +929,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
         if (Objects.requireNonNull(datastream.getMetadata())
             .containsKey(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS)) {
           datastream.getMetadata().put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS, StringUtils.EMPTY);
+          LOG.info("Feature handling throughput violations disabled. Flushed throughput violating topics for datastream {}",
+              datastream.getName());
         }
       }
 
