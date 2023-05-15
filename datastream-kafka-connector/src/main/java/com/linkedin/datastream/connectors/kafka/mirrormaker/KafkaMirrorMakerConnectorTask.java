@@ -86,8 +86,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final String KAFKA_ORIGIN_OFFSET = "kafka-origin-offset";
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
   private static final String TASK_LOCK_ACQUIRE_ERROR_RATE = "taskLockAcquireErrorRate";
-
   private static final String DATASTREAM_NAME_BASED_CLIENT_ID_FORMAT = "%s-%s";
+  private static final String NOOP_TRANSPORT_PROVIDER_NAME = "NoOp";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -261,10 +261,13 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     builder.addEvent(envelope);
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);
     builder.setSourceCheckpoint(new KafkaMirrorMakerCheckpoint(topic, partition, offset).toString());
-    builder.setDestination(_datastreamTask.getDatastreamDestination()
-        .getConnectionString()
-        .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER,
-            StringUtils.isBlank(_destinationTopicPrefix) ? topic : _destinationTopicPrefix + topic));
+
+    if (!_datastreamTask.getTransportProviderName().equalsIgnoreCase(NOOP_TRANSPORT_PROVIDER_NAME)) {
+      builder.setDestination(_datastreamTask.getDatastreamDestination()
+          .getConnectionString()
+          .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER,
+              StringUtils.isBlank(_destinationTopicPrefix) ? topic : _destinationTopicPrefix + topic));
+    }
     if (_isIdentityMirroringEnabled) {
       builder.setPartition(partition);
     }
