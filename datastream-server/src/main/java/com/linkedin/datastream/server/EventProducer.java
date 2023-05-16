@@ -271,8 +271,11 @@ public class EventProducer implements DatastreamEventProducer {
 
     try {
       // Send the event to the transport
-      String destination =
-          record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
+      String destination = "dummy";
+      if (!_datastreamTask.getTransportProviderName().equalsIgnoreCase("NoOp")) {
+        destination =
+            record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
+      }
       record.setEventsSendTimestamp(System.currentTimeMillis());
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
