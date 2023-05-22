@@ -1121,6 +1121,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean isLeader = _adapter.isLeader();
     if (!isLeader && isLeaderEvent(event.getType())) {
       _log.info("Skipping event {} isLeader: false", event.getType());
+      _log.info("END: Handle event " + event);
       return;
     }
     try {
@@ -1249,6 +1250,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   private void handleDatastreamAddOrDelete() {
     boolean shouldRetry = false;
+    _log.info("START: Coordinator::handleDatastreamAddOrDelete.");
 
     // Get the list of all datastreams
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true);
@@ -1259,6 +1261,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // do nothing if there are zero datastreams
     if (allStreams.isEmpty()) {
       _log.warn("Received a new datastream event, but there were no datastreams");
+      _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
       return;
     }
 
@@ -1307,6 +1310,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
   }
 
   private void hardDeleteDatastream(Datastream ds, List<Datastream> activeStreams) {
@@ -1435,6 +1439,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
+    _log.info("START: Coordinator::handleLeaderDoAssignment.");
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = Collections.emptyMap();
@@ -1503,6 +1508,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (!succeeded && !_leaderDoAssignmentScheduled.get()) {
       scheduleLeaderDoAssignmentRetry(isNewlyElectedLeader);
     }
+    _log.info("END: Coordinator::handleLeaderDoAssignment.");
   }
 
   private void scheduleLeaderDoAssignmentRetry(boolean isNewlyElectedLeader) {
@@ -1636,6 +1642,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   private void performPartitionAssignment(String datastreamGroupName) {
     boolean succeeded;
+    _log.info("START: Coordinator::performPartitionAssignment.");
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
@@ -1698,6 +1705,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroupName));
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
+    _log.info("END: Coordinator::performPartitionAssignment.");
   }
 
   private void updateCounterForMaxPartitionInTask(Map<String, List<DatastreamTask>> assignments) {
@@ -1731,6 +1739,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param notifyTimestamp the timestamp when partition movement is triggered
    */
   private void performPartitionMovement(Long notifyTimestamp) {
+    _log.info("START: Coordinator::performPartitionMovement.");
     boolean shouldRetry = true;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1816,6 +1825,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp)), _config.getRetryIntervalMs(),
           TimeUnit.MILLISECONDS);
     }
+    _log.info("END: Coordinator::performPartitionMovement.");
   }
 
   @VisibleForTesting
