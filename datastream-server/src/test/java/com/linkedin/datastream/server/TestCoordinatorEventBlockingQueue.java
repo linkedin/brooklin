@@ -5,9 +5,13 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Random;
+
 import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
@@ -22,8 +26,9 @@ import static com.linkedin.datastream.server.CoordinatorEventBlockingQueue.*;
  */
 public class TestCoordinatorEventBlockingQueue {
 
-  static {
-    DynamicMetricsManager.createInstance(new MetricRegistry(), TestCoordinatorEventBlockingQueue.class.getSimpleName());
+  @BeforeMethod(alwaysRun = true)
+  public void resetMetrics() {
+    DynamicMetricsManager.createInstance(new MetricRegistry(), TestCoordinatorEventBlockingQueue.class.getName());
   }
 
   @Test
@@ -57,26 +62,38 @@ public class TestCoordinatorEventBlockingQueue {
   }
 
   /**
-   * Verify gauge matches operations: {@code put()}, {@code peek()}, {@code take()},
-   * and {@code clear()}.
+   * Verify metrics match operations: {@code put()}, {@code peek()}, {@code take()},
+   * and {@code clear()}. Counter should not be changed
    */
-  @Test(timeOut = 100)
-  public void testGaugeOperations() throws InterruptedException {
+  @Test(timeOut = 500)
+  public void testMetricOperations() throws InterruptedException {
     CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue();
-    String metricName = queue.buildMetricName(METRIC_KEY);
-    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(metricName);
+    Counter counter = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(COUNTER_KEY));
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(GAUGE_KEY));
+
+    Assert.assertNotNull(counter, "Counter was not found. Test setup failed.");
+    Assert.assertEquals(counter.getCount(), 0, "Initial value should be 0.");
+
+    // set counter to random negative value for verification
+    int random = -new Random().nextInt();
+    counter.inc(random);
+    Assert.assertEquals(counter.getCount(), random, "Override was not set");
+
     Assert.assertNotNull(gauge, "Gauge was not found. Test setup failed.");
-    Assert.assertEquals((int) gauge.getValue(), 0, "Initial size should be 0.");
+    Assert.assertEquals((int) gauge.getValue(), 0, "Initial value should be 0.");
 
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    Assert.assertEquals(counter.getCount(), random, "Adding event to empty should not increment counter.");
     Assert.assertEquals((int) gauge.getValue(), 1, "put() should increment gauge.");
 
     CoordinatorEvent event0 = queue.peek();
     Assert.assertNotNull(event0, "Event was not queued.");
+    Assert.assertEquals(counter.getCount(), random, "peek() should not alter counter.");
     Assert.assertEquals((int) gauge.getValue(), 1, "peek() should affect gauge.");
 
     CoordinatorEvent event1 = queue.take();
-    Assert.assertNotNull(event0, "Event was not queued.");
+    Assert.assertNotNull(event1, "Event was not queued.");
+    Assert.assertEquals(counter.getCount(), random, "remove() should not alter counter.");
     Assert.assertEquals((int) gauge.getValue(), 0, "remove() should decrement gauge.");
 
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
@@ -84,39 +101,48 @@ public class TestCoordinatorEventBlockingQueue {
     queue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     Assert.assertEquals((int) gauge.getValue(), 3 );
     queue.clear();
+    Assert.assertEquals(counter.getCount(), random, "clear() should not alter counter.");
     Assert.assertEquals((int) gauge.getValue(), 0, "clear() should reset gauge.");
   }
 
   /**
-   * Verify gauge follows de-duplication. Adding duplicate events should not
-   * change gauge value.
+   * Verify counter and gauge follow de-duplication. Adding duplicate events should not
+   * change gauge value, but should increment the counter.
    *
-   * 2-step assertion:
+   * 2-step assertion for gauge:
    *   1. queue.size() == value            => verify test construction
    *   2. gauge.getValue() == queue.size() => verify implementation
    */
-  @Test(timeOut = 100)
+  @Test(timeOut = 500)
   public void testGaugeDedupe() throws InterruptedException {
     CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue();
-    String metricName = queue.buildMetricName(METRIC_KEY);
-    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(metricName);
+    Counter counter = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(COUNTER_KEY));
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(GAUGE_KEY));
+
+    Assert.assertNotNull(counter, "Counter was not found. Test setup failed.");
+    Assert.assertEquals(counter.getCount(), 0, "Initial value should be 0.");
+
     Assert.assertNotNull(gauge, "Gauge was not found. Test setup failed.");
-    Assert.assertEquals((int) gauge.getValue(), 0, "Initial size should be 0.");
+    Assert.assertEquals((int) gauge.getValue(), 0, "Initial value should be 0.");
 
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     Assert.assertEquals(queue.size(), 1);
+    Assert.assertEquals(counter.getCount(), 0, "Adding event to empty should not increment counter.");
     Assert.assertEquals((int) gauge.getValue(), 1, "Add should increment gauge.");
 
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     Assert.assertEquals(queue.size(), 1);
+    Assert.assertEquals(counter.getCount(), 1, "Failed to count duplicate event.");
     Assert.assertEquals((int) gauge.getValue(), queue.size(), "Duplicate event should not change gauge.");
 
     queue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     Assert.assertEquals(queue.size(), 2);
+    Assert.assertEquals(counter.getCount(), 1, "Counter should not have been altered.");
     Assert.assertEquals((int) gauge.getValue(), queue.size(), "Add should increment gauge.");
 
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     Assert.assertEquals(queue.size(), 2);
+    Assert.assertEquals(counter.getCount(), 2, "Failed to count second duplicate event.");
     Assert.assertEquals((int) gauge.getValue(), queue.size(), "Duplicate event should not change gauge.");
 
     CoordinatorEvent event0 = queue.take();

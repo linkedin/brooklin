@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -15,8 +16,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 
+import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -31,15 +34,19 @@ import com.linkedin.datastream.metrics.MetricsAware;
 public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
-  public static BrooklinGaugeInfo GAUGE_INFO =
-      new BrooklinGaugeInfo(CoordinatorEventBlockingQueue.class.getSimpleName());
-  static final String METRIC_KEY = "queuedEvents";
+  private static final String SIMPLE_NAME = CoordinatorEventBlockingQueue.class.getSimpleName();
+  private static final BrooklinCounterInfo COUNTER_INFO = new BrooklinCounterInfo(SIMPLE_NAME);
+  private static final BrooklinGaugeInfo GAUGE_INFO = new BrooklinGaugeInfo(SIMPLE_NAME);
+  private static final List<BrooklinMetricInfo> _metricInfos =
+      Collections.unmodifiableList(Arrays.asList(GAUGE_INFO, COUNTER_INFO));
+  static final String COUNTER_KEY = "duplicateEvents";
+  static final String GAUGE_KEY = "queuedEvents";
 
   private final Set<CoordinatorEvent> _eventSet;
   private final Queue<CoordinatorEvent> _eventQueue;
   private final DynamicMetricsManager _dynamicMetricsManager;
-  private final List<BrooklinMetricInfo> _metricInfos = Collections.singletonList(GAUGE_INFO);
-  private final Gauge<Integer> _queueGauge;
+  private final Gauge<Integer> _gauge;
+  private final Counter _counter;
 
   /**
    * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
@@ -49,7 +56,8 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
     _eventQueue = new LinkedBlockingQueue<>();
 
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _queueGauge = _dynamicMetricsManager.registerGauge(CoordinatorEventBlockingQueue.class.getSimpleName(), METRIC_KEY, _eventQueue::size);
+    _counter = _dynamicMetricsManager.registerMetric(SIMPLE_NAME, COUNTER_KEY, Counter.class);
+    _gauge = _dynamicMetricsManager.registerGauge(SIMPLE_NAME, GAUGE_KEY, _eventQueue::size);
   }
 
   /**
@@ -58,15 +66,18 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
    */
   public synchronized void put(CoordinatorEvent event) {
     LOG.info("Queuing event {} to event queue", event.getType());
-    if (!_eventSet.contains(event)) {
+    if (_eventSet.contains(event)) {
+      _counter.inc(); // count duplicate event
+    } else {
       // only insert if there isn't an event present in the queue with the same name and same metadata.
       boolean result = _eventQueue.offer(event);
       if (!result) {
         return;
       }
       _eventSet.add(event);
-      _dynamicMetricsManager.setGauge(_queueGauge, _eventQueue::size);
+      _dynamicMetricsManager.setGauge(_gauge, _eventQueue::size);
     }
+
     LOG.debug("Event queue size {}", _eventQueue.size());
     notify();
   }
@@ -95,7 +106,7 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
       LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: {}", _eventQueue.size());
       _eventSet.remove(queuedEvent);
-      _dynamicMetricsManager.setGauge(_queueGauge, _eventQueue::size);
+      _dynamicMetricsManager.setGauge(_gauge, _eventQueue::size);
     }
 
     return queuedEvent;
@@ -107,7 +118,7 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
   public synchronized void clear() {
     _eventQueue.clear();
     _eventSet.clear();
-    _dynamicMetricsManager.setGauge(_queueGauge, _eventQueue::size);
+    _dynamicMetricsManager.setGauge(_gauge, _eventQueue::size);
   }
 
   /**
