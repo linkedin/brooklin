@@ -5,7 +5,9 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -13,16 +15,31 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
+
+import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinMetricInfo;
+import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.metrics.MetricsAware;
+
 
 /**
  * A blocking queue for {@link Coordinator} events
  * @see CoordinatorEvent.EventType
  */
-public class CoordinatorEventBlockingQueue {
+
+public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
+  public static BrooklinGaugeInfo GAUGE_INFO =
+      new BrooklinGaugeInfo(CoordinatorEventBlockingQueue.class.getSimpleName());
+  static final String METRIC_KEY = "queuedEvents";
+
   private final Set<CoordinatorEvent> _eventSet;
   private final Queue<CoordinatorEvent> _eventQueue;
+  private final DynamicMetricsManager _dynamicMetricsManager;
+  private final List<BrooklinMetricInfo> _metricInfos = Collections.singletonList(GAUGE_INFO);
+  private final Gauge<Integer> _queueGauge;
 
   /**
    * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
@@ -30,6 +47,9 @@ public class CoordinatorEventBlockingQueue {
   public CoordinatorEventBlockingQueue() {
     _eventSet = new HashSet<>();
     _eventQueue = new LinkedBlockingQueue<>();
+
+    _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _queueGauge = _dynamicMetricsManager.registerGauge(CoordinatorEventBlockingQueue.class.getSimpleName(), METRIC_KEY, _eventQueue::size);
   }
 
   /**
@@ -45,6 +65,7 @@ public class CoordinatorEventBlockingQueue {
         return;
       }
       _eventSet.add(event);
+      _dynamicMetricsManager.setGauge(_queueGauge, _eventQueue::size);
     }
     LOG.debug("Event queue size {}", _eventQueue.size());
     notify();
@@ -74,6 +95,7 @@ public class CoordinatorEventBlockingQueue {
       LOG.info("De-queuing event " + queuedEvent.getType());
       LOG.debug("Event queue size: {}", _eventQueue.size());
       _eventSet.remove(queuedEvent);
+      _dynamicMetricsManager.setGauge(_queueGauge, _eventQueue::size);
     }
 
     return queuedEvent;
@@ -85,6 +107,7 @@ public class CoordinatorEventBlockingQueue {
   public synchronized void clear() {
     _eventQueue.clear();
     _eventSet.clear();
+    _dynamicMetricsManager.setGauge(_queueGauge, _eventQueue::size);
   }
 
   /**
@@ -111,5 +134,10 @@ public class CoordinatorEventBlockingQueue {
    */
   public boolean isEmpty() {
     return _eventQueue.isEmpty();
+  }
+
+  @Override
+  public List<BrooklinMetricInfo> getMetricInfos() {
+    return _metricInfos;
   }
 }
