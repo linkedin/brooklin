@@ -174,7 +174,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final long STOP_PROPAGATION_RETRY_MS = 5000L;
   // how many threads will the token claims executor use for assignment tokens feature. There's a risk that this will get
   // exhausted when there are more concurrent stop requests than threads in the thread pool
-  private static final int TOKEN_CLAIM_THREAD_POOL_SIZE = 8;
+  private static final int TOKEN_CLAIM_THREAD_POOL_SIZE = 16;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
