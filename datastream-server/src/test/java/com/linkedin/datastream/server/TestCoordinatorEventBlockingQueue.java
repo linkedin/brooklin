@@ -18,7 +18,8 @@ import com.codahale.metrics.MetricRegistry;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.testutil.MetricsTestUtils;
 
-import static com.linkedin.datastream.server.CoordinatorEventBlockingQueue.*;
+import static com.linkedin.datastream.server.CoordinatorEventBlockingQueue.COUNTER_KEY;
+import static com.linkedin.datastream.server.CoordinatorEventBlockingQueue.GAUGE_KEY;
 
 
 /**
