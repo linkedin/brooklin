@@ -106,7 +106,7 @@ public class TestCoordinatorEventBlockingQueue {
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     queue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     queue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
-    Assert.assertEquals((int) gauge.getValue(), 3 );
+    Assert.assertEquals((int) gauge.getValue(), 3);
     queue.clear();
     Assert.assertEquals(counter.getCount(), random, "clear() should not alter counter.");
     Assert.assertEquals((int) gauge.getValue(), 0, "clear() should reset gauge.");
