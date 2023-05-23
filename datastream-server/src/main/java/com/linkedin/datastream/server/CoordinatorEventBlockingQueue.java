@@ -39,7 +39,8 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
   private static final String SIMPLE_NAME = CoordinatorEventBlockingQueue.class.getSimpleName();
-  private static final Set<BrooklinMetricInfo> _metricInfos = ConcurrentHashMap.newKeySet();
+  private static final Set<BrooklinMetricInfo> METRIC_INFOS = ConcurrentHashMap.newKeySet();
+
   static final String COUNTER_KEY = "duplicateEvents";
   static final String GAUGE_KEY = "queuedEvents";
 
@@ -78,7 +79,7 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
 
     BrooklinCounterInfo counterInfo = new BrooklinCounterInfo(MetricRegistry.name(prefix, COUNTER_KEY));
     BrooklinGaugeInfo gaugeInfo = new BrooklinGaugeInfo(MetricRegistry.name(prefix, GAUGE_KEY));
-    _metricInfos.addAll(Arrays.asList(counterInfo, gaugeInfo));
+    METRIC_INFOS.addAll(Arrays.asList(counterInfo, gaugeInfo));
   }
 
 
@@ -171,6 +172,6 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return new ArrayList<>(_metricInfos);
+    return new ArrayList<>(METRIC_INFOS);
   }
 }
