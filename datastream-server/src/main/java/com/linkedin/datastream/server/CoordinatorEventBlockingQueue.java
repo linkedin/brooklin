@@ -5,12 +5,13 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
@@ -27,18 +29,17 @@ import com.linkedin.datastream.metrics.MetricsAware;
 
 
 /**
- * A blocking queue for {@link Coordinator} events
+ * A blocking queue for {@link Coordinator} events. Includes two metrics, a
+ * {@link Gauge} and {@link Counter}. The gauge provides the queue size and
+ * the counter increments when duplicate events are {@code put()}.
+ *
  * @see CoordinatorEvent.EventType
  */
-
 public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
   private static final String SIMPLE_NAME = CoordinatorEventBlockingQueue.class.getSimpleName();
-  private static final BrooklinCounterInfo COUNTER_INFO = new BrooklinCounterInfo(SIMPLE_NAME);
-  private static final BrooklinGaugeInfo GAUGE_INFO = new BrooklinGaugeInfo(SIMPLE_NAME);
-  private static final List<BrooklinMetricInfo> _metricInfos =
-      Collections.unmodifiableList(Arrays.asList(GAUGE_INFO, COUNTER_INFO));
+  private static final Set<BrooklinMetricInfo> _metricInfos = ConcurrentHashMap.newKeySet();
   static final String COUNTER_KEY = "duplicateEvents";
   static final String GAUGE_KEY = "queuedEvents";
 
@@ -50,15 +51,36 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   /**
    * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
+   *
+   * @deprecated Use of this constructor should be replaced with the single parameter variant.
    */
+  @Deprecated
   public CoordinatorEventBlockingQueue() {
+    this("legacy");
+  }
+
+  /**
+   * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
+   *
+   * @param key String used to register CoordinatorEventBlockQueue metrics. The metrics
+   *            will be registered to {@code CoordinatorEventBlockingQueue.<key>.<metric>}.
+   *            Where {@code <metric>} is either {@link CoordinatorEventBlockingQueue#COUNTER_KEY}
+   *            or {@link CoordinatorEventBlockingQueue#GAUGE_KEY}.
+   */
+  public CoordinatorEventBlockingQueue(String key) {
     _eventSet = new HashSet<>();
     _eventQueue = new LinkedBlockingQueue<>();
-
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
-    _counter = _dynamicMetricsManager.registerMetric(SIMPLE_NAME, COUNTER_KEY, Counter.class);
-    _gauge = _dynamicMetricsManager.registerGauge(SIMPLE_NAME, GAUGE_KEY, _eventQueue::size);
+
+    String prefix = buildMetricName(key);
+    _counter = _dynamicMetricsManager.registerMetric(prefix, COUNTER_KEY, Counter.class);
+    _gauge = _dynamicMetricsManager.registerGauge(prefix, GAUGE_KEY, _eventQueue::size);
+
+    BrooklinCounterInfo counterInfo = new BrooklinCounterInfo(MetricRegistry.name(prefix, COUNTER_KEY));
+    BrooklinGaugeInfo gaugeInfo = new BrooklinGaugeInfo(MetricRegistry.name(prefix, GAUGE_KEY));
+    _metricInfos.addAll(Arrays.asList(counterInfo, gaugeInfo));
   }
+
 
   /**
    * Add a single event to the queue, overwriting events with the same name and same metadata.
@@ -149,6 +171,6 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return _metricInfos;
+    return new ArrayList<>(_metricInfos);
   }
 }

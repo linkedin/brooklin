@@ -26,6 +26,12 @@ import static com.linkedin.datastream.server.CoordinatorEventBlockingQueue.*;
  */
 public class TestCoordinatorEventBlockingQueue {
 
+  private static final String SIMPLE_NAME = TestCoordinatorEventBlockingQueue.class.getSimpleName();
+  private static final String COUNTER_NAME =
+      MetricRegistry.name(CoordinatorEventBlockingQueue.class.getSimpleName(), SIMPLE_NAME, COUNTER_KEY);
+  private static final String GAUGE_NAME =
+      MetricRegistry.name(CoordinatorEventBlockingQueue.class.getSimpleName(), SIMPLE_NAME, GAUGE_KEY);
+
   @BeforeMethod(alwaysRun = true)
   public void resetMetrics() {
     DynamicMetricsManager.createInstance(new MetricRegistry(), TestCoordinatorEventBlockingQueue.class.getName());
@@ -33,7 +39,7 @@ public class TestCoordinatorEventBlockingQueue {
 
   @Test
   public void testHappyPath() throws Exception {
-    CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue();
+    CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
     eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
@@ -57,7 +63,7 @@ public class TestCoordinatorEventBlockingQueue {
    */
   @Test
   public void testRegistersMetricsCorrectly() {
-    CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue();
+    CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
     MetricsTestUtils.verifyMetrics(queue, DynamicMetricsManager.getInstance());
   }
 
@@ -67,9 +73,9 @@ public class TestCoordinatorEventBlockingQueue {
    */
   @Test(timeOut = 500)
   public void testMetricOperations() throws InterruptedException {
-    CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue();
-    Counter counter = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(COUNTER_KEY));
-    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(GAUGE_KEY));
+    CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
+    Counter counter = DynamicMetricsManager.getInstance().getMetric(COUNTER_NAME);
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(GAUGE_NAME);
 
     Assert.assertNotNull(counter, "Counter was not found. Test setup failed.");
     Assert.assertEquals(counter.getCount(), 0, "Initial value should be 0.");
@@ -115,9 +121,9 @@ public class TestCoordinatorEventBlockingQueue {
    */
   @Test(timeOut = 500)
   public void testGaugeDedupe() throws InterruptedException {
-    CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue();
-    Counter counter = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(COUNTER_KEY));
-    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(queue.buildMetricName(GAUGE_KEY));
+    CoordinatorEventBlockingQueue queue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
+    Counter counter = DynamicMetricsManager.getInstance().getMetric(COUNTER_NAME);
+    Gauge<Integer> gauge = DynamicMetricsManager.getInstance().getMetric(GAUGE_NAME);
 
     Assert.assertNotNull(counter, "Counter was not found. Test setup failed.");
     Assert.assertEquals(counter.getCount(), 0, "Initial value should be 0.");
