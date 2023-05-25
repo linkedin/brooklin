@@ -117,8 +117,10 @@ final class KafkaMirrorMakerConnectorTestUtils {
 
   static KafkaMirrorMakerConnectorTask createKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,
       KafkaBasedConnectorConfig connectorConfig, String connectorName) {
-    return new KafkaMirrorMakerConnectorTask(connectorConfig, task, connectorName, false,
+    KafkaMirrorMakerConnectorTask kafkaMirrorMakerConnectorTask = new KafkaMirrorMakerConnectorTask(connectorConfig, task, connectorName, false,
         new KafkaMirrorMakerGroupIdConstructor(false, "testCluster"));
+    kafkaMirrorMakerConnectorTask.setCommitRetryTimeoutMillis(1000);
+    return kafkaMirrorMakerConnectorTask;
   }
 
   static KafkaMirrorMakerConnectorTask createFlushlessKafkaMirrorMakerConnectorTask(DatastreamTaskImpl task,

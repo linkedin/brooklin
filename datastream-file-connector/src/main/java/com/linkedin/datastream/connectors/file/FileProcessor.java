@@ -33,7 +33,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 class FileProcessor implements Runnable {
-  private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FileProcessor.class);
 
   private static final int PARTITION = 0;
   private static final int POLL_WAIT_MS = 100;
@@ -99,6 +99,7 @@ class FileProcessor implements Runnable {
       _lineNo.set(loadCheckpoint());
       _positionValue.setLinesRead((long) _lineNo.intValue());
       while (!_cancelRequested) {
+        LOG.info("sending event5 ");
         String text;
         try {
           text = _fileReader.readLine();
@@ -127,6 +128,7 @@ class FileProcessor implements Runnable {
             builder.setPartitionKey(_lineNo.toString());
           }
 
+          LOG.info("sending event2 " + text);
           builder.setSourceCheckpoint(_lineNo.toString());
           _producer.send(builder.build(), (metadata, exception) -> {
             if (exception == null) {
@@ -135,10 +137,13 @@ class FileProcessor implements Runnable {
               LOG.error(String.format("Sending event:{%s} failed, metadata:{%s}", text, metadata), exception);
             }
           });
+          LOG.info("sending event3 " + text);
           _positionValue.setLinesRead((long) _lineNo.incrementAndGet());
+          LOG.info("sending event4 " + text);
         } else {
           try {
             // Wait for new data
+            LOG.info("VM sleeping");
             Thread.sleep(POLL_WAIT_MS);
           } catch (InterruptedException e) {
             LOG.info("Interrupted");

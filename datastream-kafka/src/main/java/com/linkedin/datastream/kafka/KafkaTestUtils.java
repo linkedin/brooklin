@@ -104,7 +104,7 @@ public final class KafkaTestUtils {
       consumer.subscribe(Collections.singleton(topic));
       while (Instant.now().isBefore(expiration)) {
         try {
-          consumer.poll(Duration.ofSeconds(1).toMillis());
+          consumer.poll(Duration.ofSeconds(1));
           return;
         } catch (Exception ignored) {
           // Exception should occur when we are waiting for the broker to be assigned this topic
@@ -189,7 +189,7 @@ public final class KafkaTestUtils {
     boolean keepGoing = true;
     long now = System.currentTimeMillis();
     do {
-      ConsumerRecords<byte[], byte[]> records = consumer.poll(1000);
+      ConsumerRecords<byte[], byte[]> records = consumer.poll(Duration.ofMillis(1000));
       for (ConsumerRecord<byte[], byte[]> record : records.records(topic)) {
         if (!callback.onMessage(record.key(), record.value())) {
           keepGoing = false;

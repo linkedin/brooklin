@@ -516,12 +516,15 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       }
     }
 
+    long t1 = System.currentTimeMillis();
     // polls until the leader transitions the state of the datastream to STOPPED state
-    PollUtils.poll(() -> datastreamsToStop.stream()
-            .allMatch(ds -> _store.getDatastream(ds.getName()).getStatus().equals(DatastreamStatus.STOPPED)),
-        allStopped -> allStopped, _stopTransitionRetryPeriodMs.toMillis(), _stopTransitionTimeoutMs.toMillis())
+    PollUtils.poll(() ->
+                datastreamsToStop.stream()
+                    .allMatch(ds ->
+                        _store.getDatastream(ds.getName()).getStatus().equals(DatastreamStatus.STOPPED)),
+            allStopped -> allStopped, _stopTransitionRetryPeriodMs.toMillis(), _stopTransitionTimeoutMs.toMillis())
         .orElseThrow(() -> new RestLiServiceException(HttpStatus.S_408_REQUEST_TIMEOUT,
-            String.format("Stop request timed out for datastream: %s", datastreamName)));
+            String.format("Stop request timed out for datastream: %s %d", datastreamName, System.currentTimeMillis() - t1)));
 
     LOG.info("Completed request for stopping datastream {}", _store.getDatastream(datastream.getName()));
 
