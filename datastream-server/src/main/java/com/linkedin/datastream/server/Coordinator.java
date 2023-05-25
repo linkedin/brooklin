@@ -1557,7 +1557,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _config.getMarkDatastreamsStoppedRetryPeriodMs(), _config.getMarkDatastreamsStoppedTimeoutMs())) {
       _log.error("Failed to mark streams STOPPED within {}ms. Giving up.", _config.getMarkDatastreamsStoppedTimeoutMs());
     }
-
     _log.info("waitForStopToPropagateAndMarkDatastreamsStopped finished in thread {}", Thread.currentThread().getName());
   }
 
