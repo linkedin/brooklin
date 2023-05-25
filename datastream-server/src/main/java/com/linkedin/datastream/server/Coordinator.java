@@ -979,7 +979,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             _log.warn("Connector {} failed to stop its tasks in {}ms. No assignment tokens will be claimed",
                 connector, _config.getTaskStopCheckTimeoutMs());
           }
-        } catch(Exception ex) {
+        } catch (Exception ex) {
           _log.error("Failed to claim assignment tokens for stopping streams:", ex);
         }
       } else {
