@@ -52,16 +52,6 @@ public class CoordinatorEventBlockingQueue implements MetricsAware {
   /**
    * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
    *
-   * @deprecated Use of this constructor should be replaced with the single parameter variant.
-   */
-  @Deprecated
-  public CoordinatorEventBlockingQueue() {
-    this("legacy");
-  }
-
-  /**
-   * Construct a blocking event queue for all types of events in {@link CoordinatorEvent.EventType}
-   *
    * @param key String used to register CoordinatorEventBlockQueue metrics. The metrics
    *            will be registered to {@code CoordinatorEventBlockingQueue.<key>.<metric>}.
    *            Where {@code <metric>} is either {@link CoordinatorEventBlockingQueue#COUNTER_KEY}
