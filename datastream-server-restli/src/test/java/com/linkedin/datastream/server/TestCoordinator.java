@@ -3618,7 +3618,7 @@ public class TestCoordinator {
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
     String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+        streamName, coordinator.getNumThroughputViolatingTopicsMetricName());
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3732,7 +3732,7 @@ public class TestCoordinator {
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
     String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+        streamName, coordinator.getNumThroughputViolatingTopicsMetricName());
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3779,10 +3779,10 @@ public class TestCoordinator {
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
     String numThroughputViolatingTopicsMetricForFirstDatastream =
         String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName1);
+            streamName1, coordinator.getNumThroughputViolatingTopicsMetricName());
     String numThroughputViolatingTopicsMetricForSecondDatastream =
         String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName2);
+            streamName2, coordinator.getNumThroughputViolatingTopicsMetricName());
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3904,7 +3904,7 @@ public class TestCoordinator {
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
     String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+        streamName, coordinator.getNumThroughputViolatingTopicsMetricName());
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);

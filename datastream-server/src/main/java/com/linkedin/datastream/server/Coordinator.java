@@ -526,9 +526,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.info("For datastream {}, Successfully reported throughput violating topics : {}", datastream.getName(),
               violatingTopics);
         }
-        _metrics.registerOrSetGauge(
-            String.format("%s.%s", CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM,
-                datastream.getName()), () -> violatingTopics.length);
+        _metrics.registerOrSetKeyedGauge(datastream.getName(),
+            CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM, () -> violatingTopics.length);
       }));
     } finally {
       _throughputViolatingTopicsMapWriteLock.unlock();
@@ -2478,6 +2477,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .put(ZK_SESSION_EXPIRED, () -> _coordinator.isZkSessionExpired() ? 1 : 0)
           .build();
       gaugeMetrics.forEach(this::registerGauge);
+
+      // For dynamic datastream prefixed gauge metric reporting num throughput violating topics
+      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE,
+          MetricsAware.KEY_REGEX + NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM)));
     }
 
     private void registerCounterMetrics() {
@@ -2497,10 +2500,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     // registers a new gauge or updates the supplier for the gauge if it already exists
-    private <T> void registerOrSetGauge(String metricName, Supplier<T> valueSupplier) {
-      _dynamicMetricsManager.setGauge(_dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier),
+    private <T> void registerOrSetKeyedGauge(String key, String metricName, Supplier<T> valueSupplier) {
+      _dynamicMetricsManager.setGauge(_dynamicMetricsManager.registerGauge(MODULE, key, metricName, valueSupplier),
           valueSupplier);
-      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
     }
 
     private void registerCounter(Counter metric) {
