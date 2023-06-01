@@ -423,8 +423,12 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     if (_enablePartitionAssignment && _consumerAssignment.isEmpty()) {
       // Kafka rejects a poll if there is empty assignment
       return ConsumerRecords.EMPTY;
-    } else {
+    } else if (pollInterval == 0) {
+      // BMM calls poll with 0 pollInterval when a task is newly initialized. There's a behavior change between old poll
+      // and new poll in this case. We need to understand that behavior better before removing usages of deprecated API
       return _consumer.poll(pollInterval);
+    } else {
+      return _consumer.poll(Duration.ofMillis(pollInterval));
     }
   }
 
