@@ -2320,7 +2320,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   @VisibleForTesting
-  String getNumThroughputViolatingTopicsMetricName() {
+  static String getNumThroughputViolatingTopicsMetricName() {
     return CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM;
   }
 
