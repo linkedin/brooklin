@@ -81,42 +81,42 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       ClusterThroughputInfo throughputInfo, Map<String, Set<DatastreamTask>> currentAssignment,
       List<String> unassignedPartitions, DatastreamGroupPartitionsMetadata partitionMetadata, int maxPartitionsPerTask) {
     String datastreamGroupName = partitionMetadata.getDatastreamGroup().getName();
+
     Map<String, PartitionThroughputInfo> partitionInfoMap = new HashMap<>(throughputInfo.getPartitionInfoMap());
-    Set<String> tasksWithChangedPartition = new HashSet<>();
+    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
+        _defaultPartitionMsgsInRate, "");
 
     // filter out all the tasks for the current datastream group, and retain assignments in a map
-    Map<String, Set<String>> newPartitionAssignmentMap = new HashMap<>();
-    currentAssignment.values().forEach(tasks ->
-        tasks.forEach(task -> {
-          if (task.getTaskPrefix().equals(datastreamGroupName)) {
-            Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
-            retainedPartitions.retainAll(partitionMetadata.getPartitions());
-            newPartitionAssignmentMap.put(task.getId(), retainedPartitions);
-            if (retainedPartitions.size() != task.getPartitionsV2().size()) {
-              tasksWithChangedPartition.add(task.getId());
-            }
-          }
-    }));
+    Assignments assignments = currentAssignment.values()
+        .stream()
+        .parallel()
+        .flatMap(tasks -> tasks.stream()
+            .parallel()
+            .filter(task -> task.getTaskPrefix().equals(datastreamGroupName))
+            .map(task -> {
+              Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
+              retainedPartitions.retainAll(partitionMetadata.getPartitions());
+
+              int throughput = retainedPartitions.stream().parallel().mapToInt(p -> {
+                String topic = extractTopicFromPartition(p);
+                PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(topic, defaultPartitionInfo);
+                return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
+              }).sum();
+
+              boolean changed = retainedPartitions.size() != task.getPartitionsV2().size();
+
+              return new Assignment(task.getId(), retainedPartitions, changed, throughput);
+            }))
+        .collect(() -> new Assignments(maxPartitionsPerTask), Assignments::add, Assignments::addAll);
+
+    // sort the current assignment's tasks on total throughput
+    Map<String, Set<String>> newPartitionAssignmentMap = assignments.assignments;
+    Set<String> tasksWithChangedPartition = assignments.modified;
+    Map<String, Integer> taskThroughputMap = assignments.throughput;
 
     int numPartitions = partitionMetadata.getPartitions().size();
     int numTasks = newPartitionAssignmentMap.size();
     validatePartitionCountAndThrow(datastreamGroupName, numTasks, numPartitions, maxPartitionsPerTask);
-
-    // sort the current assignment's tasks on total throughput
-    Map<String, Integer> taskThroughputMap = new HashMap<>();
-    PartitionThroughputInfo defaultPartitionInfo = new PartitionThroughputInfo(_defaultPartitionBytesInKBRate,
-        _defaultPartitionMsgsInRate, "");
-
-    newPartitionAssignmentMap.forEach((task, partitions) -> {
-      int totalThroughput = partitions.stream()
-          .mapToInt(p ->  {
-            String topic = extractTopicFromPartition(p);
-            PartitionThroughputInfo defaultValue = partitionInfoMap.getOrDefault(topic, defaultPartitionInfo);
-            return partitionInfoMap.getOrDefault(p, defaultValue).getBytesInKBRate();
-          })
-          .sum();
-      taskThroughputMap.put(task, totalThroughput);
-    });
 
     ArrayList<String> recognizedPartitions = new ArrayList<>(); // partitions with throughput info
     ArrayList<String> unrecognizedPartitions = new ArrayList<>(); // partitions without throughput info
@@ -146,11 +146,9 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     // build a priority queue of tasks based on throughput
     // only add tasks that can accommodate more partitions in the queue
-    List<String> tasks = newPartitionAssignmentMap.keySet().stream()
-        .filter(t -> newPartitionAssignmentMap.get(t).size() < maxPartitionsPerTask)
-        .collect(Collectors.toList());
     PriorityQueue<String> taskQueue = new PriorityQueue<>(Comparator.comparing(taskThroughputMap::get));
-    taskQueue.addAll(tasks);
+    taskQueue.addAll(assignments.belowCapacity);
+    ArrayList<String> tasks = new ArrayList<>(taskQueue);
 
     // assign partitions with throughput info one by one, by putting the heaviest partition in the lightest task
     while (recognizedPartitions.size() > 0 && taskQueue.size() > 0) {
@@ -209,6 +207,56 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
         stats.getMin(), stats.getMax());
 
     return newAssignments;
+  }
+
+  /**
+   * A {@link java.util.function.Consumer} that accumulates {@link Assignment}s.
+   */
+  private static class Assignments {
+    final Map<String, Set<String>> assignments = new HashMap<>();
+    final Map<String, Integer> throughput = new HashMap<>();
+    final Set<String> belowCapacity = new HashSet<>();
+    final Set<String> modified = new HashSet<>();
+    private final int overload;
+
+    Assignments(int overload) {
+      this.overload = overload;
+    }
+
+    static void add(Assignments assignments, Assignment assignment) {
+      assignments.assignments.put(assignment.taskId, assignment.partitions);
+      assignments.throughput.put(assignment.taskId, assignment.throughput);
+
+      if (assignment.partitions.size() < assignments.overload) {
+        assignments.belowCapacity.add(assignment.taskId);
+      }
+
+      if (assignment.changed) {
+        assignments.modified.add(assignment.taskId);
+      }
+    }
+
+    static void addAll(Assignments left, Assignments right) {
+      left.assignments.putAll(right.assignments);
+      left.throughput.putAll(right.throughput);
+
+      left.belowCapacity.addAll(right.belowCapacity);
+      left.modified.addAll(right.modified);
+    }
+  }
+
+  private static class Assignment {
+    final String taskId;
+    final Set<String> partitions;
+    final boolean changed;
+    final int throughput;
+
+    Assignment(String taskId, Set<String> partitions, boolean changed, int throughput) {
+      this.taskId = taskId;
+      this.partitions = partitions;
+      this.changed = changed;
+      this.throughput = throughput;
+    }
   }
 
   private DatastreamMetrics metricsForDatastream(String taskPrefix) {
