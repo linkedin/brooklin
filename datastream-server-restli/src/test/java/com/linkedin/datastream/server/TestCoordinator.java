@@ -3617,8 +3617,7 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
-    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    String numThroughputViolatingTopicsMetric = getNumThroughputViolatingTopicsMetric(streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3731,8 +3730,7 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
-    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    String numThroughputViolatingTopicsMetric = getNumThroughputViolatingTopicsMetric(streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3778,11 +3776,9 @@ public class TestCoordinator {
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
     String numThroughputViolatingTopicsMetricForFirstDatastream =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName1);
+        getNumThroughputViolatingTopicsMetric(streamName1);
     String numThroughputViolatingTopicsMetricForSecondDatastream =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName2);
+        getNumThroughputViolatingTopicsMetric(streamName2);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3903,8 +3899,7 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
-    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    String numThroughputViolatingTopicsMetric = getNumThroughputViolatingTopicsMetric(streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3949,6 +3944,12 @@ public class TestCoordinator {
     // Comparing the reported topics information with the cached for the second datastream.
     return () -> requestedThroughputViolatingTopics.size() == fetchedViolatingTopicsFromStore.size()
         && requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore);
+  }
+
+  // Formats the numThroughputViolatingTopics Metric String
+  private String getNumThroughputViolatingTopicsMetric(String key) {
+    return String.format("%s.%s.%s", Coordinator.class.getSimpleName(), key,
+        Coordinator.getNumThroughputViolatingTopicsMetricName());
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific
