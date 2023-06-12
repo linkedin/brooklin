@@ -33,7 +33,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 
 
 class FileProcessor implements Runnable {
-  private static final Logger LOG = LoggerFactory.getLogger(FileConnector.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FileProcessor.class);
 
   private static final int PARTITION = 0;
   private static final int POLL_WAIT_MS = 100;

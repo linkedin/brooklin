@@ -48,6 +48,7 @@ public abstract class BaseKafkaZkTest {
     kafkaConfig.setProperty("auto.create.topics.enable", Boolean.FALSE.toString());
     kafkaConfig.setProperty("delete.topic.enable", Boolean.TRUE.toString());
     kafkaConfig.setProperty("offsets.topic.replication.factor", "1");
+    kafkaConfig.setProperty("group.initial.rebalance.delay.ms", "100");
     _kafkaCluster = new DatastreamEmbeddedZookeeperKafkaCluster(kafkaConfig);
     _kafkaCluster.startup();
     _broker = _kafkaCluster.getBrokers().split("\\s*,\\s*")[0];
