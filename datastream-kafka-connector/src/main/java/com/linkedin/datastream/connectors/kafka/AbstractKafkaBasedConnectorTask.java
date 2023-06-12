@@ -136,6 +136,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected final GroupIdConstructor _groupIdConstructor;
 
   protected final KafkaTopicPartitionTracker _kafkaTopicPartitionTracker;
+  private long _commitRetryTimeoutMillis;
 
   protected AbstractKafkaBasedConnectorTask(KafkaBasedConnectorConfig config, DatastreamTask task, Logger logger,
       String metricsPrefix, GroupIdConstructor groupIdConstructor) {
@@ -200,6 +201,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _pollTimeoutMillis = config.getPollTimeoutMillis();
     _retrySleepDuration = config.getRetrySleepDuration();
     _commitTimeout = config.getCommitTimeout();
+    _commitRetryTimeoutMillis = COMMIT_RETRY_TIMEOUT_MILLIS;
     _consumerMetrics = createKafkaBasedConnectorTaskMetrics(metricsPrefix, _datastreamName, _logger,
         _enableAdditionalMetrics);
 
@@ -686,13 +688,22 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       }
 
       return true;
-    }, COMMIT_RETRY_INTERVAL_MILLIS, COMMIT_RETRY_TIMEOUT_MILLIS);
+    }, COMMIT_RETRY_INTERVAL_MILLIS, getCommitRetryTimeoutMillis());
 
     if (!result) {
       String msg = "Commit failed after several retries, Giving up.";
       _logger.error(msg);
       throw new DatastreamRuntimeException(msg);
     }
+  }
+
+  @VisibleForTesting
+  public void setCommitRetryTimeoutMillis(long retryTimeoutMillis) {
+    _commitRetryTimeoutMillis = retryTimeoutMillis;
+  }
+
+  private long getCommitRetryTimeoutMillis() {
+    return _commitRetryTimeoutMillis;
   }
 
   private void commitSync(Consumer<?, ?> consumer, Optional<Map<TopicPartition, OffsetAndMetadata>> offsets) {
@@ -714,7 +725,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     Set<TopicPartition> tpWithNoCommits = new HashSet<>();
     // construct last checkpoint
     topicPartitions.forEach(tp -> getLastCheckpointToSeekTo(lastCheckpoint, tpWithNoCommits, tp));
-    _logger.info("Seeking to previous checkpoints {}", lastCheckpoint);
+    _logger.info("Seeking to previous checkpoints {} ", lastCheckpoint);
     // reset consumer to last checkpoint, by default we will rewind the checkpoint
     lastCheckpoint.forEach((tp, offsetAndMetadata) -> _consumer.seek(tp, offsetAndMetadata.offset()));
     if (!tpWithNoCommits.isEmpty()) {

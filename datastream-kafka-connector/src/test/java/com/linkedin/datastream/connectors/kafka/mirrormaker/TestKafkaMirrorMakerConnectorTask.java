@@ -91,6 +91,7 @@ import static org.mockito.Mockito.verify;
 /**
  * Tests for {@link KafkaMirrorMakerConnectorTask}
  */
+@Test(singleThreaded = false)
 public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
@@ -553,7 +554,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
         .setConsumerFactory(new LiKafkaConsumerFactory())
-        .setCommitIntervalMillis(10000)
+        .setCommitIntervalMillis(100)
         .setEnablePartitionManaged(true)
         .build();
 
@@ -577,7 +578,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
     KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
         .setConsumerFactory(new LiKafkaConsumerFactory())
-        .setCommitIntervalMillis(10000)
+        .setCommitIntervalMillis(100)
         .setEnablePartitionManaged(true)
         .build();
 

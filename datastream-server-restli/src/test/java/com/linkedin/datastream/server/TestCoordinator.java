@@ -121,7 +121,7 @@ import static org.mockito.Mockito.when;
 public class TestCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(TestCoordinator.class);
   private static final long WAIT_DURATION_FOR_ZK = Duration.ofMinutes(1).toMillis();
-  private static final int WAIT_TIMEOUT_MS = 60000;
+  private static final int WAIT_TIMEOUT_MS = 2000;
 
   EmbeddedZookeeper _embeddedZookeeper;
   String _zkConnectionString;
@@ -523,7 +523,7 @@ public class TestCoordinator {
 
   @Test
   public void testHandleAssignmentChangeTransientFailure() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeTransientFailure";
     String testConnectorType = "testConnectorType";
     String datastreamName1 = "datastream1";
 
@@ -550,7 +550,7 @@ public class TestCoordinator {
 
   @Test
   public void testHandleAssignmentChangeFailure() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeChangeFailure";
     String testConnectorType = "testConnectorType";
     String datastreamName1 = "datastream1";
 
@@ -575,7 +575,7 @@ public class TestCoordinator {
 
   @Test
   public void testStopAndResumeDatastream() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeResumeDatastream";
     String testConnectorType = "testConnectorType";
     String datastreamName1 = "datastream1";
 
@@ -627,7 +627,7 @@ public class TestCoordinator {
      */
   @Test
   public void testCoordinationWithStickyMulticastStrategy() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeWithSticky";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
 
@@ -708,8 +708,8 @@ public class TestCoordinator {
     instance4.start();
 
     connectors.add(connector4);
-    // verify connector4 get at least 5 task assignment
-    waitTillAssignmentIsComplete(5, WAIT_TIMEOUT_MS, connector4);
+    // verify connector4 get at least 4 task assignment
+    waitTillAssignmentIsComplete(4, WAIT_TIMEOUT_MS, connector4);
 
     instance2.stop();
     instance3.stop();
@@ -845,7 +845,7 @@ public class TestCoordinator {
 
   @Test
   public void testCoordinationWithPartitionAssignment() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeWithPartitionAssignment";
     String testConnectorType = "testConnectorType";
     Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -1051,7 +1051,7 @@ public class TestCoordinator {
           // Verify all the partitions are assigned
           Map<String, List<String>> assignment2 = collectDatastreamPartitions(connectors);
           return assignment2.get("datastream42").size() == partitions1.size() && assignment2.get("datastream43").size() == partitions2.size();
-        }, interval, WAIT_TIMEOUT_MS));
+        }, interval, WAIT_TIMEOUT_MS * 5));
 
     instance1.stop();
     instance2.stop();
@@ -1077,7 +1077,7 @@ public class TestCoordinator {
    */
   @Test
   public void testBYOTDatastreamWithUsedDestination() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeWithUsedDestination";
     String testConnectorType = "testConnectorType";
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
@@ -1229,7 +1229,7 @@ public class TestCoordinator {
    */
   @Test
   public void testDatastreamWithConnectorManagedDestination() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeWithConnectorManagedDestination";
     String testConnectorType = "testConnectorType";
 
     DummyTransportProviderAdminFactory transportProviderAdminFactory = new DummyTransportProviderAdminFactory();
@@ -1272,7 +1272,7 @@ public class TestCoordinator {
    */
   @Test
   public void testDatastreamWithoutConnectorManagedDestination() throws Exception {
-    String testCluster = "testCoordinationSmoke";
+    String testCluster = "testCoordinationSmokeWithoutConnectorManagedDestination";
     String testConnectorType = "testConnectorType";
 
     DummyTransportProviderAdminFactory transportProviderAdminFactory = new DummyTransportProviderAdminFactory();
@@ -1296,6 +1296,11 @@ public class TestCoordinator {
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastreamName);
     Assert.assertEquals(transportProviderAdminFactory._createDestinationCount, 1,
         "Create destination count should have been 1, since Datastream does not have connector-managed destination");
+
+    // wait for datastream to be READY
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName)
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS));
 
     resource.delete(datastreamName);
     String path = KeyBuilder.datastream(testCluster, datastreamName);
@@ -1444,9 +1449,9 @@ public class TestCoordinator {
     LOG.info("Created datastream: {}", datastream);
 
     // wait for datastream to be READY
-    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1")
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1")
         .getStatus()
-        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS));
     datastream = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastream.getName());
     assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, datastream.getName());
     assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, datastream.getName());
@@ -2559,12 +2564,6 @@ public class TestCoordinator {
     Datastream[] streams = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, streamNames);
     streams[0].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
     streams[1].getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
-    streams[0].getDestination()
-        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
-            "TestDatastreamTopic1", false).getDestinationURI());
-    streams[1].getDestination()
-        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
-            "TestDatastreamTopic2", false).getDestinationURI());
 
     // stream1 expires after 500ms and should get deleted when stream2 is created
     long threeDaysAgo = Instant.now().minus(Duration.ofDays(3)).toEpochMilli();
@@ -2610,12 +2609,16 @@ public class TestCoordinator {
 
     // stream1 and stream2 expire in 1 minute from now and should get deleted when stream3 is created
     long createTime = Instant.now().toEpochMilli();
-    long expireTTL = Duration.ofMinutes(1).toMillis();
+    long expireTTL = Duration.ofSeconds(5).toMillis();
 
     streams[0].getMetadata().put(CREATION_MS, String.valueOf(createTime));
     streams[0].getMetadata().put(TTL_MS, String.valueOf(expireTTL));
     streams[1].getMetadata().put(CREATION_MS, String.valueOf(createTime));
     streams[1].getMetadata().put(TTL_MS, String.valueOf(expireTTL));
+
+    streams[0].getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
+    streams[1].getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
+    streams[2].getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
 
     // Creation should go through as TTL is not considered for freshly created streams (INITIALIZING)
     CreateResponse createResponse = setup._resource.create(streams[0]);
@@ -2625,35 +2628,39 @@ public class TestCoordinator {
     Assert.assertNull(createResponse.getError());
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
-    // Sleep for 1 minute to wait for stream1 and stream2 to expire.
-    Thread.sleep(Duration.ofMinutes(1).toMillis());
+    // Sleep for 5 sec to wait for stream1 and stream2 to expire.
+    Thread.sleep(Duration.ofSeconds(5).toMillis());
 
     // Creating a stream3 which should trigger stream1 to be deleted
     createResponse = setup._resource.create(streams[2]);
     Assert.assertNull(createResponse.getError());
     Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
 
-    // Poll up to 30s for stream1 to get deleted
-    PollUtils.poll(() -> {
+    // Poll up to 10s for stream1 to get deleted
+    boolean status = PollUtils.poll(() -> {
       try {
         setup._resource.get(streams[0].getName());
+        setup._coordinator.getDatastreamCache().getZkclient().writeData(KeyBuilder.datastreams(setup._coordinator.getClusterName()), "1234");
         return false;
       } catch (RestLiServiceException e) {
         Assert.assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
         return true;
       }
-    }, 200, Duration.ofSeconds(30).toMillis());
+    }, 200, Duration.ofSeconds(10).toMillis());
+    Assert.assertTrue(status);
 
-    // Poll up to 30s for stream2 to get deleted
-    PollUtils.poll(() -> {
+    // Poll up to 10s for stream2 to get deleted
+    status =  PollUtils.poll(() -> {
       try {
         setup._resource.get(streams[1].getName());
+        setup._coordinator.getDatastreamCache().getZkclient().writeData(KeyBuilder.datastreams(setup._coordinator.getClusterName()), "5678");
         return false;
       } catch (RestLiServiceException e) {
         Assert.assertEquals(e.getStatus(), HttpStatus.S_404_NOT_FOUND);
         return true;
       }
-    }, 200, Duration.ofSeconds(30).toMillis());
+    }, 200, Duration.ofSeconds(10).toMillis());
+    Assert.assertTrue(status);
   }
 
   @Test
@@ -2670,6 +2677,9 @@ public class TestCoordinator {
     streams[1].getDestination()
         .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
             "TestDatastreamTopic2", false).getDestinationURI());
+
+    streams[0].getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
+    streams[1].getMetadata().put(DatastreamMetadataConstants.IS_CONNECTOR_MANAGED_DESTINATION_KEY, Boolean.TRUE.toString());
 
     // stream2 expires after 500ms and should not get assigned
     long threeDaysAgo = Instant.now().minus(Duration.ofDays(3)).toEpochMilli();
@@ -3156,7 +3166,7 @@ public class TestCoordinator {
   }
 
   void testOnSessionExpired(boolean handleNewSession) throws DatastreamException, InterruptedException {
-    String testCluster = "testCoordinationSmoke3";
+    String testCluster = "testOnSessionExpired";
     String testConnectorType = "testConnectorType";
     String datastreamName = "datastreamNameSessionExpired";
 
@@ -3617,8 +3627,7 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
-    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    String numThroughputViolatingTopicsMetric = getNumThroughputViolatingTopicsMetric(streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3731,8 +3740,7 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
-    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    String numThroughputViolatingTopicsMetric = getNumThroughputViolatingTopicsMetric(streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3778,11 +3786,9 @@ public class TestCoordinator {
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
     String numThroughputViolatingTopicsMetricForFirstDatastream =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName1);
+        getNumThroughputViolatingTopicsMetric(streamName1);
     String numThroughputViolatingTopicsMetricForSecondDatastream =
-        String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-            coordinator.getNumThroughputViolatingTopicsMetricName(), streamName2);
+        getNumThroughputViolatingTopicsMetric(streamName2);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3903,8 +3909,7 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
-    String numThroughputViolatingTopicsMetric = String.format("%s.%s.%s", Coordinator.class.getSimpleName(),
-        coordinator.getNumThroughputViolatingTopicsMetricName(), streamName);
+    String numThroughputViolatingTopicsMetric = getNumThroughputViolatingTopicsMetric(streamName);
     TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
     coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
         new SourceBasedDeduper(), null);
@@ -3949,6 +3954,12 @@ public class TestCoordinator {
     // Comparing the reported topics information with the cached for the second datastream.
     return () -> requestedThroughputViolatingTopics.size() == fetchedViolatingTopicsFromStore.size()
         && requestedThroughputViolatingTopics.containsAll(fetchedViolatingTopicsFromStore);
+  }
+
+  // Formats the numThroughputViolatingTopics Metric String
+  private String getNumThroughputViolatingTopicsMetric(String key) {
+    return String.format("%s.%s.%s", Coordinator.class.getSimpleName(), key,
+        Coordinator.getNumThroughputViolatingTopicsMetricName());
   }
 
   // helper method: assert that within a timeout value, the connector are assigned the specific

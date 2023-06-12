@@ -518,7 +518,13 @@ public class TestDatastreamResources {
     Mockito.doReturn(mockDatastreamStore).when(mockDatastreamServer).getDatastreamStore();
     Mockito.doReturn(mockDatastreamServer).when(mockDatastreamCluster).getPrimaryDatastreamServer();
 
-    DatastreamResources resource1 = new DatastreamResources(mockDatastreamCluster.getPrimaryDatastreamServer());
+    // Configuring small timeouts to mock timeout scenario
+    Properties testProperties = new Properties();
+    testProperties.setProperty(CONFIG_STOP_TRANSITION_TIMEOUT_MS, "1000");
+    testProperties.setProperty(CONFIG_STOP_TRANSITION_RETRY_PERIOD_MS, "5");
+
+    DatastreamResources resource1 = new DatastreamResources(mockDatastreamCluster.getPrimaryDatastreamServer().getDatastreamStore(),
+        mockDatastreamCluster.getPrimaryDatastreamServer().getCoordinator(), testProperties);
 
     // Create a Datastream.
     Datastream datastreamToCreate = generateDatastream(0);

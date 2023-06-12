@@ -53,7 +53,7 @@ public class MetricsTestUtils {
    * names start with the provided {@code metricsAware}'s simple class name.
    */
   public static void verifyMetrics(MetricsAware metricsAware, DynamicMetricsManager metricsManager) {
-    verifyMetrics(metricsAware, metricsManager, s -> s.startsWith(metricsAware.getClass().getSimpleName()));
+    verifyMetrics(metricsAware, metricsManager, s -> s.matches(metricsAware.getClass().getSimpleName()));
   }
 
   /**

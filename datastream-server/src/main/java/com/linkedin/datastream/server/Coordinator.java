@@ -174,7 +174,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final long STOP_PROPAGATION_RETRY_MS = 5000L;
   // how many threads will the token claims executor use for assignment tokens feature. There's a risk that this will get
   // exhausted when there are more concurrent stop requests than threads in the thread pool
-  private static final int TOKEN_CLAIM_THREAD_POOL_SIZE = 8;
+  private static final int TOKEN_CLAIM_THREAD_POOL_SIZE = 16;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
@@ -257,7 +257,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
 
     _adapter = createZkAdapter();
-    _eventQueue = new CoordinatorEventBlockingQueue();
+    _eventQueue = new CoordinatorEventBlockingQueue(Coordinator.class.getSimpleName());
     createEventThread();
 
     VerifiableProperties coordinatorProperties = new VerifiableProperties(_config.getConfigProperties());
@@ -526,9 +526,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.info("For datastream {}, Successfully reported throughput violating topics : {}", datastream.getName(),
               violatingTopics);
         }
-        _metrics.registerOrSetGauge(
-            String.format("%s.%s", CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM,
-                datastream.getName()), () -> violatingTopics.length);
+        _metrics.registerOrSetKeyedGauge(datastream.getName(),
+            CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM, () -> violatingTopics.length);
       }));
     } finally {
       _throughputViolatingTopicsMapWriteLock.unlock();
@@ -971,12 +970,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             map(DatastreamTask::getId).collect(Collectors.toSet());
 
         // TODO Evaluate whether we need to optimize here and make this call for each datastream
-        if (PollUtils.poll(() -> connectorTasksHaveStopped(connector, stoppingDatastreamTasks),
-            _config.getTaskStopCheckRetryPeriodMs(), _config.getTaskStopCheckTimeoutMs())) {
-          _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName(), false);
-        } else {
-          _log.warn("Connector {} failed to stop its tasks in {}ms. No assignment tokens will be claimed",
-              connector, _config.getTaskStopCheckTimeoutMs());
+        try {
+          if (PollUtils.poll(() -> connectorTasksHaveStopped(connector, stoppingDatastreamTasks),
+              _config.getTaskStopCheckRetryPeriodMs(), _config.getTaskStopCheckTimeoutMs())) {
+            _adapter.claimAssignmentTokensForDatastreams(stoppingStreams, _adapter.getInstanceName(), false);
+          } else {
+            _log.warn("Connector {} failed to stop its tasks in {}ms. No assignment tokens will be claimed",
+                connector, _config.getTaskStopCheckTimeoutMs());
+          }
+        } catch (Exception ex) {
+          _log.error("Failed to claim assignment tokens for stopping streams:", ex);
         }
       } else {
         _log.info("No streams have been inferred as stopping for connector {} and no assignment tokens will be claimed",
@@ -1121,6 +1124,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean isLeader = _adapter.isLeader();
     if (!isLeader && isLeaderEvent(event.getType())) {
       _log.info("Skipping event {} isLeader: false", event.getType());
+      _log.info("END: Handle event " + event);
       return;
     }
     try {
@@ -1249,6 +1253,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   private void handleDatastreamAddOrDelete() {
     boolean shouldRetry = false;
+    _log.info("START: Coordinator::handleDatastreamAddOrDelete.");
 
     // Get the list of all datastreams
     List<Datastream> allStreams = _datastreamCache.getAllDatastreams(true);
@@ -1259,6 +1264,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // do nothing if there are zero datastreams
     if (allStreams.isEmpty()) {
       _log.warn("Received a new datastream event, but there were no datastreams");
+      _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
       return;
     }
 
@@ -1307,6 +1313,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
   }
 
   private void hardDeleteDatastream(Datastream ds, List<Datastream> activeStreams) {
@@ -1435,6 +1442,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
+    _log.info("START: Coordinator::handleLeaderDoAssignment.");
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = Collections.emptyMap();
@@ -1465,7 +1473,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // assignment and do remove and add zNodes accordingly. In the case of ZooKeeper failure (when
       // it failed to create or delete zNodes), we will do our best to continue the current process
       // and schedule a retry. The retry should be able to diff the remaining ZooKeeper work
-      if (_config.getEnableAssignmentTokens()) {
+      if (_config.getEnableAssignmentTokens() && !stoppingDatastreamGroups.isEmpty()) {
         _adapter.updateAllAssignmentsAndIssueTokens(newAssignmentsByInstance, stoppingDatastreamGroups);
         try {
           _tokenClaimExecutor.submit(() -> waitForStopToPropagateAndMarkDatastreamsStopped(stoppingDatastreamGroups,
@@ -1503,6 +1511,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     if (!succeeded && !_leaderDoAssignmentScheduled.get()) {
       scheduleLeaderDoAssignmentRetry(isNewlyElectedLeader);
     }
+    _log.info("END: Coordinator::handleLeaderDoAssignment.");
   }
 
   private void scheduleLeaderDoAssignmentRetry(boolean isNewlyElectedLeader) {
@@ -1518,7 +1527,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   void waitForStopToPropagateAndMarkDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups,
       boolean isNewlyElectedLeader) {
-    _log.info("waitForStopToPropagateAndMarkDatastreamsStopped started in thread {}", Thread.currentThread().getName());
+    List<String> streamNames = stoppingDatastreamGroups.stream().map(DatastreamGroup::getName).collect(
+        Collectors.toList());
+    _log.info("waitForStopToPropagateAndMarkDatastreamsStopped started in thread {} for streams {}",
+        Thread.currentThread().getName(), streamNames);
     // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
     Set<String> failedStreams = Collections.emptySet();
     if (_config.getEnableAssignmentTokens() &&
@@ -1542,7 +1554,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
       }
       revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
-      _log.info("waitForStopToPropagateAndMarkDatastreamsStopped stopped in thread {}", Thread.currentThread().getName());
     }
 
     // TODO Explore if the STOPPING -> STOPPED transition can be converted into an event type and scheduled in the event queue
@@ -1551,7 +1562,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _config.getMarkDatastreamsStoppedRetryPeriodMs(), _config.getMarkDatastreamsStoppedTimeoutMs())) {
       _log.error("Failed to mark streams STOPPED within {}ms. Giving up.", _config.getMarkDatastreamsStoppedTimeoutMs());
     }
-    _log.info("Executing waitForStopToPropagateAndMarkDatastreamsStopped in thread {}", Thread.currentThread().getName());
+    _log.info("waitForStopToPropagateAndMarkDatastreamsStopped finished in thread {}", Thread.currentThread().getName());
   }
 
   private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
@@ -1567,6 +1578,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         if (stoppingStreams.contains(datastream.getName()) &&
             (forceStop || !failedStreams.contains(datastream.getName()))) {
           datastream.setStatus(DatastreamStatus.STOPPED);
+          _log.info("Transitioned datastream {} to STOPPED state", datastream.getName());
           if (!_adapter.updateDatastream(datastream)) {
             _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
             success = false;
@@ -1636,6 +1648,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   private void performPartitionAssignment(String datastreamGroupName) {
     boolean succeeded;
+    _log.info("START: Coordinator::performPartitionAssignment.");
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = new HashMap<>();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
 
@@ -1698,6 +1711,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroupName));
       }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
     }
+    _log.info("END: Coordinator::performPartitionAssignment.");
   }
 
   private void updateCounterForMaxPartitionInTask(Map<String, List<DatastreamTask>> assignments) {
@@ -1731,6 +1745,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * @param notifyTimestamp the timestamp when partition movement is triggered
    */
   private void performPartitionMovement(Long notifyTimestamp) {
+    _log.info("START: Coordinator::performPartitionMovement.");
     boolean shouldRetry = true;
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = new HashMap<>();
@@ -1816,6 +1831,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _eventQueue.put(CoordinatorEvent.createPartitionMovementEvent(notifyTimestamp)), _config.getRetryIntervalMs(),
           TimeUnit.MILLISECONDS);
     }
+    _log.info("END: Coordinator::performPartitionMovement.");
   }
 
   @VisibleForTesting
@@ -2304,7 +2320,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   @VisibleForTesting
-  String getNumThroughputViolatingTopicsMetricName() {
+  static String getNumThroughputViolatingTopicsMetricName() {
     return CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM;
   }
 
@@ -2461,6 +2477,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .put(ZK_SESSION_EXPIRED, () -> _coordinator.isZkSessionExpired() ? 1 : 0)
           .build();
       gaugeMetrics.forEach(this::registerGauge);
+
+      // For dynamic datastream prefixed gauge metric reporting num throughput violating topics
+      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE,
+          MetricsAware.KEY_REGEX + NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM)));
     }
 
     private void registerCounterMetrics() {
@@ -2480,10 +2500,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     // registers a new gauge or updates the supplier for the gauge if it already exists
-    private <T> void registerOrSetGauge(String metricName, Supplier<T> valueSupplier) {
-      _dynamicMetricsManager.setGauge(_dynamicMetricsManager.registerGauge(MODULE, metricName, valueSupplier),
+    private <T> void registerOrSetKeyedGauge(String key, String metricName, Supplier<T> valueSupplier) {
+      _dynamicMetricsManager.setGauge(_dynamicMetricsManager.registerGauge(MODULE, key, metricName, valueSupplier),
           valueSupplier);
-      _metricInfos.add(new BrooklinGaugeInfo(_coordinator.buildMetricName(MODULE, metricName)));
     }
 
     private void registerCounter(Counter metric) {
