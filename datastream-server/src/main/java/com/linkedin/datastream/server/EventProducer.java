@@ -60,6 +60,7 @@ public class EventProducer implements DatastreamEventProducer {
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
+  static final String NOOP_TRANSPORT_PROVIDER_NAME = "NoOp";
 
   private static final String MODULE = EventProducer.class.getSimpleName();
   private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
@@ -272,7 +273,7 @@ public class EventProducer implements DatastreamEventProducer {
     try {
       // Send the event to the transport
       String destination = "dummy";
-      if (!_datastreamTask.getTransportProviderName().equalsIgnoreCase("NoOp")) {
+      if (!_datastreamTask.getTransportProviderName().equalsIgnoreCase(NOOP_TRANSPORT_PROVIDER_NAME)) {
         destination =
             record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
       }
