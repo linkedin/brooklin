@@ -59,6 +59,7 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamProducerRecordBuilder;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.FlushlessEventProducerHandler;
+import com.linkedin.datastream.server.NoOpTransportProviderAdminFactory;
 import com.linkedin.datastream.server.api.transport.SendCallback;
 
 
@@ -87,7 +88,6 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private static final Duration LOCK_ACQUIRE_TIMEOUT = Duration.ofMinutes(3);
   private static final String TASK_LOCK_ACQUIRE_ERROR_RATE = "taskLockAcquireErrorRate";
   private static final String DATASTREAM_NAME_BASED_CLIENT_ID_FORMAT = "%s-%s";
-  private static final String NOOP_TRANSPORT_PROVIDER_NAME = "NoOp";
 
   // constants for flushless mode and flow control
   protected static final String CONFIG_MAX_IN_FLIGHT_MSGS_THRESHOLD = "maxInFlightMessagesThreshold";
@@ -262,7 +262,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     builder.setEventsSourceTimestamp(eventsSourceTimestamp);
     builder.setSourceCheckpoint(new KafkaMirrorMakerCheckpoint(topic, partition, offset).toString());
 
-    if (!_datastreamTask.getTransportProviderName().equalsIgnoreCase(NOOP_TRANSPORT_PROVIDER_NAME)) {
+    if (!_datastreamTask.getTransportProviderName().
+        equalsIgnoreCase(NoOpTransportProviderAdminFactory.NoOpTransportProvider.NAME)) {
       builder.setDestination(_datastreamTask.getDatastreamDestination()
           .getConnectionString()
           .replace(KafkaMirrorMakerConnector.MM_TOPIC_PLACEHOLDER,

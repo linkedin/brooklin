@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -60,7 +61,6 @@ public class EventProducer implements DatastreamEventProducer {
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
-  static final String NOOP_TRANSPORT_PROVIDER_NAME = "NoOp";
 
   private static final String MODULE = EventProducer.class.getSimpleName();
   private static final String METRICS_PREFIX = MODULE + MetricsAware.KEY_REGEX;
@@ -272,8 +272,9 @@ public class EventProducer implements DatastreamEventProducer {
 
     try {
       // Send the event to the transport
-      String destination = "dummy";
-      if (!_datastreamTask.getTransportProviderName().equalsIgnoreCase(NOOP_TRANSPORT_PROVIDER_NAME)) {
+      String destination = StringUtils.EMPTY;
+      if (!_datastreamTask.getTransportProviderName().
+          equalsIgnoreCase(NoOpTransportProviderAdminFactory.NoOpTransportProvider.NAME)) {
         destination =
             record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
       }

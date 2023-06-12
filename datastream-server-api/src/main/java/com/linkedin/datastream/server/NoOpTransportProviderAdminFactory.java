@@ -34,6 +34,7 @@ public class NoOpTransportProviderAdminFactory implements TransportProviderAdmin
    * A {@link TransportProvider} implementation that does nothing
    */
   public static class NoOpTransportProvider implements TransportProvider {
+    public static final String NAME = "NoOp";
 
     @Override
     public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
