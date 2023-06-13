@@ -383,6 +383,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     for (DatastreamTask task : _assignedDatastreamTasks.values()) {
       ((EventProducer) task.getEventProducer()).shutdown(false);
     }
+
+    //Stop all the Transport provider admins.
+    for (TransportProviderAdmin tpAdmin : _transportProviderAdmins.values()) {
+      tpAdmin.stop();
+    }
+
     _adapter.disconnect();
     _log.info("Coordinator stopped");
   }

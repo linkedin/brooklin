@@ -71,4 +71,11 @@ public interface TransportProviderAdmin extends MetricsAware {
    * @return retention duration
    */
   Duration getRetention(Datastream datastream);
+
+  /**
+   * Stop the transport provider admin. It should be called only when the coordinator is stopped.
+   */
+  default void stop() {
+
+  }
 }
