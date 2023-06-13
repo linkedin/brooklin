@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -271,8 +272,12 @@ public class EventProducer implements DatastreamEventProducer {
 
     try {
       // Send the event to the transport
-      String destination =
-          record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
+      String destination = StringUtils.EMPTY;
+      if (!_datastreamTask.getTransportProviderName().
+          equalsIgnoreCase(NoOpTransportProviderAdminFactory.NoOpTransportProvider.NAME)) {
+        destination =
+            record.getDestination().orElse(_datastreamTask.getDatastreamDestination().getConnectionString());
+      }
       record.setEventsSendTimestamp(System.currentTimeMillis());
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
