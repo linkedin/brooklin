@@ -38,7 +38,7 @@ import com.linkedin.datastream.metrics.MetricsAware;
 class CoordinatorEventBlockingQueue implements MetricsAware {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
-  private final Set<BrooklinMetricInfo> METRIC_INFOS = ConcurrentHashMap.newKeySet();
+  private final Set<BrooklinMetricInfo> _metricInfos = ConcurrentHashMap.newKeySet();
 
   static final String COUNTER_KEY = "duplicateEvents";
   static final String GAUGE_KEY = "queuedEvents";
@@ -68,7 +68,7 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
 
     BrooklinCounterInfo counterInfo = new BrooklinCounterInfo(MetricRegistry.name(prefix, COUNTER_KEY));
     BrooklinGaugeInfo gaugeInfo = new BrooklinGaugeInfo(MetricRegistry.name(prefix, GAUGE_KEY));
-    METRIC_INFOS.addAll(Arrays.asList(counterInfo, gaugeInfo));
+    _metricInfos.addAll(Arrays.asList(counterInfo, gaugeInfo));
   }
 
 
@@ -161,6 +161,6 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
 
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
-    return new ArrayList<>(METRIC_INFOS);
+    return new ArrayList<>(_metricInfos);
   }
 }
