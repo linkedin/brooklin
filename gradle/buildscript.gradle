@@ -16,5 +16,5 @@ dependencies {
     classpath 'com.linkedin.pegasus:gradle-plugins:29.2.3'
     // TODO Remove this dependency
     classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
-    classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.21.0"
+    classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.32.0"
 }
