@@ -38,7 +38,7 @@ import com.linkedin.datastream.metrics.MetricsAware;
 class CoordinatorEventBlockingQueue implements MetricsAware {
 
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorEventBlockingQueue.class.getName());
-  private static final Set<BrooklinMetricInfo> METRIC_INFOS = ConcurrentHashMap.newKeySet();
+  private final Set<BrooklinMetricInfo> METRIC_INFOS = ConcurrentHashMap.newKeySet();
 
   static final String COUNTER_KEY = "duplicateEvents";
   static final String GAUGE_KEY = "queuedEvents";
