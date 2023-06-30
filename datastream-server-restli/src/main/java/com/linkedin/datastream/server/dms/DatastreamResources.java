@@ -246,7 +246,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
               + " old: %s new: %s", key, oldDatastream, datastream));
         }
 
-        LOG.info("[UPDATE] old datastream: {}, new datastream: {}", oldDatastream, datastream);
+        LOG.info("[UPDATE] old datastream = {}, new datastream = {}", oldDatastream, datastream);
       } catch (DatastreamValidationException e) {
         _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, CALL_ERROR, 1);
         _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_400_BAD_REQUEST, e.getMessage());
@@ -768,7 +768,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
 
     try {
-      LOG.info("Delete datastream called for datastream {}: {}", datastreamName, datastream);
+      LOG.info("[DELETE] operation called for datastream {} = {}", datastreamName, datastream);
 
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, DELETE_CALL, 1);
       Instant startTime = Instant.now();
