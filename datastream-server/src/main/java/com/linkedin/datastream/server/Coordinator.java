@@ -2439,6 +2439,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // CheckpointProvider metrics
       addMetricInfos(_coordinator._cpProvider);
 
+      // CoordinatorEventBlockingQueue metrics
+      addMetricInfos(_coordinator._eventQueue);
+
       // EventProducer metrics
       _metricInfos.addAll(EventProducer.getMetricInfos());
     }
