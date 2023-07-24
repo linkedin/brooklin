@@ -7,12 +7,12 @@ package com.linkedin.datastream.server;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +44,7 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
   static final String GAUGE_KEY = "queuedEvents";
 
   private final Set<CoordinatorEvent> _eventSet;
-  private final Queue<CoordinatorEvent> _eventQueue;
+  private final Deque<CoordinatorEvent> _eventQueue;
   private final DynamicMetricsManager _dynamicMetricsManager;
   private final Gauge<Integer> _gauge;
   private final Counter _counter;
@@ -59,7 +59,7 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
    */
   CoordinatorEventBlockingQueue(String key) {
     _eventSet = new HashSet<>();
-    _eventQueue = new LinkedBlockingQueue<>();
+    _eventQueue = new LinkedBlockingDeque<>();
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
 
     String prefix = buildMetricName(key);
@@ -73,16 +73,30 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
 
 
   /**
-   * Add a single event to the queue, overwriting events with the same name and same metadata.
+   * Add a single event to the queue. Defaults to adding the event at the end of the queue.
    * @param event CoordinatorEvent event to add to the queue
    */
   public synchronized void put(CoordinatorEvent event) {
-    LOG.info("Queuing event {} to event queue", event.getType());
+    put(event, true);
+  }
+
+  /**
+   * Add a single event to the queue, de-duping events with the same name and same metadata.
+   * @param event CoordinatorEvent event to add to the queue
+   * @param insertInTheEnd if true, indicates to add the event to the end of the queue and front, otherwise.
+   */
+  public synchronized void put(CoordinatorEvent event, boolean insertInTheEnd) {
+    LOG.info("Queuing event {} at the " + (insertInTheEnd ? "end" : "front") + " of the event queue", event.getType());
     if (_eventSet.contains(event)) {
       _counter.inc(); // count duplicate event
     } else {
       // only insert if there isn't an event present in the queue with the same name and same metadata.
-      boolean result = _eventQueue.offer(event);
+      boolean result;
+      if (insertInTheEnd) {
+        result = _eventQueue.offer(event);
+      } else {
+        result = _eventQueue.offerFirst(event);
+      }
       if (!result) {
         return;
       }

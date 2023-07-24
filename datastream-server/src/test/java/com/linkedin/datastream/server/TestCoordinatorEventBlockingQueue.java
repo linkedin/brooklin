@@ -42,20 +42,20 @@ public class TestCoordinatorEventBlockingQueue {
   public void testHappyPath() throws Exception {
     CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
     eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true), false);
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false), true);
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true), false);
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"));
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"), false);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     Assert.assertEquals(eventBlockingQueue.size(), 5);
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(false));
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(true));
-    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
   }
 

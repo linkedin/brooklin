@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -136,7 +138,12 @@ public class TestCoordinator {
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster, Properties override) throws Exception {
-    return createCoordinator(zkAddr, cluster, override, new DummyTransportProviderAdminFactory());
+    return createCoordinator(zkAddr, cluster, override, new DummyTransportProviderAdminFactory(), Coordinator::new);
+  }
+
+  private Coordinator createCoordinator(String zkAddr, String cluster, Properties override,
+      TransportProviderAdminFactory transportProviderAdminFactory) throws Exception {
+    return createCoordinator(zkAddr, cluster, override, transportProviderAdminFactory, Coordinator::new);
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster, Properties override,
@@ -163,7 +170,7 @@ public class TestCoordinator {
   }
 
   private Coordinator createCoordinator(String zkAddr, String cluster, Properties override,
-      TransportProviderAdminFactory transportProviderAdminFactory) throws Exception {
+      TransportProviderAdminFactory transportProviderAdminFactory, CallableCoordinatorForTest callableCoordinatorForTest) throws Exception {
     Properties props = new Properties();
     props.put(CoordinatorConfig.CONFIG_CLUSTER, cluster);
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
@@ -172,7 +179,7 @@ public class TestCoordinator {
     props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
     _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
-    Coordinator coordinator = new Coordinator(_cachedDatastreamReader, props);
+    Coordinator coordinator = callableCoordinatorForTest.invoke(_cachedDatastreamReader, props);
     coordinator.addTransportProvider(DummyTransportProviderAdminFactory.PROVIDER_NAME,
         transportProviderAdminFactory.createTransportProviderAdmin(DummyTransportProviderAdminFactory.PROVIDER_NAME,
             new Properties()));
@@ -3943,6 +3950,60 @@ public class TestCoordinator {
     coordinator.stop();
     zkClient.close();
     coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testLeaderDoAssignmentForNewlyElectedLeaderFailurePath() throws Exception {
+    String testCluster = "testLeaderDoAssignmentForNewlyElectedLeaderFailurePath";
+    String connectorType = "connectorType";
+    String streamName = "testLeaderDoAssignmentForNewlyElectedLeaderFailurePath";
+
+    Queue<CoordinatorEvent> shadowCoordinatorQueue = new ArrayDeque<>();
+    Properties properties = new Properties();
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, properties, new DummyTransportProviderAdminFactory(),
+            (cachedDatastreamReader, props) -> new Coordinator(cachedDatastreamReader, props) {
+
+              // This override generates an exception while the newly elected leader performs pre assignment cleanup.
+              // The exception causes the handleLeaderDoAssignment handler to exit, along with inserting the same event
+              // in the queue for a reattempt.
+              @Override
+              protected void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
+                throw new RuntimeException("testing exception path in assignment cleanup routine");
+              }
+
+              // This override collects the coordinator queue events in a shadow queue for test purposes.
+              @Override
+              protected synchronized void handleEvent(CoordinatorEvent event) {
+                shadowCoordinatorQueue.add(event);
+                super.handleEvent(event);
+              }
+            });
+    TestHookConnector dummyConnector = new TestHookConnector("dummyConnector", connectorType);
+    coordinator.addConnector(connectorType, dummyConnector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testDatastream =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName)[0];
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+
+    // This is the event which should be added to the front of the queue once the handler exits on an exception.
+    CoordinatorEvent leaderDoAssignmentForNewlyElectedLeader =
+        new CoordinatorEvent(CoordinatorEvent.EventType.LEADER_DO_ASSIGNMENT, true);
+
+    // while-ing until the newly elected leader performs the handlerLeaderDoAssignment request for the first time.
+    while (!Objects.equals(shadowCoordinatorQueue.peek(), leaderDoAssignmentForNewlyElectedLeader)) {
+      shadowCoordinatorQueue.poll();
+    }
+
+    // As we expect the reattempt event to added to the front of the queue, the front of the queue should be the same.
+    Assert.assertEquals(shadowCoordinatorQueue.poll(), leaderDoAssignmentForNewlyElectedLeader);
   }
 
   // This helper function helps compare the requesting topics with the topics reflected in the server.

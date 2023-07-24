@@ -52,7 +52,7 @@ public class CoordinatorEvent {
     _eventMetadata = null;
   }
 
-  private CoordinatorEvent(EventType eventType, Object eventMetadata) {
+  protected CoordinatorEvent(EventType eventType, Object eventMetadata) {
     _eventType = eventType;
     _eventMetadata = eventMetadata;
   }
