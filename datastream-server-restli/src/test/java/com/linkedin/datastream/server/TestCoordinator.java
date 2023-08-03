@@ -4002,7 +4002,10 @@ public class TestCoordinator {
       shadowCoordinatorQueue.poll();
     }
 
-    // As we expect the reattempt event to added to the front of the queue, the front of the queue should be the same.
+    // Take out the initial leaderDoAssignmentForNewlyElectedLeader
+    shadowCoordinatorQueue.poll();
+
+    // As we expect the reattempt event to be added to the front, the front of the queue should now be the same.
     Assert.assertEquals(shadowCoordinatorQueue.poll(), leaderDoAssignmentForNewlyElectedLeader);
   }
 

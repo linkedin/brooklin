@@ -42,12 +42,12 @@ public class TestCoordinatorEventBlockingQueue {
   public void testHappyPath() throws Exception {
     CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
     eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true), false);
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false), true);
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(true), false);
+    eventBlockingQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    eventBlockingQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
     eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
-    eventBlockingQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"), false);
+    eventBlockingQueue.putFirst(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test2"));
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
     eventBlockingQueue.put(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);

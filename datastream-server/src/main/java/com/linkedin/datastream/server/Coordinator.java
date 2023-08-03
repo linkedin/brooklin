@@ -1527,7 +1527,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _leaderDoAssignmentScheduled.set(true);
     // scheduling LEADER_DO_ASSIGNMENT event instantly to prevent any other event being handled before the reattempt.
     _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader), false);
+      _eventQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
       _leaderDoAssignmentScheduled.set(false);
     }, 0, TimeUnit.MILLISECONDS);
   }

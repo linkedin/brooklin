@@ -81,11 +81,19 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
   }
 
   /**
+   * Add a single event to the queue. Adds the event to the front of the queue.
+   * @param event CoordinatorEvent event to add to the queue
+   */
+  public synchronized void putFirst(CoordinatorEvent event) {
+    put(event, false);
+  }
+
+  /**
    * Add a single event to the queue, de-duping events with the same name and same metadata.
    * @param event CoordinatorEvent event to add to the queue
    * @param insertInTheEnd if true, indicates to add the event to the end of the queue and front, otherwise.
    */
-  public synchronized void put(CoordinatorEvent event, boolean insertInTheEnd) {
+  private synchronized void put(CoordinatorEvent event, boolean insertInTheEnd) {
     LOG.info("Queuing event {} at the " + (insertInTheEnd ? "end" : "front") + " of the event queue", event.getType());
     if (_eventSet.contains(event)) {
       _counter.inc(); // count duplicate event
