@@ -80,12 +80,11 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   public Map<String, Set<DatastreamTask>> assignPartitions(
       ClusterThroughputInfo throughputInfo, Map<String, Set<DatastreamTask>> currentAssignment,
       List<String> unassignedPartitions, DatastreamGroupPartitionsMetadata partitionMetadata, int maxPartitionsPerTask) {
-    LOG.info("START: assignPartitions");
     String datastreamGroupName = partitionMetadata.getDatastreamGroup().getName();
+    LOG.info("START: assignPartitions for datasteam={}", datastreamGroupName);
     Map<String, PartitionThroughputInfo> partitionInfoMap = new HashMap<>(throughputInfo.getPartitionInfoMap());
     Set<String> tasksWithChangedPartition = new HashSet<>();
 
-    LOG.info("Filtering out tasks for the current datastream {}", datastreamGroupName);
     // filter out all the tasks for the current datastream group, and retain assignments in a map
     Map<String, Set<String>> newPartitionAssignmentMap = new HashMap<>();
     currentAssignment.values().forEach(tasks ->
@@ -216,7 +215,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     LOG.info("Assignment stats for {}. Min partitions across tasks: {}, max partitions across tasks: {}", taskPrefix,
         stats.getMin(), stats.getMax());
 
-    LOG.info("END: assignPartitions");
+    LOG.info("END: assignPartitions for datastream={}", datastreamGroupName);
     return newAssignments;
   }
 
