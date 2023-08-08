@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.AbstractMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.commons.lang3.Validate;
 import org.apache.zookeeper.CreateMode;
@@ -4007,6 +4009,69 @@ public class TestCoordinator {
 
     // As we expect the reattempt event to be added to the front, the front of the queue should now be the same.
     Assert.assertEquals(shadowCoordinatorQueue.poll(), leaderDoAssignmentForNewlyElectedLeader);
+  }
+
+  @Test
+  public void testLeaderDoAssignmentForNewlyElectedLeaderFailurePathVariation() throws Exception {
+    String testCluster = "testLeaderDoAssignmentForNewlyElectedLeaderFailurePathVariation";
+    String connectorType = "connectorType";
+    String streamName = "testLeaderDoAssignmentForNewlyElectedLeaderFailurePathVariation";
+
+    // This is the event which should be added to the front of the queue once the handler exits on an exception.
+    CoordinatorEvent leaderDoAssignmentForNewlyElectedLeader =
+        new CoordinatorEvent(CoordinatorEvent.EventType.LEADER_DO_ASSIGNMENT, true);
+
+    List<Map.Entry<CoordinatorEvent, CoordinatorEvent>>
+        shadowListWithPreviousAndNewHeadPairsAtNewLeaderDoAssignmentEvent = new ArrayList<>();
+
+    Properties properties = new Properties();
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, properties, new DummyTransportProviderAdminFactory(),
+            (cachedDatastreamReader, props) -> new Coordinator(cachedDatastreamReader, props) {
+
+              // This override generates an exception while the newly elected leader performs pre assignment cleanup.
+              // The exception causes the handleLeaderDoAssignment handler to exit, along with inserting the same event
+              // in the queue for a reattempt.
+              @Override
+              protected void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
+                throw new RuntimeException("testing exception path in assignment cleanup routine");
+              }
+
+              // This override collects the coordinator queue events in a shadow queue for test purposes.
+              @Override
+              protected synchronized void handleEvent(CoordinatorEvent event) {
+                CoordinatorEvent previousHead = peekCoordinatorEventBlockingQueue();
+                super.handleEvent(event);
+                CoordinatorEvent nextHead = peekCoordinatorEventBlockingQueue();
+
+                // recording previous and new heads of the CoordinatorEventBlockingQueue
+                if (event.equals(leaderDoAssignmentForNewlyElectedLeader)) {
+                  shadowListWithPreviousAndNewHeadPairsAtNewLeaderDoAssignmentEvent.add(
+                      new AbstractMap.SimpleEntry<>(previousHead, nextHead));
+                }
+              }
+            });
+    TestHookConnector dummyConnector = new TestHookConnector("dummyConnector", connectorType);
+    coordinator.addConnector(connectorType, dummyConnector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream testDatastream =
+        DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName)[0];
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+
+    // Comparing the previous and new head values when the NewLeaderDoAssignmentEvent fails.
+    IntStream.range(0, 3).forEach(index -> {
+      Assert.assertNotEquals(shadowListWithPreviousAndNewHeadPairsAtNewLeaderDoAssignmentEvent.get(index).getKey(),
+          leaderDoAssignmentForNewlyElectedLeader);
+      Assert.assertEquals(shadowListWithPreviousAndNewHeadPairsAtNewLeaderDoAssignmentEvent.get(index).getValue(),
+          leaderDoAssignmentForNewlyElectedLeader);
+    });
   }
 
   // This helper function helps compare the requesting topics with the topics reflected in the server.

@@ -2328,6 +2328,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   @VisibleForTesting
+  CoordinatorEvent peekCoordinatorEventBlockingQueue() {
+    return _eventQueue.peek();
+  }
+
+  @VisibleForTesting
   static String getNumThroughputViolatingTopicsMetricName() {
     return CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM;
   }

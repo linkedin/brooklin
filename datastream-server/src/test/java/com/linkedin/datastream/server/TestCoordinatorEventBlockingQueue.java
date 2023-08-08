@@ -59,6 +59,21 @@ public class TestCoordinatorEventBlockingQueue {
     Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
   }
 
+  @Test
+  public void testHappyPathWithDuplicatedPutFirstEventRequests() throws Exception {
+    CoordinatorEventBlockingQueue eventBlockingQueue = new CoordinatorEventBlockingQueue(SIMPLE_NAME);
+    eventBlockingQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+    eventBlockingQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    eventBlockingQueue.putFirst(CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
+    eventBlockingQueue.putFirst(CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
+    eventBlockingQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    Assert.assertEquals(eventBlockingQueue.size(), 4);
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(true));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.HANDLE_ASSIGNMENT_CHANGE_EVENT);
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderPartitionAssignmentEvent("test1"));
+    Assert.assertEquals(eventBlockingQueue.take(), CoordinatorEvent.createLeaderDoAssignmentEvent(false));
+  }
+
   /**
    * Verify metric registration.
    */

@@ -85,6 +85,15 @@ class CoordinatorEventBlockingQueue implements MetricsAware {
    * @param event CoordinatorEvent event to add to the queue
    */
   public synchronized void putFirst(CoordinatorEvent event) {
+    // If the requested event is already in the CoordinatorEventBlockingQueue, it will be removed to prioritize the
+    // event to be putFirst.
+    if (_eventSet.contains(event)) {
+      LOG.info("Prioritizing the event to be putFirst by removing the existing CoordinatorEvent " + event);
+      // Since the distinct content of the CoordinatorEventBlockingQueue is not anticipated to be extensive, the
+      // linear complexity removal operation deemed acceptable.
+      _eventQueue.remove(event);
+      _eventSet.remove(event);
+    }
     put(event, false);
   }
 
