@@ -4042,6 +4042,7 @@ public class TestCoordinator {
               protected synchronized void handleEvent(CoordinatorEvent event) {
                 CoordinatorEvent previousHead = peekCoordinatorEventBlockingQueue();
                 super.handleEvent(event);
+                PollUtils.poll(() -> peekCoordinatorEventBlockingQueue() != null, 50, 1000);
                 CoordinatorEvent nextHead = peekCoordinatorEventBlockingQueue();
 
                 // recording previous and new heads of the CoordinatorEventBlockingQueue
