@@ -834,7 +834,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _assignedDatastreamTasks.putAll(currentAssignment.values()
         .stream()
         .flatMap(Collection::stream)
-        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity())));
+        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity(),
+            (existingTask, duplicateTask) -> existingTask)));
     List<DatastreamTask> newAssignment = new ArrayList<>(_assignedDatastreamTasks.values());
 
     if ((totalTasks - submittedTasks) > 0) {
@@ -1524,10 +1525,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("Schedule retry for leader assigning tasks");
     _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.HANDLE_LEADER_DO_ASSIGNMENT_NUM_RETRIES, 1);
     _leaderDoAssignmentScheduled.set(true);
+    // scheduling LEADER_DO_ASSIGNMENT event instantly to prevent any other event being handled before the reattempt.
     _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
-      _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
+      _eventQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
       _leaderDoAssignmentScheduled.set(false);
-    }, _config.getRetryIntervalMs(), TimeUnit.MILLISECONDS);
+    }, 0, TimeUnit.MILLISECONDS);
   }
 
   @VisibleForTesting
@@ -1614,7 +1616,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
-  private void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
+  protected void performPreAssignmentCleanup(List<DatastreamGroup> datastreamGroups) {
 
     // Map between instance to tasks assigned to the instance.
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
@@ -2323,6 +2325,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   CoordinatorConfig getConfig() {
     return _config;
+  }
+
+  @VisibleForTesting
+  CoordinatorEvent peekCoordinatorEventBlockingQueue() {
+    return _eventQueue.peek();
   }
 
   @VisibleForTesting

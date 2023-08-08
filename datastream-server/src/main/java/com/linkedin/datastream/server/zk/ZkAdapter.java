@@ -759,10 +759,11 @@ public class ZkAdapter {
   private Map<DatastreamGroup, Set<String>> getStoppingDatastreamGroupInstances(
       List<DatastreamGroup> stoppingDatastreamGroups) {
     Map<String, Set<DatastreamTask>> currentAssignment = getAllAssignedDatastreamTasks();
-    Set<String> stoppingDatastreamTaskPrefixes = stoppingDatastreamGroups.stream().
-        map(DatastreamGroup::getTaskPrefix).collect(toSet());
-    Map<String, DatastreamGroup> taskPrefixDatastreamGroups = stoppingDatastreamGroups.stream().
-        collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, Function.identity()));
+    Set<String> stoppingDatastreamTaskPrefixes =
+        stoppingDatastreamGroups.stream().map(DatastreamGroup::getTaskPrefix).collect(toSet());
+    Map<String, DatastreamGroup> taskPrefixDatastreamGroups = stoppingDatastreamGroups.stream()
+        .collect(Collectors.toMap(DatastreamGroup::getTaskPrefix, Function.identity(),
+            (existingDatastreamGroup, duplicateDatastreamGroup) -> existingDatastreamGroup));
 
     Map<DatastreamGroup, Set<String>> stoppingDgInstances = new HashMap<>();
     currentAssignment.keySet()

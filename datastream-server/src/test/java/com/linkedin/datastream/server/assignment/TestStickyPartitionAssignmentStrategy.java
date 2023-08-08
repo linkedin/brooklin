@@ -758,6 +758,39 @@ public class TestStickyPartitionAssignmentStrategy {
     Assert.assertEquals(-1, getNumTasksForDatastreamFromZK(ds.get(0).getName()));
   }
 
+  @Test
+  public void testTasksCleanUpWithDuplicatesAcrossInstances() {
+    StickyPartitionAssignmentStrategy strategy =
+        createStickyPartitionAssignmentStrategy(3, 90, true, getZkClient(true), _clusterName);
+    List<DatastreamGroup> datastreams = generateDatastreams("testTasksCleanUpWithDuplicatesAcrossInstances", 1, 3);
+
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 2, 3, true);
+
+    List<String> newPartitions = ImmutableList.of("t-0", "t-1", "tt-0", "tt-1", "ttt-0", "ttt-1", "ttt-2");
+    assignment =
+        strategy.assignPartitions(assignment, new DatastreamGroupPartitionsMetadata(datastreams.get(0), newPartitions));
+
+    // This following snippet demonstrates a previous leader performing some task movements but got interrupted, OOMed
+    // or hit session expiry.
+    // The previous leader was able to add some tasks to the newer instance's assignment, but couldn't remove them from
+    // previous instance's assignment.
+    // The next leader should be able to identify and cleanup, even though there'll be duplicate tasks across instances.
+    DatastreamTask previousTask = null;
+    for (String instance : assignment.keySet()) {
+      if (previousTask != null) {
+        assignment.get(instance).add(previousTask);
+      }
+      previousTask = assignment.get(instance).iterator().next();
+    }
+
+    try {
+      Map<String, List<DatastreamTask>> taskToCleanup = strategy.getTasksToCleanUp(datastreams, assignment);
+      Assert.assertEquals(taskToCleanup.size(), 0);
+    } catch (Exception exception) {
+      Assert.fail("Received exception while finding tasks to be cleaned up", exception.getCause());
+    }
+  }
+
   private int getNumTasksForDatastreamFromZK(String taskPrefix) {
     String numTasksPath = KeyBuilder.datastreamNumTasks(_clusterName, taskPrefix);
     if (!_zkClient.exists(numTasksPath)) {

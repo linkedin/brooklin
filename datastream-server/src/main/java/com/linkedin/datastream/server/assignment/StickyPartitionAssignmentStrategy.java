@@ -487,7 +487,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     Map<String, DatastreamTask> assignmentsMap = currentAssignment.values()
         .stream()
         .flatMap(Collection::stream)
-        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity()));
+        .collect(Collectors.toMap(DatastreamTask::getDatastreamTaskName, Function.identity(),
+            (existingTask, duplicateTask) -> existingTask));
 
     for (String instance : currentAssignment.keySet()) {
       // find the dependency tasks which also exist in the assignmentsMap.
