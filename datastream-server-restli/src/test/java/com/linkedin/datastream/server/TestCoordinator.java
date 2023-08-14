@@ -4062,6 +4062,8 @@ public class TestCoordinator {
     Datastream testDatastream =
         DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, streamName)[0];
 
+    // Blocking until we have performed atleast 5 retries of LeaderDoAssignmentEvent with a newly elected leader.
+    PollUtils.poll(() -> shadowListWithPreviousAndNewHeadPairsAtNewLeaderDoAssignmentEvent.size() > 5, 50, 2000);
     coordinator.stop();
     zkClient.close();
     coordinator.getDatastreamCache().getZkclient().close();
