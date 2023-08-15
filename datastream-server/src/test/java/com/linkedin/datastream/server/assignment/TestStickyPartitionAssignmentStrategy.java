@@ -189,10 +189,10 @@ public class TestStickyPartitionAssignmentStrategy {
   }
 
   @Test
-  public void testTaskCleanupAcrossMultipleInstances() {
+  public void testTaskCleanUpAcrossMultipleInstances() {
     StickyPartitionAssignmentStrategy strategy =
         createStickyPartitionAssignmentStrategy(3, 90, true, getZkClient(true), _clusterName);
-    List<DatastreamGroup> datastreams = generateDatastreams("testTasksCleanUpWithDuplicatesAcrossInstances", 1, 3);
+    List<DatastreamGroup> datastreams = generateDatastreams("testTaskCleanUpAcrossMultipleInstances", 1, 3);
 
     Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 2, 3, true);
     assignment.put("instance1", new HashSet<>());
