@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -124,6 +127,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   // among Kafka consumer client metrics for different datastreams.
   private final boolean _includeDatastreamNameInConsumerClientId;
   private final String _destinationTopicPrefix;
+  private final long _hardCommitFlushTimeoutMs;
   private FlushlessEventProducerHandler<Long> _flushlessProducer = null;
   private boolean _flowControlEnabled = false;
   private long _maxInFlightMessagesThreshold;
@@ -151,6 +155,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _isIdentityMirroringEnabled = KafkaMirrorMakerDatastreamMetadata.isIdentityPartitioningEnabled(_datastream);
     _enablePartitionAssignment = config.getEnablePartitionAssignment();
     _includeDatastreamNameInConsumerClientId = config.getIncludeDatastreamNameInConsumerClientId();
+    _hardCommitFlushTimeoutMs = config.getHardCommitFlushTimeoutMs();
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
@@ -406,7 +411,11 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         try {
-          _datastreamTask.getEventProducer().flush();
+          Future<?> producerFlushFuture = Executors.newSingleThreadExecutor().
+              submit(() -> _datastreamTask.getEventProducer().flush());
+          producerFlushFuture.get(_hardCommitFlushTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+          LOG.warn("Producer flush failed with exception: ", ex);
         } finally {
           // Flushless mode tracks the successfully received acks, so it is safe to commit offsets even if flush throws
           // an exception. Commit the safe offsets to reduce send duplication.
