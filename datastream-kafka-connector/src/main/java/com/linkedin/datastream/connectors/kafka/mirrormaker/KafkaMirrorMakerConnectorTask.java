@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -134,6 +135,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
   private long _minInFlightMessagesThreshold;
   private int _flowControlTriggerCount = 0;
   private int _errorOnSendCallbackDuringShutdownCount = 0;
+  private ExecutorService _producerFlushExecutor;
 
   /**
    * Constructor for KafkaMirrorMakerConnectorTask
@@ -159,6 +161,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     _destinationTopicPrefix = task.getDatastreams().get(0).getMetadata()
         .getOrDefault(DatastreamMetadataConstants.DESTINATION_TOPIC_PREFIX, DEFAULT_DESTINATION_TOPIC_PREFIX);
     _dynamicMetricsManager = DynamicMetricsManager.getInstance();
+    _producerFlushExecutor = Executors.newSingleThreadExecutor();
 
     if (_enablePartitionAssignment) {
       LOG.info("Enable Brooklin partition assignment");
@@ -411,8 +414,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
       if (hardCommit) { // hard commit (flush and commit checkpoints)
         LOG.info("Calling flush on the producer.");
         try {
-          Future<?> producerFlushFuture = Executors.newSingleThreadExecutor().
-              submit(() -> _datastreamTask.getEventProducer().flush());
+          Future<?> producerFlushFuture = _producerFlushExecutor.submit(() -> _datastreamTask.getEventProducer().flush());
           producerFlushFuture.get(_hardCommitFlushTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
           LOG.warn("Producer flush failed with exception: ", ex);
@@ -470,6 +472,7 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
         }
       }
     }
+    _producerFlushExecutor.shutdown();
   }
 
   /**
