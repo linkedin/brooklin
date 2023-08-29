@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.NotNull;
 import org.testng.Assert;
@@ -184,6 +186,42 @@ public class TestStickyPartitionAssignmentStrategy {
       taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
       Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
     });
+  }
+
+  @Test
+  public void testTaskCleanUpAcrossMultipleInstances() {
+    StickyPartitionAssignmentStrategy strategy =
+        createStickyPartitionAssignmentStrategy(3, 90, true, getZkClient(true), _clusterName);
+    List<DatastreamGroup> datastreams = generateDatastreams("testTaskCleanUpAcrossMultipleInstances", 1, 3);
+
+    Map<String, Set<DatastreamTask>> assignment = generateEmptyAssignment(datastreams, 2, 3, true);
+    assignment.put("instance1", new HashSet<>());
+
+    DatastreamGroupPartitionsMetadata partitionsMetadata =
+        new DatastreamGroupPartitionsMetadata(datastreams.get(0), ImmutableList.of("t-0", "t-1", "t1-0"));
+
+    assignment = strategy.assignPartitions(assignment, partitionsMetadata);
+
+    DatastreamGroupPartitionsMetadata newPartitionsMetadata = new DatastreamGroupPartitionsMetadata(datastreams.get(0),
+        ImmutableList.of("t-0", "t-1", "t1-0", "t2-0", "t2-1", "t2-2"));
+
+    Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(assignment, newPartitionsMetadata);
+
+    // Adding the dependency task as well in the assignment list to simulate the scenario where
+    // the dependency task nodes are not deleted and the leader gets interrupted, OOM, hit session expiry or
+    // in some bad assignment state.
+    // The next leader should be able to identify and cleanup.
+    Map<String, Set<DatastreamTask>> finalAssignment = assignment;
+
+    // The dependency tasks went to other host as well due to bad assignment, and the next leader should
+    // handle this as well.
+    newAssignment.forEach((instance, taskSet1) -> taskSet1.addAll(
+        finalAssignment.values().stream().flatMap(Collection::stream).collect(Collectors.toList())));
+
+    Map<String, List<DatastreamTask>> taskToCleanup = strategy.getTasksToCleanUp(datastreams, newAssignment);
+    Assert.assertEquals(taskToCleanup.size(), 2);
+    taskToCleanup.forEach((instance, taskList1) -> Assert.assertEquals(taskList1.size(), 3));
+    Assert.assertEquals(new HashSet<>(taskToCleanup.get("instance0")), new HashSet<>(assignment.get("instance0")));
   }
 
   @Test
