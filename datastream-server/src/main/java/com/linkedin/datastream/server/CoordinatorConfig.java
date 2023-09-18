@@ -48,6 +48,8 @@ public final class CoordinatorConfig {
 
   public static final String CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING = PREFIX + "enableThroughputViolatingTopicsHandling";
 
+  public static final String CONFIG_OVERRIDE_DATASTREAM_UPDATE_CHECKS = PREFIX + "overrideDatastreamUpdateChecks";
+
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
   public static final long DEFAULT_TASK_STOP_CHECK_TIMEOUT_MS = 60 * 1000;
@@ -79,6 +81,7 @@ public final class CoordinatorConfig {
   private final long _markDatastreamsStoppedTimeoutMs;
   private final long _markDatastreamsStoppedRetryPeriodMs;
   private final boolean _enableThroughputViolatingTopicsHandling;
+  private final boolean _overrideDatastreamUpdateChecks;
 
 
   /**
@@ -117,6 +120,8 @@ public final class CoordinatorConfig {
         DEFAULT_MARK_DATASTREMS_STOPPED_RETRY_PERIOD_MS);
     _enableThroughputViolatingTopicsHandling = _properties.getBoolean(
         CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, false);
+    _overrideDatastreamUpdateChecks = _properties.getBoolean(
+        CONFIG_OVERRIDE_DATASTREAM_UPDATE_CHECKS, false);
   }
 
   public Properties getConfigProperties() {
@@ -211,5 +216,9 @@ public final class CoordinatorConfig {
 
   public long getMarkDatastreamsStoppedRetryPeriodMs() {
     return _markDatastreamsStoppedRetryPeriodMs;
+  }
+
+  public boolean getOverrideDatastreamUpdateChecks() {
+    return _overrideDatastreamUpdateChecks;
   }
 }
