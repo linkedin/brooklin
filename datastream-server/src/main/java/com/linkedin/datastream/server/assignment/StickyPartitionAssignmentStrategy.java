@@ -262,7 +262,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
           return task;
         } else {
           Set<String> newPartitions = new HashSet<>(task.getPartitionsV2());
-          newPartitions.retainAll(new HashSet<>(datastreamPartitions.getPartitions()));
+          newPartitions.retainAll(datastreamPartitions.getPartitions());
 
           //We need to create new task if the partition is changed
           boolean partitionChanged = newPartitions.size() != task.getPartitionsV2().size();
@@ -332,7 +332,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
 
     Set<String> allToReassignPartitions = new HashSet<>();
     targetAssignment.values().forEach(allToReassignPartitions::addAll);
-    allToReassignPartitions.retainAll(new HashSet<>(partitionsMetadata.getPartitions()));
+    allToReassignPartitions.retainAll(partitionsMetadata.getPartitions());
 
     // construct a map to store the tasks and if it contain the partitions that can be released
     // map: <source taskName, partitions that need to be released>

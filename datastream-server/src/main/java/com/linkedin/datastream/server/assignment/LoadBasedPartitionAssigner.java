@@ -91,7 +91,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
         tasks.forEach(task -> {
           if (task.getTaskPrefix().equals(datastreamGroupName)) {
             Set<String> retainedPartitions = new HashSet<>(task.getPartitionsV2());
-            retainedPartitions.retainAll(new HashSet<>(partitionMetadata.getPartitions()));
+            retainedPartitions.retainAll(partitionMetadata.getPartitions());
             newPartitionAssignmentMap.put(task.getId(), retainedPartitions);
             if (retainedPartitions.size() != task.getPartitionsV2().size()) {
               tasksWithChangedPartition.add(task.getId());
