@@ -181,7 +181,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
    * </ol>
    */
   private void doUpdateDatastreams(Map<String, Datastream> datastreamMap) {
-    LOG.info("Update datastream call with request: {}", datastreamMap);
+    LOG.info("[UPDATE] datastream called with request = {}", datastreamMap);
     _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, UPDATE_CALL, 1);
     if (datastreamMap.isEmpty()) {
       LOG.warn("Update datastream call with empty input.");
@@ -359,7 +359,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
-    LOG.info("Received request to pause datastream {}", datastream);
+    LOG.info("[PAUSE] datastream called for datastream = {}", datastream);
 
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
@@ -462,7 +462,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
-    LOG.info("Received request to stop datastream {}, force: {}", datastream, force);
+    LOG.info("[STOP] datastream called for datastream = {} with force = {}", datastream, force);
 
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
@@ -553,7 +553,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     String datastreamName = pathKeys.getAsString(KEY_NAME);
     Datastream datastream = _store.getDatastream(datastreamName);
 
-    LOG.info("Received request to resume datastream {}", datastream);
+    LOG.info("[RESUME] datastream called for datastream = {}", datastream);
 
     if (datastream == null) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_404_NOT_FOUND,
@@ -768,7 +768,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     }
 
     try {
-      LOG.info("[DELETE] operation called for datastream {} = {}", datastreamName, datastream);
+      LOG.info("[DELETE] datastream called for datastream {} = {}", datastreamName, datastream);
 
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, DELETE_CALL, 1);
       Instant startTime = Instant.now();
@@ -795,7 +795,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   public Datastream get(String name) {
     Datastream stream = null;
     try {
-      LOG.info("Get datastream called for datastream {}", name);
+      LOG.info("[GET] datastream called for datastream = {}", name);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_CALL, 1);
       stream = _store.getDatastream(name);
     } catch (Exception e) {
@@ -846,7 +846,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @Override
   public List<Datastream> getAll(@Context PagingContext pagingContext) {
     try {
-      LOG.info("Get all datastreams called with paging context {}", pagingContext);
+      LOG.info("[GET ALL] datastreams called with paging context = {}", pagingContext);
       _dynamicMetricsManager.createOrUpdateMeter(CLASS_NAME, GET_ALL_CALL, 1);
       Instant startTime = Instant.now();
       List<Datastream> ret = RestliUtils.withPaging(_store.getAllDatastreams(), pagingContext)
@@ -897,7 +897,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
   @Override
   public CreateResponse create(Datastream datastream) {
     try {
-      LOG.info("Create datastream called with datastream {}", datastream);
+      LOG.info("[CREATE] datastream called with datastream = {}", datastream);
       if (LOG.isDebugEnabled()) {
         LOG.debug("Handling request on object: {} thread: {}", this, Thread.currentThread());
       }
