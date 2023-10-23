@@ -27,6 +27,7 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.AssignmentTaskMapLogger;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
@@ -111,7 +112,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         currentAssignment, datastreamGroupName);
     List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
     int taskCount = assignedPartitionsAndTaskCount.getValue();
-    LOG.info("Old partition assignment info, assignment: {}", currentAssignment);
+    LOG.info("Logging old partition assignment info...");
+    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(currentAssignment, LOG);
+    assignmentLogger.logAssignment();
     Validate.isTrue(taskCount > 0, String.format("No tasks found for datastream group %s", datastreamGroup));
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment");

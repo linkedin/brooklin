@@ -49,6 +49,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.AssignmentTaskMapLogger;
 import com.linkedin.datastream.server.AssignmentToken;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -610,7 +611,9 @@ public class ZkAdapter {
    * have been cleaned up after each task reassignment.
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
-    LOG.info("All live tasks: " + _liveTaskMap);
+    LOG.info("Logging all live tasks...");
+    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(_liveTaskMap, LOG);
+    assignmentLogger.logAssignment();
     return new HashMap<>(_liveTaskMap);
   }
 
