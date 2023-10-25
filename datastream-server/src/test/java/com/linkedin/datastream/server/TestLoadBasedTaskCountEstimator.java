@@ -5,11 +5,11 @@
  */
 package com.linkedin.datastream.server;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -42,8 +42,8 @@ public class TestLoadBasedTaskCountEstimator {
   @Test
   public void emptyAssignmentReturnsZeroTasksTest() {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("pizza");
-    List<String> assignedPartitions = Collections.emptyList();
-    List<String> unassignedPartitions = Collections.emptyList();
+    Set<String> assignedPartitions = Collections.emptySet();
+    Set<String> unassignedPartitions = Collections.emptySet();
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
         TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");
@@ -53,9 +53,9 @@ public class TestLoadBasedTaskCountEstimator {
   @Test
   public void lowThroughputAssignmentReturnsOneTaskTest() {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("pizza");
-    List<String> assignedPartitions = new ArrayList<>();
+    Set<String> assignedPartitions = new HashSet<>();
     assignedPartitions.add("Pepperoni-1");
-    List<String> unassignedPartitions = Collections.emptyList();
+    Set<String> unassignedPartitions = Collections.emptySet();
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
         TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");
@@ -65,8 +65,8 @@ public class TestLoadBasedTaskCountEstimator {
   @Test
   public void highThroughputAssignmentTest() {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("ice-cream");
-    List<String> assignedPartitions = Collections.emptyList();
-    List<String> unassignedPartitions = new ArrayList<>(throughputInfo.getPartitionInfoMap().keySet());
+    Set<String> assignedPartitions = Collections.emptySet();
+    Set<String> unassignedPartitions = throughputInfo.getPartitionInfoMap().keySet();
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
         TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");
@@ -81,8 +81,8 @@ public class TestLoadBasedTaskCountEstimator {
   @Test
   public void highThroughputAssignmentTest2() {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("donut");
-    List<String> assignedPartitions = Collections.emptyList();
-    List<String> unassignedPartitions = new ArrayList<>(throughputInfo.getPartitionInfoMap().keySet());
+    Set<String> assignedPartitions = Collections.emptySet();
+    Set<String> unassignedPartitions = throughputInfo.getPartitionInfoMap().keySet();
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
         TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");
@@ -92,8 +92,8 @@ public class TestLoadBasedTaskCountEstimator {
   @Test
   public void partitionsHaveDefaultWeightTest() {
     ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", new HashMap<>());
-    List<String> assignedPartitions = Collections.emptyList();
-    List<String> unassignedPartitions = Arrays.asList("P1", "P2");
+    Set<String> assignedPartitions = Collections.emptySet();
+    Set<String> unassignedPartitions = new HashSet<>(Arrays.asList("P1", "P2"));
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
         TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");
@@ -103,8 +103,8 @@ public class TestLoadBasedTaskCountEstimator {
   @Test
   public void throughputTaskEstimatorWithTopicLevelInformation() {
     ClusterThroughputInfo throughputInfo = _provider.getThroughputInfo("fruit");
-    List<String> assignedPartitions = Collections.emptyList();
-    List<String> unassignedPartitions = Arrays.asList("apple-0", "apple-1", "apple-2", "banana-0");
+    Set<String> assignedPartitions = Collections.emptySet();
+    Set<String> unassignedPartitions = new HashSet<>(Arrays.asList("apple-0", "apple-1", "apple-2", "banana-0"));
     LoadBasedTaskCountEstimator estimator = new LoadBasedTaskCountEstimator(TASK_CAPACITY_MBPS,
         TASK_CAPACITY_UTILIZATION_PCT, DEFAULT_BYTES_IN_KB_RATE, DEFAULT_MSGS_IN_RATE);
     int taskCount = estimator.getTaskCount(throughputInfo, assignedPartitions, unassignedPartitions, "test");

@@ -107,9 +107,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     }
 
     String datastreamGroupName = datastreamGroup.getName();
-    Pair<List<String>, Integer> assignedPartitionsAndTaskCount = getAssignedPartitionsAndTaskCountForDatastreamGroup(
+    Pair<Set<String>, Integer> assignedPartitionsAndTaskCount = getAssignedPartitionsAndTaskCountForDatastreamGroup(
         currentAssignment, datastreamGroupName);
-    List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
+    Set<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
     int taskCount = assignedPartitionsAndTaskCount.getValue();
     LOG.info("Old partition assignment info, assignment: {}", currentAssignment);
     Validate.isTrue(taskCount > 0, String.format("No tasks found for datastream group %s", datastreamGroup));
@@ -117,7 +117,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         "Zero tasks assigned. Retry leader partition assignment");
 
     // Calculating unassigned partitions
-    List<String> unassignedPartitions = new ArrayList<>(datastreamPartitions.getPartitions());
+    Set<String> unassignedPartitions = datastreamPartitions.getPartitions();
     unassignedPartitions.removeAll(assignedPartitions);
 
     ClusterThroughputInfo clusterThroughputInfo = new ClusterThroughputInfo(StringUtils.EMPTY, Collections.emptyMap());
@@ -192,7 +192,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
 
   @VisibleForTesting
   Map<String, Set<DatastreamTask>> doAssignment(ClusterThroughputInfo clusterThroughputInfo,
-      Map<String, Set<DatastreamTask>> currentAssignment, List<String> unassignedPartitions,
+      Map<String, Set<DatastreamTask>> currentAssignment, Set<String> unassignedPartitions,
       DatastreamGroupPartitionsMetadata datastreamPartitions) {
     Map<String, Set<DatastreamTask>> assignment = _assigner.assignPartitions(
         clusterThroughputInfo, currentAssignment, unassignedPartitions, datastreamPartitions, _maxPartitionPerTask);

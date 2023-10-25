@@ -5,7 +5,6 @@
  */
 package com.linkedin.datastream.server.assignment;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,7 +55,7 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void assignFromScratchTest() {
-    List<String> unassignedPartitions = Arrays.asList("P1", "P2", "P3");
+    Set<String> unassignedPartitions = new HashSet<>(Arrays.asList("P1", "P2", "P3"));
     ClusterThroughputInfo throughputInfo = getDummyClusterThroughputInfo(unassignedPartitions);
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
@@ -107,9 +106,9 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void newAssignmentRetainsTasksFromOtherDatastreamsTest() {
-    List<String> assignedPartitions = Arrays.asList("P1", "P2");
-    List<String> unassignedPartitions = Collections.singletonList("P3");
-    List<String> allPartitions = new ArrayList<>(assignedPartitions);
+    Set<String> assignedPartitions = new HashSet<>(Arrays.asList("P1", "P2"));
+    Set<String> unassignedPartitions = Collections.singleton("P3");
+    Set<String> allPartitions = new HashSet<>(assignedPartitions);
     allPartitions.addAll(unassignedPartitions);
     ClusterThroughputInfo throughputInfo = getDummyClusterThroughputInfo(allPartitions);
 
@@ -169,7 +168,7 @@ public class TestLoadBasedPartitionAssigner {
   @Test
   public void assignmentDistributesPartitionsWhenThroughputInfoIsMissingTest() {
     // this tests the round-robin assignment of partitions that don't have throughput info
-    List<String> unassignedPartitions = Arrays.asList("P1", "P2", "P3", "P4");
+    Set<String> unassignedPartitions = new HashSet<>(Arrays.asList("P1", "P2", "P3", "P4"));
     ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", new HashMap<>());
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
@@ -208,7 +207,7 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void lightestTaskGetsNewPartitionTest() {
-    List<String> unassignedPartitions = Collections.singletonList("P4");
+    Set<String> unassignedPartitions = Collections.singleton("P4");
     Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
     throughputInfoMap.put("P1", new PartitionThroughputInfo(5, 5, "P1"));
     throughputInfoMap.put("P2", new PartitionThroughputInfo(5, 5, "P2"));
@@ -246,7 +245,7 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void lightestTaskGetsNewPartitionWithTopicMetricsTest() {
-    List<String> unassignedPartitions = Arrays.asList("P-2", "P-3");
+    Set<String> unassignedPartitions = new HashSet<>(Arrays.asList("P-2", "P-3"));
     Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
     throughputInfoMap.put("P-1", new PartitionThroughputInfo(5, 5, "P-1"));
     throughputInfoMap.put("R", new PartitionThroughputInfo(5, 5, "R"));
@@ -288,7 +287,7 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void throwsExceptionWhenNotEnoughRoomForAllPartitionsTest() {
-    List<String> unassignedPartitions = Arrays.asList("P4", "P5");
+    Set<String> unassignedPartitions = new HashSet<>(Arrays.asList("P4", "P5"));
     Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
     ClusterThroughputInfo throughputInfo = new ClusterThroughputInfo("dummy", throughputInfoMap);
 
@@ -312,7 +311,7 @@ public class TestLoadBasedPartitionAssigner {
 
   @Test
   public void taskWithRoomGetsNewPartitionTest() {
-    List<String> unassignedPartitions = Collections.singletonList("P4");
+    Set<String> unassignedPartitions = Collections.singleton("P4");
     Map<String, PartitionThroughputInfo> throughputInfoMap = new HashMap<>();
     throughputInfoMap.put("P1", new PartitionThroughputInfo(5, 5, "P1"));
     throughputInfoMap.put("P2", new PartitionThroughputInfo(5, 5, "P2"));
@@ -393,7 +392,7 @@ public class TestLoadBasedPartitionAssigner {
     return task;
   }
 
-  private ClusterThroughputInfo getDummyClusterThroughputInfo(List<String> partitions) {
+  private ClusterThroughputInfo getDummyClusterThroughputInfo(Set<String> partitions) {
     Map<String, PartitionThroughputInfo> partitionThroughputMap = new HashMap<>();
     for (String partitionName : partitions) {
       int bytesInRate = 5;

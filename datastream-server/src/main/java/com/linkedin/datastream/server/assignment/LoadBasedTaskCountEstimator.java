@@ -6,7 +6,6 @@
 package com.linkedin.datastream.server.assignment;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,13 +50,13 @@ public class LoadBasedTaskCountEstimator {
    * Gets the estimated number of tasks based on per-partition throughput information.
    * NOTE: This does not take into account numPartitionsPerTask configuration
    * @param throughputInfo Per-partition throughput information
-   * @param assignedPartitions The list of assigned partitions
-   * @param unassignedPartitions The list of unassigned partitions
+   * @param assignedPartitions The set of assigned partitions
+   * @param unassignedPartitions The set of unassigned partitions
    * @param datastreamName Name of the datastream
    * @return The estimated number of tasks
    */
-  public int getTaskCount(ClusterThroughputInfo throughputInfo, List<String> assignedPartitions,
-      List<String> unassignedPartitions, String datastreamName) {
+  public int getTaskCount(ClusterThroughputInfo throughputInfo, Set<String> assignedPartitions,
+      Set<String> unassignedPartitions, String datastreamName) {
     Validate.notNull(throughputInfo, "null throughputInfo");
     Validate.notNull(assignedPartitions, "null assignedPartitions");
     Validate.notNull(unassignedPartitions, "null unassignedPartitions");
