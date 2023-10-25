@@ -236,6 +236,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Lock _throughputViolatingTopicsMapWriteLock = _throughputViolatingTopicsMapReadWriteLock.writeLock();
   private final Lock _throughputViolatingTopicsMapReadLock = _throughputViolatingTopicsMapReadWriteLock.readLock();
 
+  // This CV helps to halt threads (zk callback threads, main server thread) before attempting to acquire the Coordinator's
+  // object. We never halt the event thread (coordinator thread) explicitly via this CV.
+  private final Object _conditionalVariableForCoordinatorObjectSynchronization = new Object();
+
   /**
    * Constructor for coordinator
    * @param datastreamCache Cache to maintain all the datastreams in the cluster.
@@ -332,12 +336,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
-  private synchronized boolean stopEventThread() {
+  private boolean stopEventThread() {
     // interrupt the thread if it's not gracefully shutdown
     while (_eventThread.isAlive()) {
+      // wait to acquire the Coordinator's object.
+      waitForNotificationFromEventThread();
       try {
-        _eventThread.interrupt();
-        _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
+        synchronized (this) {
+          _eventThread.interrupt();
+          _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
+        }
       } catch (InterruptedException e) {
         _log.warn("Exception caught while interrupting the event thread", e);
         return true;
@@ -346,14 +354,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return false;
   }
 
-  private synchronized boolean waitForEventThreadToJoin() {
+  private boolean waitForEventThreadToJoin() {
+    // wait to acquire the Coordinator's object
+    waitForNotificationFromEventThread();
     try {
-      _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
+      synchronized (this) {
+        _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
+      }
     } catch (InterruptedException e) {
       _log.warn("Exception caught while waiting the event thread to stop", e);
       return true;
     }
     return false;
+  }
+
+  // Waits for a notification from the event thread before acquiring the Coordinator's object.
+  private void waitForNotificationFromEventThread() {
+    try {
+      synchronized (_conditionalVariableForCoordinatorObjectSynchronization) {
+        _conditionalVariableForCoordinatorObjectSynchronization.wait();
+      }
+    } catch (InterruptedException e) {
+      _log.warn("Exception caught while waiting for the notification from the event thread", e);
+    }
   }
 
   /**
@@ -2305,6 +2328,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
             handleEvent(event);
+
+            // notify other threads which might be waiting on acquiring access on the Coordinator object.
+            synchronized (_conditionalVariableForCoordinatorObjectSynchronization) {
+              _conditionalVariableForCoordinatorObjectSynchronization.notifyAll();
+            }
           }
         } catch (InterruptedException e) {
           _log.warn("CoordinatorEventProcessor interrupted", e);
