@@ -630,7 +630,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
     Map<String, Optional<DatastreamGroupPartitionsMetadata>> partitionInfo = connector.getDatastreamPartitions();
     Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getDatastreamGroup().getName(),
         group.getTaskPrefix());
-    Assert.assertEquals(new HashSet<>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
+    Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getPartitions(),
         ImmutableSet.of(yummyTopic + "-0"));
 
     String saltyTopic = "SaltyPizza";
@@ -638,7 +638,7 @@ public class TestKafkaMirrorMakerConnector extends BaseKafkaZkTest {
 
     Assert.assertTrue(PollUtils.poll(() -> partitionChangeCalls.get() == 2, POLL_PERIOD_MS, POLL_TIMEOUT_MS));
     partitionInfo = connector.getDatastreamPartitions();
-    Assert.assertEquals(new HashSet<>(partitionInfo.get(group.getTaskPrefix()).get().getPartitions()),
+    Assert.assertEquals(partitionInfo.get(group.getTaskPrefix()).get().getPartitions(),
         ImmutableSet.of(yummyTopic + "-0", saltyTopic + "-0", saltyTopic + "-1"));
     connector.stop();
   }

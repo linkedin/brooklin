@@ -5,8 +5,11 @@
  */
 package com.linkedin.datastream.server;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.linkedin.datastream.common.LogUtils;
 
@@ -16,14 +19,23 @@ import com.linkedin.datastream.common.LogUtils;
 public class DatastreamGroupPartitionsMetadata {
 
   private final DatastreamGroup _datastreamGroup;
-  private final List<String> _partitions;
+  private final Set<String> _partitions;
 
   /**
    * constructor
    * @param datastreamGroup datastream group which handle the partitions
-   * @param partitions the partitions that belong to this datastream
+   * @param partitions the partitions in a list that belong to this datastream
    */
   public DatastreamGroupPartitionsMetadata(DatastreamGroup datastreamGroup, List<String> partitions) {
+    this(datastreamGroup, new HashSet<>(partitions));
+  }
+
+  /**
+   * constructor
+   * @param datastreamGroup datastream group which handle the partitions
+   * @param partitions the partitions in a set that belong to this datastream
+   */
+  public DatastreamGroupPartitionsMetadata(DatastreamGroup datastreamGroup, Set<String> partitions) {
     _datastreamGroup = datastreamGroup;
     _partitions = partitions;
   }
@@ -32,12 +44,13 @@ public class DatastreamGroupPartitionsMetadata {
     return _datastreamGroup;
   }
 
-  public List<String> getPartitions() {
-    return Collections.unmodifiableList(_partitions);
+  public Set<String> getPartitions() {
+    return Collections.unmodifiableSet(_partitions);
   }
 
   @Override
   public String toString() {
-    return String.format("datastream %s, partitions %s", _datastreamGroup.getName(), LogUtils.logSummarizedTopicPartitionsMapping(_partitions));
+    return String.format("datastream %s, partitions %s", _datastreamGroup.getName(),
+        LogUtils.logSummarizedTopicPartitionsMapping(new ArrayList<>(_partitions)));
   }
 }
