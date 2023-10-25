@@ -236,7 +236,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Lock _throughputViolatingTopicsMapWriteLock = _throughputViolatingTopicsMapReadWriteLock.writeLock();
   private final Lock _throughputViolatingTopicsMapReadLock = _throughputViolatingTopicsMapReadWriteLock.readLock();
 
-  // This CV helps to halt threads (zk callback threads, main server thread) before attempting to acquire the Coordinator's
+  // This CV helps to halt threads (zk callback threads, main server thread) before attempting to acquire the Coordinator
   // object. We never halt the event thread (coordinator thread) explicitly via this CV.
   private final Object _conditionalVariableForCoordinatorObjectSynchronization = new Object();
 
@@ -339,10 +339,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private boolean stopEventThread() {
     // interrupt the thread if it's not gracefully shutdown
     while (_eventThread.isAlive()) {
-      // wait to acquire the Coordinator's object.
+      // wait to acquire the Coordinator object.
       waitForNotificationFromEventThread();
       try {
         synchronized (this) {
+          _log.info("Attempting to interrupt the event thread.");
           _eventThread.interrupt();
           _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
         }
@@ -355,10 +356,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private boolean waitForEventThreadToJoin() {
-    // wait to acquire the Coordinator's object
+    // wait to acquire the Coordinator object
     waitForNotificationFromEventThread();
     try {
       synchronized (this) {
+        _log.info("Waiting for {} milliseconds for the event thread to die.", EVENT_THREAD_LONG_JOIN_TIMEOUT);
         _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
       }
     } catch (InterruptedException e) {
@@ -368,10 +370,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return false;
   }
 
-  // Waits for a notification from the event thread before acquiring the Coordinator's object.
+  // Waits for a notification from the event thread before acquiring the Coordinator object.
   private void waitForNotificationFromEventThread() {
     try {
       synchronized (_conditionalVariableForCoordinatorObjectSynchronization) {
+        _log.info("Waiting for notification from the event thread before attempting to acquire the Coordinator object.");
         _conditionalVariableForCoordinatorObjectSynchronization.wait();
       }
     } catch (InterruptedException e) {
