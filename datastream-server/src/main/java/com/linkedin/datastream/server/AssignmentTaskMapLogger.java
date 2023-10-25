@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 public class AssignmentTaskMapLogger {
   private final Map<String, Set<DatastreamTask>> _taskMap;
   private final Logger _log;
+  private static final double BUFFER_1KB =  1.0 / 1024.0;
+  private static final int NUM_OF_CHAR_IN_1MB = 1024 * 1024 / 2;
 
   /**
    * Constructor
@@ -54,8 +56,8 @@ public class AssignmentTaskMapLogger {
           _log.info("Host={}: Live task (part {})={}", host, part, task);
         }
       } else {
-        _log.info("Host={}: Live task (part {})={}", host, part, task.substring(0, 1024 * 1024));
-        logTask(task.substring(1024 * 1024), host, part + 1);
+        _log.info("Host={}: Live task (part {})={}", host, part, task.substring(0, NUM_OF_CHAR_IN_1MB));
+        logTask(task.substring(NUM_OF_CHAR_IN_1MB), host, part + 1);
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -85,6 +87,6 @@ public class AssignmentTaskMapLogger {
   public boolean isLessThan1MB(Object obj) throws Exception {
     byte[] serializedData = serializeObject(obj);
     double sizeInMB = serializedData.length / 1024.0 / 1024.0;
-    return sizeInMB < 1.0;
+    return sizeInMB + BUFFER_1KB < 1.0;
   }
 }
