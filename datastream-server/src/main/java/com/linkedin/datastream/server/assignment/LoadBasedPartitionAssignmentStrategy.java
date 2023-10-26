@@ -7,6 +7,7 @@ package com.linkedin.datastream.server.assignment;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -117,7 +118,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         "Zero tasks assigned. Retry leader partition assignment");
 
     // Calculating unassigned partitions
-    Set<String> unassignedPartitions = datastreamPartitions.getPartitions();
+    Set<String> unassignedPartitions = new HashSet<>(datastreamPartitions.getPartitions());
     unassignedPartitions.removeAll(assignedPartitions);
 
     ClusterThroughputInfo clusterThroughputInfo = new ClusterThroughputInfo(StringUtils.EMPTY, Collections.emptyMap());
