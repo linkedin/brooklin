@@ -4088,13 +4088,13 @@ public class TestCoordinator {
     // custom heartbeat period of 2 second.
     properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(testHeartbeatPeriod));
 
-    final Coordinator.CoordinatorEventProcessor[] _testCoordinatorEventProcessor = {null};
+    final Coordinator.CoordinatorEventProcessor[] testCoordinatorEventProcessor = {null};
     Coordinator coordinator =
         createCoordinator(_zkConnectionString, testCluster, properties, new DummyTransportProviderAdminFactory(),
             (cachedDatastreamReader, props) -> new Coordinator(cachedDatastreamReader, props) {
               @Override
               protected synchronized void createEventThread() {
-                _testCoordinatorEventProcessor[0] = new CoordinatorEventProcessor() {
+                testCoordinatorEventProcessor[0] = new CoordinatorEventProcessor() {
                   // Mimicking the coordinator's event thread's runnable method.
                   // 1. Sleeping before calling handleEvent to let zk session expiry
                   //    thread acquire coordinator object before event thread enters
@@ -4133,12 +4133,12 @@ public class TestCoordinator {
                     super.notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
-                _testCoordinatorEventProcessor[0].setDaemon(true);
+                testCoordinatorEventProcessor[0].setDaemon(true);
               }
 
               @Override
               CoordinatorEventProcessor getEventThread() {
-                return _testCoordinatorEventProcessor[0];
+                return testCoordinatorEventProcessor[0];
               }
             });
 
@@ -4166,13 +4166,13 @@ public class TestCoordinator {
     // custom heartbeat period of 2 second.
     properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(testHeartbeatPeriod));
 
-    final Coordinator.CoordinatorEventProcessor[] _testCoordinatorEventProcessor = {null};
+    final Coordinator.CoordinatorEventProcessor[] testCoordinatorEventProcessor = {null};
     Coordinator coordinator =
         createCoordinator(_zkConnectionString, testCluster, properties, new DummyTransportProviderAdminFactory(),
             (cachedDatastreamReader, props) -> new Coordinator(cachedDatastreamReader, props) {
               @Override
               protected synchronized void createEventThread() {
-                _testCoordinatorEventProcessor[0] = new CoordinatorEventProcessor() {
+                testCoordinatorEventProcessor[0] = new CoordinatorEventProcessor() {
                   // Mimicking the coordinator's event thread's runnable method.
                   // 1. Handling a No-Op Event.
                   // 2. Sleeping after calling handleEvent to let zk session expiry
@@ -4211,12 +4211,12 @@ public class TestCoordinator {
                     super.notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
-                _testCoordinatorEventProcessor[0].setDaemon(true);
+                testCoordinatorEventProcessor[0].setDaemon(true);
               }
 
               @Override
               CoordinatorEventProcessor getEventThread() {
-                return _testCoordinatorEventProcessor[0];
+                return testCoordinatorEventProcessor[0];
               }
             });
 
