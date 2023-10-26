@@ -325,29 +325,31 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
-  private synchronized void createEventThread() {
+  protected synchronized void createEventThread() {
     _eventThread = new CoordinatorEventProcessor();
     _eventThread.setDaemon(true);
   }
 
   private synchronized void startEventThread() {
     if (!_shutdown) {
-      _eventThread.start();
+      CoordinatorEventProcessor eventThread = getEventThread();
+      eventThread.start();
     }
   }
 
   private boolean stopEventThread() {
     // interrupt the thread if it's not gracefully shutdown
-    while (_eventThread.isAlive()) {
-      // wait to acquire the Coordinator object for a maximum of _heartbeat period.
-      // the time bound waiting prevents the caller thread to not infinitely wait if
-      // the event thread is shutdown already.
+    CoordinatorEventProcessor eventThread = getEventThread();
+    while (eventThread.isAlive()) {
+      // Waits to acquire the Coordinator object for a maximum of _heartbeat period.
+      // The time bound waiting prevents the caller thread to not infinitely wait if
+      // the event thread is already shutdown.
       waitForNotificationFromEventThread(_heartbeatPeriod);
       try {
         synchronized (this) {
           _log.info("Attempting to interrupt the event thread.");
-          _eventThread.interrupt();
-          _eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
+          eventThread.interrupt();
+          eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
         }
       } catch (InterruptedException e) {
         _log.warn("Exception caught while interrupting the event thread", e);
@@ -357,15 +359,20 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return false;
   }
 
+  // Waiting for the event thread to die.
   private boolean waitForEventThreadToJoin() {
-    // wait to acquire the Coordinator object for a maximum of _heartbeat period.
-    // the time bound waiting prevents the caller thread to not infinitely wait if
-    // the event thread is shutdown already.
+    CoordinatorEventProcessor eventThread = getEventThread();
+    if (!eventThread.isAlive()) {
+      return false;
+    }
+    // Waits to acquire the Coordinator object for a maximum of _heartbeat period.
+    // The time bound waiting prevents the caller thread to not infinitely wait if
+    // the event thread is already shutdown.
     waitForNotificationFromEventThread(_heartbeatPeriod);
     try {
       synchronized (this) {
         _log.info("Waiting for {} milliseconds for the event thread to die.", EVENT_THREAD_LONG_JOIN_TIMEOUT);
-        _eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
+        eventThread.join(EVENT_THREAD_LONG_JOIN_TIMEOUT);
       }
     } catch (InterruptedException e) {
       _log.warn("Exception caught while waiting the event thread to stop", e);
@@ -2328,7 +2335,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     return _datastreamCache;
   }
 
-  private class CoordinatorEventProcessor extends Thread {
+  protected class CoordinatorEventProcessor extends Thread {
     @Override
     public void run() {
       _log.info("START CoordinatorEventProcessor thread");
@@ -2337,11 +2344,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
             handleEvent(event);
-
             // notify other threads which might be waiting on acquiring access on the Coordinator object.
-            synchronized (_conditionalVariableForCoordinatorObjectSynchronization) {
-              _conditionalVariableForCoordinatorObjectSynchronization.notifyAll();
-            }
+            notifyThreadsWaitingForCoordinatorObjectSynchronization();
           }
         } catch (InterruptedException e) {
           _log.warn("CoordinatorEventProcessor interrupted", e);
@@ -2351,6 +2355,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         }
       }
       _log.info("END CoordinatorEventProcessor");
+    }
+
+    protected void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
+      synchronized (_conditionalVariableForCoordinatorObjectSynchronization) {
+        _conditionalVariableForCoordinatorObjectSynchronization.notifyAll();
+      }
     }
   }
 
