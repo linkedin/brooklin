@@ -374,14 +374,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   // Waits for a notification for specified duration from the event thread before acquiring the Coordinator object.
-  private void waitForNotificationFromEventThread(Duration duration) {
+  private synchronized void waitForNotificationFromEventThread(Duration duration) {
     try {
       // This intrinsic conditional variable helps to halt threads (zk callback threads, main server thread) before
       // attempting to acquire the Coordinator object. We never halt the event thread (coordinator thread)
       // explicitly via this CV.
-      wait(duration.toMillis());
-    } catch (InterruptedException e) {
-      _log.warn("Exception caught while waiting for the notification from the event thread", e);
+      _log.info("Thread {} will wait for notification from the event thread for {} ms.",
+          Thread.currentThread().getName(), duration.toMillis());
+      this.wait(duration.toMillis());
+    } catch (InterruptedException exception) {
+      _log.warn("Exception caught while waiting for the notification from the event thread", exception);
     }
   }
 
@@ -2235,6 +2237,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             existingStream.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
   }
 
+  // Via the intrinsic conditional variable, notify other threads that might
+  // be waiting on acquiring access on the Coordinator object.
+  // We are only calling notify on the synchronized Coordinator Object's ("this") waiting threads.
+  // Suppressing the Naked_Notify warning on this.
+  protected synchronized void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
+    this.notifyAll();
+  }
+
   @Override
   public List<BrooklinMetricInfo> getMetricInfos() {
     return _metrics.getMetricInfos();
@@ -2344,12 +2354,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         }
       }
       _log.info("END CoordinatorEventProcessor");
-    }
-
-    // Via the intrinsic conditional variable, notify other threads that might
-    // be waiting on acquiring access on the Coordinator object.
-    protected synchronized void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
-      notifyAll();
     }
   }
 

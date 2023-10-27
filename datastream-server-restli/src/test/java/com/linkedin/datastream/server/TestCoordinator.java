@@ -4127,11 +4127,6 @@ public class TestCoordinator {
                       }
                     }
                   }
-
-                  @Override
-                  protected void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
-                    super.notifyThreadsWaitingForCoordinatorObjectSynchronization();
-                  }
                 };
                 testCoordinatorEventProcessor[0].setDaemon(true);
               }
@@ -4204,11 +4199,6 @@ public class TestCoordinator {
                         break;
                       }
                     }
-                  }
-
-                  @Override
-                  protected void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
-                    super.notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
                 testCoordinatorEventProcessor[0].setDaemon(true);

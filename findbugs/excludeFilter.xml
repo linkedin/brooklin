@@ -29,4 +29,11 @@
     <Class name="com.linkedin.datastream.common.zk.ZkClient" />
     <Bug pattern="NM_SAME_SIMPLE_NAME_AS_SUPERCLASS" />
   </Match>
+
+  <!-- Suppress warning about naked notify on the synchronized coordinator object -->
+  <!-- The threads are to be waiting and notifying on the synchronized coordinator object only -->
+  <Match>
+    <Class name="com.linkedin.datastream.server.Coordinator" />
+    <Bug pattern="NN_NAKED_NOTIFY" />
+  </Match>
 </FindBugsFilter>
