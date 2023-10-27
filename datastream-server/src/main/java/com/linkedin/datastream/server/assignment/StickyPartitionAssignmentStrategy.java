@@ -185,9 +185,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     return resolveConfigWithMetadata(datastreamGroup, CFG_PARTITIONS_PER_TASK, _partitionsPerTask);
   }
 
-  protected Pair<List<String>, Integer> getAssignedPartitionsAndTaskCountForDatastreamGroup(
+  protected Pair<Set<String>, Integer> getAssignedPartitionsAndTaskCountForDatastreamGroup(
       Map<String, Set<DatastreamTask>> currentAssignment, String datastreamGroupName) {
-    List<String> assignedPartitions = new ArrayList<>();
+    Set<String> assignedPartitions = new HashSet<>();
     int taskCount = 0;
     for (Set<DatastreamTask> tasks : currentAssignment.values()) {
       Set<DatastreamTask> dgTask = tasks.stream().filter(t -> datastreamGroupName.equals(t.getTaskPrefix()))
@@ -218,9 +218,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     String dgName = datastreamGroup.getName();
 
     // Step 1: collect the # of tasks and figured out the unassigned partitions
-    Pair<List<String>, Integer> assignedPartitionsAndTaskCount =
+    Pair<Set<String>, Integer> assignedPartitionsAndTaskCount =
         getAssignedPartitionsAndTaskCountForDatastreamGroup(currentAssignment, dgName);
-    List<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
+    Set<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
     int totalTaskCount = assignedPartitionsAndTaskCount.getValue();
     Validate.isTrue(totalTaskCount > 0, String.format("No tasks found for datastream group %s", dgName));
 
