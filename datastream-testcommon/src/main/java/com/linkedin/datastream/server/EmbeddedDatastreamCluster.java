@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -140,6 +141,7 @@ public class EmbeddedDatastreamCluster {
       Map<String, Properties> connectorProperties, Properties override, KafkaCluster kafkaCluster) {
     String connectorTypes = String.join(",", connectorProperties.keySet());
     Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
     properties.put(DatastreamServerConfigurationConstants.CONFIG_CLUSTER_NAME, "DatastreamCluster");
     properties.put(DatastreamServerConfigurationConstants.CONFIG_ZK_ADDRESS, zkConnectionString);
     properties.put(DatastreamServerConfigurationConstants.CONFIG_HTTP_PORT, String.valueOf(httpPort));
