@@ -155,6 +155,9 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    if (!props.containsKey(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS)) {
+      props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
+    }
     props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
     _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
@@ -178,6 +181,9 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    if (!props.containsKey(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS)) {
+      props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
+    }
     props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
     _cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
@@ -2986,6 +2992,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3098,6 +3105,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(true));
     props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, String.valueOf(1000));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3185,6 +3193,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_REINIT_ON_NEW_ZK_SESSION, String.valueOf(handleNewSession));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3275,6 +3284,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3341,6 +3351,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_TASK_STOP_CHECK_TIMEOUT_MS, "100");
     props.put(CoordinatorConfig.CONFIG_TASK_STOP_CHECK_RETRY_PERIOD_MS, "10");
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3419,6 +3430,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(false));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3452,6 +3464,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(true));
     props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, String.valueOf(6000));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -3503,6 +3516,7 @@ public class TestCoordinator {
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ENABLE_ASSIGNMENT_TOKENS, String.valueOf(true));
     props.put(CoordinatorConfig.CONFIG_STOP_PROPAGATION_TIMEOUT_MS, String.valueOf(6000));
+    props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     _cachedDatastreamReader = new CachedDatastreamReader(zkClient, testCluster);
@@ -4075,6 +4089,153 @@ public class TestCoordinator {
       Assert.assertEquals(shadowListWithPreviousAndNewHeadPairsAtNewLeaderDoAssignmentEvent.get(index).getValue(),
           leaderDoAssignmentForNewlyElectedLeader);
     });
+  }
+
+  @Test
+  public void testSessionExpiryCallbackThreadAttemptingToAcquireCoordinatorObjectBeforeHandlingEvent() throws Exception {
+    String testCluster = "dummyCluster";
+    long testHeartbeatPeriod = Duration.ofSeconds(2).toMillis();
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    properties.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    // custom heartbeat period of 2 second.
+    properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(testHeartbeatPeriod));
+
+    final Coordinator.CoordinatorEventProcessor[] testCoordinatorEventProcessor = {null};
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, properties, new DummyTransportProviderAdminFactory(),
+            (cachedDatastreamReader, props) -> new Coordinator(cachedDatastreamReader, props) {
+              @Override
+              protected synchronized void createEventThread() {
+                testCoordinatorEventProcessor[0] = new CoordinatorEventProcessor() {
+                  // Mimicking the coordinator's event thread's runnable method.
+                  // 1. Sleeping before calling handleEvent to let zk session expiry
+                  //    thread acquire coordinator object before event thread enters
+                  //    handleEvent.
+                  // 2. Handling a No-Op Event.
+                  // 3. Notifying the zk session expiry threads to attempt acquiring the
+                  //    coordinator object.
+                  @Override
+                  public void run() {
+                    // This flag will be enabled when an interrupt was called
+                    // on the event thread while the event thread was sleeping.
+                    boolean isInterruptedInSleep = false;
+                    while (!isInterrupted()) {
+                      try {
+                        // Step 1
+                        // Making sure we sleep for more than heartbeat period to
+                        // mock the scenario where the zk session expiry thread
+                        // acquires the coordinator object before the event thread does.
+                        Thread.sleep(testHeartbeatPeriod + Duration.ofMillis(500).toMillis());
+                      } catch (InterruptedException e) {
+                        isInterruptedInSleep = true;
+                      }
+                      // Step 2
+                      // Handling an event requires acquiring the coordinator's object.
+                      handleEvent(new CoordinatorEvent(CoordinatorEvent.EventType.NO_OP, null));
+                      // Step 3
+                      notifyThreadsWaitingForCoordinatorObjectSynchronization();
+                      if (isInterruptedInSleep) {
+                        break;
+                      }
+                    }
+                  }
+                };
+                testCoordinatorEventProcessor[0].setDaemon(true);
+              }
+
+              @Override
+              CoordinatorEventProcessor getEventThread() {
+                return testCoordinatorEventProcessor[0];
+              }
+            });
+
+    coordinator.start();
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    coordinator.onSessionExpired();
+    Assert.assertTrue(PollUtils.poll(coordinator::isZkSessionExpired, 100, testHeartbeatPeriod));
+    // Making sure we don't run into a deadlock scenario.
+    Assert.assertTrue(PollUtils.poll(() -> !coordinator.getEventThread().isAlive(), 100, testHeartbeatPeriod));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testSessionExpiryCallbackThreadAttemptingToAcquireCoordinatorObjectAfterHandlingEvent() throws Exception {
+    String testCluster = "dummyCluster";
+    long testHeartbeatPeriod = Duration.ofSeconds(2).toMillis();
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
+    properties.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
+    // custom heartbeat period of 2 second.
+    properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(testHeartbeatPeriod));
+
+    final Coordinator.CoordinatorEventProcessor[] testCoordinatorEventProcessor = {null};
+    Coordinator coordinator =
+        createCoordinator(_zkConnectionString, testCluster, properties, new DummyTransportProviderAdminFactory(),
+            (cachedDatastreamReader, props) -> new Coordinator(cachedDatastreamReader, props) {
+              @Override
+              protected synchronized void createEventThread() {
+                testCoordinatorEventProcessor[0] = new CoordinatorEventProcessor() {
+                  // Mimicking the coordinator's event thread's runnable method.
+                  // 1. Handling a No-Op Event.
+                  // 2. Sleeping after calling handleEvent to let zk session expiry
+                  //    thread wait for notification from event thread to access coordinator
+                  //    object.
+                  // 3. Notifying the zk session expiry threads to attempt acquiring the
+                  //    coordinator object.
+                  @Override
+                  public void run() {
+                    // This flag will be enabled when an interrupt was called
+                    // on the event thread while the event thread was sleeping.
+                    boolean isInterruptedInSleep = false;
+                    // Step 1
+                    // Handling an event requires acquiring the coordinator's object.
+                    handleEvent(new CoordinatorEvent(CoordinatorEvent.EventType.NO_OP, null));
+                    while (!isInterrupted()) {
+                      try {
+                        // Step 2
+                        // Making sure we sleep for less than heartbeat period to
+                        // mock the scenario where the zk session expiry thread
+                        // is waiting for notification from the event thread.
+                        Thread.sleep(testHeartbeatPeriod - Duration.ofMillis(500).toMillis());
+                      } catch (InterruptedException e) {
+                        isInterruptedInSleep = true;
+                      }
+                      // Step 3
+                      notifyThreadsWaitingForCoordinatorObjectSynchronization();
+                      if (isInterruptedInSleep) {
+                        break;
+                      }
+                    }
+                  }
+                };
+                testCoordinatorEventProcessor[0].setDaemon(true);
+              }
+
+              @Override
+              CoordinatorEventProcessor getEventThread() {
+                return testCoordinatorEventProcessor[0];
+              }
+            });
+
+
+    coordinator.start();
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    coordinator.onSessionExpired();
+    Assert.assertTrue(PollUtils.poll(coordinator::isZkSessionExpired, 100, testHeartbeatPeriod));
+    // Making sure we don't run into a deadlock scenario.
+    Assert.assertTrue(PollUtils.poll(() -> !coordinator.getEventThread().isAlive(), 100, testHeartbeatPeriod));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
   }
 
   // This helper function helps compare the requesting topics with the topics reflected in the server.

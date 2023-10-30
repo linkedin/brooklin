@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.connectors.kafka;
 
+import java.time.Duration;
 import java.util.Properties;
 
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -41,6 +42,9 @@ public class TestKafkaConnectorUtils {
     props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, zkAddr);
     props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
     props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    if (!props.containsKey(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS)) {
+      props.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(Duration.ofSeconds(1).toMillis()));
+    }
     props.putAll(override);
     ZkClient client = new ZkClient(zkAddr);
     CachedDatastreamReader cachedDatastreamReader = new CachedDatastreamReader(client, cluster);
