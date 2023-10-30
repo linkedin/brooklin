@@ -638,7 +638,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     threadPoolExecutor.submit(() -> {
       Instant start = Instant.now();
       try {
-        getAssignmentsFuture(assignmentChangeFutures, start);
+        getAssignmentsFuture(assignmentChangeFutures, start, false);
       } catch (Exception e) {
         _log.warn("Hit exception while clearing the assignment list", e);
       } finally {
@@ -670,7 +670,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _zkSessionExpired = false;
   }
 
-  private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start)
+  private void getAssignmentsFuture(List<Future<Boolean>> assignmentChangeFutures, Instant start,
+      boolean isDatastreamUpdate)
       throws TimeoutException, InterruptedException {
     for (Future<Boolean> assignmentChangeFuture : assignmentChangeFutures) {
       if (Duration.between(start, Instant.now()).compareTo(ASSIGNMENT_TIMEOUT) > 0) {
@@ -680,6 +681,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         assignmentChangeFuture.get(ASSIGNMENT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       } catch (ExecutionException e) {
         _log.warn("onAssignmentChange call threw exception", e);
+        EventType meter = isDatastreamUpdate ? HANDLE_DATASTREAM_CHANGE_WITH_UPDATE : HANDLE_ASSIGNMENT_CHANGE;
+        _metrics.updateKeyedMeter(CoordinatorMetrics.getKeyedMeter(meter), 1);
       }
     }
   }
@@ -737,11 +740,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           "onAssignmentChange retries reached threshold of {}. Not queuing further retry on onAssignmentChange event.",
           _config.getMaxAssignmentRetryCount());
       queueEvent = false;
-    }
 
-    EventType meter = isDatastreamUpdate ? HANDLE_DATASTREAM_CHANGE_WITH_UPDATE : HANDLE_ASSIGNMENT_CHANGE;
-    _log.warn("Updating metric for event " + meter);
-    _metrics.updateKeyedMeter(CoordinatorMetrics.getKeyedMeter(meter), 1);
+      EventType meter = isDatastreamUpdate ? HANDLE_DATASTREAM_CHANGE_WITH_UPDATE : HANDLE_ASSIGNMENT_CHANGE;
+      _log.warn("Updating metric for event " + meter);
+      _metrics.updateKeyedMeter(CoordinatorMetrics.getKeyedMeter(meter), 1);
+    }
 
     if (queueEvent) {
       _log.warn("Queuing onAssignmentChange event");
@@ -816,7 +819,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Wait till all the futures are complete or timeout.
     Instant start = Instant.now();
     try {
-      getAssignmentsFuture(assignmentChangeFutures, start);
+      getAssignmentsFuture(assignmentChangeFutures, start, isDatastreamUpdate);
     } catch (TimeoutException e) {
       // if it's timeout then we will retry
       _log.warn("Timeout when doing the assignment", e);
