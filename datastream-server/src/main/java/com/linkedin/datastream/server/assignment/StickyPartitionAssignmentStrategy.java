@@ -675,7 +675,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
       for (DatastreamTask task : tasksSet) {
         if (datastreamGroupName.equals(task.getTaskPrefix())) {
           total += task.getPartitionsV2().size();
-          unassignedPartitions.removeAll(task.getPartitionsV2());
+          unassignedPartitions.removeAll(new HashSet<>(task.getPartitionsV2()));
         }
       }
     }
