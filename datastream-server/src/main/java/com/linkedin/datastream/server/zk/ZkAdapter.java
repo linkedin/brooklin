@@ -966,7 +966,7 @@ public class ZkAdapter {
       // find assignments added
       //
       Set<String> added = new HashSet<>(assignmentsNames);
-      added.removeAll(oldAssignmentNames);
+      added.removeAll(new HashSet<>(oldAssignmentNames));
       nodesToAdd.put(instance, added);
     }
   }
@@ -1120,7 +1120,7 @@ public class ZkAdapter {
     Set<DatastreamTask> unusedTasks = findOldUnusedTasks(previousAssignmentByInstance, newAssignmentsByInstance);
 
     Set<String> deadInstances = previousAssignmentByInstance.keySet();
-    deadInstances.removeAll(liveInstances);
+    deadInstances.removeAll(new HashSet<>(liveInstances));
 
     LOG.debug("unusedTasks before cleanup: {}", unusedTasks.stream()
         .map(DatastreamTask::getDatastreamTaskName)
