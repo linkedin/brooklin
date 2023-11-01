@@ -742,7 +742,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       queueEvent = false;
 
       EventType meter = isDatastreamUpdate ? HANDLE_DATASTREAM_CHANGE_WITH_UPDATE : HANDLE_ASSIGNMENT_CHANGE;
-      _log.warn("Updating metric for event " + meter);
+      _log.warn("Updating metric for event={}", meter);
       _metrics.updateKeyedMeter(CoordinatorMetrics.getKeyedMeter(meter), 1);
     }
 
