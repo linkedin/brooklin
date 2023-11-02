@@ -1697,8 +1697,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
       _adapter.updateAllAssignments(newAssignmentsByInstance);
       _log.info("Partition assignment completed for datastreamGroup {}, logging assignment...", datastreamGroupName);
-      AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(assignmentByInstance, _log);
-      assignmentLogger.logAssignment();
+      AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(_log);
+      assignmentLogger.logAssignment(assignmentByInstance);
       succeeded = true;
     } catch (Exception ex) {
       _log.warn("Partition assignment failed, Exception: ", ex);

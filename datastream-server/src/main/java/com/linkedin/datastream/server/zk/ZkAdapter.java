@@ -612,8 +612,8 @@ public class ZkAdapter {
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
     LOG.info("Logging all live tasks...");
-    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(_liveTaskMap, LOG);
-    assignmentLogger.logAssignment();
+    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(LOG);
+    assignmentLogger.logAssignment(_liveTaskMap);
     return new HashMap<>(_liveTaskMap);
   }
 
