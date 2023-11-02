@@ -5,12 +5,13 @@
  */
 package com.linkedin.datastream.server;
 
-import com.linkedin.datastream.common.zk.ZkClient;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import org.slf4j.Logger;
+
+import com.linkedin.datastream.common.zk.ZkClient;
 
 
 /**

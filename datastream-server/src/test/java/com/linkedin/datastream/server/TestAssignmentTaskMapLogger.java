@@ -1,64 +1,77 @@
+/**
+ *  Copyright 2023 LinkedIn Corporation. All rights reserved.
+ *  Licensed under the BSD 2-Clause License. See the LICENSE file in the project root for license information.
+ *  See the NOTICE file in the project root for additional information regarding copyright ownership.
+ */
 package com.linkedin.datastream.server;
 
-import com.google.common.collect.ImmutableSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.testng.annotations.Test;
 
-import static org.mockito.Mockito.*;
+import com.google.common.collect.ImmutableSet;
+
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.contains;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 
 /**
  * Tests for {@link AssignmentTaskMapLogger}
  */
 public class TestAssignmentTaskMapLogger {
-
-  private static final Logger LOG = mock(Logger.class);
-  private static final DatastreamTask mockTask = mock(DatastreamTask.class);
-  private static final DatastreamTask mockTask2 = mock(DatastreamTask.class);
-  private static final DatastreamTask largeTaskMock = Mockito.spy(new DatastreamTaskImpl());
+  private static final DatastreamTask MOCK_TASK = mock(DatastreamTask.class);
+  private static final DatastreamTask MOCK_TASK_2 = mock(DatastreamTask.class);
+  private static final DatastreamTask MOCK_LARGE_TASK = Mockito.spy(new DatastreamTaskImpl());
 
   @Test
   public void testTasksLessThan1MB() {
+    final Logger log = mock(Logger.class);
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
-    taskMap.put("host1", ImmutableSet.of(mockTask));
-    taskMap.put("host2", ImmutableSet.of(mockTask, mockTask2));
+    taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
+    taskMap.put("host2", ImmutableSet.of(MOCK_TASK, MOCK_TASK_2));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(LOG);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(LOG, times(3)).info(eq("Host={}: Live task={}"), contains("host"), anyString());
+    verify(log, times(3)).info(eq("Host={}: Live task={}"), contains("host"), anyString());
 
-    verifyNoMoreInteractions(LOG);
+    verifyNoMoreInteractions(log);
   }
 
   @Test
   public void testTaskWithSize1MB() {
-    Mockito.doReturn(createCustomSizeString(1024 * 1024)).when(largeTaskMock).toString();
+    final Logger log = mock(Logger.class);
+    Mockito.doReturn(createCustomSizeString(1024 * 1024)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
-    taskMap.put("host1", ImmutableSet.of(mockTask));
-    taskMap.put("host2", ImmutableSet.of(largeTaskMock));
+    taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
+    taskMap.put("host2", ImmutableSet.of(MOCK_LARGE_TASK));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(LOG);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(LOG, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
 
-    verifyNoMoreInteractions(LOG);
+    verifyNoMoreInteractions(log);
   }
 
   /**
@@ -67,24 +80,25 @@ public class TestAssignmentTaskMapLogger {
    */
   @Test
   public void testTasksSlightlyLessThan1MB() {
-    Mockito.doReturn(createCustomSizeString(1024 * 1023)).when(largeTaskMock).toString();
+    final Logger log = mock(Logger.class);
+    Mockito.doReturn(createCustomSizeString(1024 * 1023)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
-    taskMap.put("host1", ImmutableSet.of(mockTask));
-    taskMap.put("host2", ImmutableSet.of(largeTaskMock));
+    taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
+    taskMap.put("host2", ImmutableSet.of(MOCK_LARGE_TASK));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(LOG);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(LOG, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
 
-    verifyNoMoreInteractions(LOG);
+    verifyNoMoreInteractions(log);
   }
 
   /**
@@ -93,25 +107,26 @@ public class TestAssignmentTaskMapLogger {
    */
   @Test
   public void testTaskWithSize2MB() {
-    Mockito.doReturn(createCustomSizeString(1024 * 1024 * 2)).when(largeTaskMock).toString();
+    final Logger log = mock(Logger.class);
+    Mockito.doReturn(createCustomSizeString(1024 * 1024 * 2)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
-    taskMap.put("host1", ImmutableSet.of(mockTask));
-    taskMap.put("host2", ImmutableSet.of(largeTaskMock));
+    taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
+    taskMap.put("host2", ImmutableSet.of(MOCK_LARGE_TASK));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(LOG);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(LOG, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
-    verify(LOG, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(3), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
+    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(3), anyString());
 
-    verifyNoMoreInteractions(LOG);
+    verifyNoMoreInteractions(log);
   }
 
   /**
