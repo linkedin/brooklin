@@ -15,6 +15,7 @@ import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableSet;
 
+import static com.linkedin.datastream.server.AssignmentTaskMapLogger.*;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.contains;
 import static org.mockito.Mockito.eq;
@@ -33,7 +34,7 @@ public class TestAssignmentTaskMapLogger {
   private static final DatastreamTask MOCK_LARGE_TASK = Mockito.spy(new DatastreamTaskImpl());
 
   @Test
-  public void testTasksLessThan1MB() {
+  public void testTasksLessThanSizeLimit() {
     final Logger log = mock(Logger.class);
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
@@ -52,9 +53,9 @@ public class TestAssignmentTaskMapLogger {
   }
 
   @Test
-  public void testTaskWithSize1MB() {
+  public void testTaskWithSizeExactlySizeLimit() {
     final Logger log = mock(Logger.class);
-    Mockito.doReturn(createCustomSizeString(1024 * 1024)).when(MOCK_LARGE_TASK).toString();
+    Mockito.doReturn(createCustomSizeString(SIZE_LIMIT_BYTES)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
@@ -79,9 +80,9 @@ public class TestAssignmentTaskMapLogger {
    * (it's better to round up than down when determining if it's necessary to split)
    */
   @Test
-  public void testTasksSlightlyLessThan1MB() {
+  public void testTasksSlightlyLessThanSizeLimit() {
     final Logger log = mock(Logger.class);
-    Mockito.doReturn(createCustomSizeString(1024 * 1023)).when(MOCK_LARGE_TASK).toString();
+    Mockito.doReturn(createCustomSizeString(SIZE_LIMIT_BYTES - 1024)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
@@ -108,7 +109,7 @@ public class TestAssignmentTaskMapLogger {
   @Test
   public void testTaskWithSize2MB() {
     final Logger log = mock(Logger.class);
-    Mockito.doReturn(createCustomSizeString(1024 * 1024 * 2)).when(MOCK_LARGE_TASK).toString();
+    Mockito.doReturn(createCustomSizeString(SIZE_LIMIT_BYTES * 2)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
@@ -134,7 +135,7 @@ public class TestAssignmentTaskMapLogger {
    * @param size size of string wanted
    * @return string with size number of characters
    */
-  private String createCustomSizeString(int size) {
+  private String createCustomSizeString(double size) {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < size; i++) {
       sb.append('A');
