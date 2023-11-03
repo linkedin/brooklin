@@ -10,12 +10,13 @@ import java.util.Map;
 import java.util.Set;
 
 import org.mockito.Mockito;
+
 import org.slf4j.Logger;
 import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableSet;
 
-import static com.linkedin.datastream.server.AssignmentTaskMapLogger.*;
+import static com.linkedin.datastream.server.AssignmentTaskMapLogger.SIZE_LIMIT_BYTES;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.contains;
 import static org.mockito.Mockito.eq;

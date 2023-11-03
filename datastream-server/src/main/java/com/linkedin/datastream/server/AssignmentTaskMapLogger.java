@@ -5,13 +5,12 @@
  */
 package com.linkedin.datastream.server;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import org.slf4j.Logger;
-
-import com.linkedin.datastream.common.zk.ZkClient;
 
 
 /**
@@ -66,7 +65,7 @@ public class AssignmentTaskMapLogger {
    */
   private double getBlobSizeInBytes(String task) {
     if (Objects.nonNull(task) && !task.isEmpty()) {
-      return (task.getBytes(ZkClient.ZK_STRING_SERIALIZER_CHARSET).length);
+      return (task.getBytes(StandardCharsets.UTF_8).length);
     }
     return 0;
   }
