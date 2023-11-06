@@ -48,7 +48,7 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(3)).info(eq("Host={}: Live task={}"), contains("host"), anyString());
+    verify(log, times(3)).info(eq("{}={}"), contains("Live task"), anyString());
 
     verifyNoMoreInteractions(log);
   }
@@ -69,15 +69,15 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
+    verify(log, times(1)).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
 
     verifyNoMoreInteractions(log);
   }
 
   /**
-   * this test expects the large task to be split even though it is slightly less than 1 MB due to size buffers
+   * this test expects the large task to be split even though it is slightly less than the size limit due to size buffers
    * (it's better to round up than down when determining if it's necessary to split)
    */
   @Test
@@ -96,15 +96,15 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
+    verify(log, times(1)).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
 
     verifyNoMoreInteractions(log);
   }
 
   /**
-   * this test expects the large task to be split into 3 parts even though it is 2MB due to size buffers
+   * this test expects the large task to be split into 3 parts even though it is 2x the size limit due to size buffers
    * (it's better to round up than down when determining if it's necessary to split)
    */
   @Test
@@ -123,10 +123,10 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(1)).info(eq("Host={}: Live task={}"), eq("host1"), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(1), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(2), anyString());
-    verify(log, times(1)).info(eq("Host={}: Live task (part {})={}"), eq("host2"), eq(3), anyString());
+    verify(log, times(1)).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
+    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(3), anyString());
 
     verifyNoMoreInteractions(log);
   }

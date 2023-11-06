@@ -5,9 +5,11 @@
  */
 package com.linkedin.datastream.common;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.common.TopicPartition;
@@ -20,6 +22,7 @@ import org.slf4j.LoggerFactory;
  */
 public class LogUtils {
   private static final Logger LOG = LoggerFactory.getLogger(LogUtils.class.getName());
+  private static final double BUFFER_1KB =  1024;
 
   private static void printNumberRange(StringBuilder stringBuilder, int start, int tail) {
     if (start == tail) {
@@ -91,5 +94,45 @@ public class LogUtils {
         .map(topicName -> new StringBuilder(topicName).append(":")
             .append(logNumberArrayInRange(topicPartitionsMap.get(topicName))))
         .collect(Collectors.joining(", "));
+  }
+
+  /**
+   * prints one log line for each string smaller than size limit
+   * @param  message
+   */
+  public static void logStringsUnderSizeLimit(Logger log, String message, String contextPrefix, int part, double sizeLimit) {
+    int bufferAdjustedSizeLimit = (int) (sizeLimit - BUFFER_1KB);
+    if (isLessThanSizeLimit(message, sizeLimit)) {
+      if (part == 1) {
+        log.info("{}={}", contextPrefix,  message);
+      } else {
+        log.info("{} (part {})={}", contextPrefix, part,  message);
+      }
+    } else {
+      log.info("{} (part {})={}", contextPrefix, part, message.substring(0, bufferAdjustedSizeLimit));
+      logStringsUnderSizeLimit(log, message.substring(bufferAdjustedSizeLimit), contextPrefix, part + 1, sizeLimit);
+    }
+  }
+
+  /**
+   * helper function to check if string size is less than size limit
+   * @param message string to check size of
+   * @return true if message is less than size limit
+   */
+  private static boolean isLessThanSizeLimit(String message, double sizeLimit) {
+    double sizeInMB = getStringSizeInBytes(message);
+    return sizeInMB + BUFFER_1KB < sizeLimit;
+  }
+
+  /**
+   * helper function to get the size of a string (default charset UTF) in bytes
+   * @param message string to measure
+   * @return size of message in bytes
+   */
+  private static double getStringSizeInBytes(String message) {
+    if (Objects.nonNull(message) && !message.isEmpty()) {
+      return (message.getBytes(StandardCharsets.UTF_8).length);
+    }
+    return 0;
   }
 }
