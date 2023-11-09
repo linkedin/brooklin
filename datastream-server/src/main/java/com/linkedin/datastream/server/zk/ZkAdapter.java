@@ -133,6 +133,7 @@ public class ZkAdapter {
   private final int _connectionTimeoutMs;
   private final int _operationRetryTimeoutMs;
   private final long _debounceTimerMs;
+  private final double _logSizeLimitInBytes;
 
   private ZkClient _zkclient;
   private String _instanceName;
@@ -177,16 +178,19 @@ public class ZkAdapter {
    * @param operationRetryTimeoutMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
    *                         considered as retry forever until a connection has been reestablished.
    * @param debounceTimerMs debounce timer to be used to delay the lock clean up.
+   * @param logSizeLimitInBytes size limit of log messages in bytes
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, int operationRetryTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
+      int connectionTimeoutMs, int operationRetryTimeoutMs, long debounceTimerMs, double logSizeLimitInBytes,
+      ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeoutMs = sessionTimeoutMs;
     _connectionTimeoutMs = connectionTimeoutMs;
     _operationRetryTimeoutMs = operationRetryTimeoutMs;
     _debounceTimerMs = debounceTimerMs;
+    _logSizeLimitInBytes = logSizeLimitInBytes;
     _listener = listener;
     _defaultTransportProviderName = defaultTransportProviderName;
   }
@@ -202,9 +206,9 @@ public class ZkAdapter {
    */
   @VisibleForTesting
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
+      int connectionTimeoutMs, long debounceTimerMs, double logSizeLimitInBytes, ZkAdapterListener listener) {
     this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
-        debounceTimerMs, listener);
+        debounceTimerMs, logSizeLimitInBytes, listener);
   }
 
   /**
@@ -612,7 +616,7 @@ public class ZkAdapter {
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
     LOG.info("Logging all live tasks...");
-    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(LOG);
+    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(LOG, _logSizeLimitInBytes);
     assignmentLogger.logAssignment(_liveTaskMap);
     return new HashMap<>(_liveTaskMap);
   }

@@ -18,14 +18,15 @@ import static com.linkedin.datastream.common.LogUtils.logStringsUnderSizeLimit;
  */
 public class AssignmentTaskMapLogger {
   private final Logger _log;
-  public static final double SIZE_LIMIT_BYTES = 1024 * 1024;
+  private double _sizeLimit;
 
   /**
    * Constructor
    * @param logger logger to be used for logging
    */
-  public AssignmentTaskMapLogger(Logger logger) {
+  public AssignmentTaskMapLogger(Logger logger, double logSizeLimitInBytes) {
     _log = logger;
+    _sizeLimit = logSizeLimitInBytes;
   }
 
   /**
@@ -35,7 +36,7 @@ public class AssignmentTaskMapLogger {
     for (String host: taskMap.keySet()) {
       for (DatastreamTask task: taskMap.get(host)) {
         String logContext = String.format("Host=%s: Live task", host);
-        logStringsUnderSizeLimit(_log, task.toString(), logContext, 1, SIZE_LIMIT_BYTES);
+        logStringsUnderSizeLimit(_log, task.toString(), logContext, 1, _sizeLimit);
       }
     }
   }

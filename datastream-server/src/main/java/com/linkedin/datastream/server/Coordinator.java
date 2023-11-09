@@ -275,7 +275,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @VisibleForTesting
   ZkAdapter createZkAdapter() {
     return new ZkAdapter(_config.getZkAddress(), _clusterName, _config.getDefaultTransportProviderName(),
-        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), _config.getDebounceTimerMs(), this);
+        _config.getZkSessionTimeout(), _config.getZkConnectionTimeout(), _config.getDebounceTimerMs(),
+        _config.getLogSizeLimitInBytes(), this);
   }
 
   /**
@@ -1697,7 +1698,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
       _adapter.updateAllAssignments(newAssignmentsByInstance);
       _log.info("Partition assignment completed for datastreamGroup {}, logging assignment...", datastreamGroupName);
-      AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(_log);
+      AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(_log, _config.getLogSizeLimitInBytes());
       assignmentLogger.logAssignment(assignmentByInstance);
       succeeded = true;
     } catch (Exception ex) {

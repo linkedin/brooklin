@@ -16,7 +16,6 @@ import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableSet;
 
-import static com.linkedin.datastream.server.AssignmentTaskMapLogger.SIZE_LIMIT_BYTES;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.contains;
 import static org.mockito.Mockito.eq;
@@ -33,6 +32,7 @@ public class TestAssignmentTaskMapLogger {
   private static final DatastreamTask MOCK_TASK = mock(DatastreamTask.class);
   private static final DatastreamTask MOCK_TASK_2 = mock(DatastreamTask.class);
   private static final DatastreamTask MOCK_LARGE_TASK = Mockito.spy(new DatastreamTaskImpl());
+  private static final double SIZE_LIMIT_BYTES = 1024 * 1024;
 
   @Test
   public void testTasksLessThanSizeLimit() {
@@ -41,7 +41,7 @@ public class TestAssignmentTaskMapLogger {
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
     taskMap.put("host2", ImmutableSet.of(MOCK_TASK, MOCK_TASK_2));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log, SIZE_LIMIT_BYTES);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
@@ -62,7 +62,7 @@ public class TestAssignmentTaskMapLogger {
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
     taskMap.put("host2", ImmutableSet.of(MOCK_LARGE_TASK));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log, SIZE_LIMIT_BYTES);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
@@ -89,7 +89,7 @@ public class TestAssignmentTaskMapLogger {
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
     taskMap.put("host2", ImmutableSet.of(MOCK_LARGE_TASK));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log, SIZE_LIMIT_BYTES);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
@@ -116,7 +116,7 @@ public class TestAssignmentTaskMapLogger {
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));
     taskMap.put("host2", ImmutableSet.of(MOCK_LARGE_TASK));
 
-    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log);
+    AssignmentTaskMapLogger logger = new AssignmentTaskMapLogger(log, SIZE_LIMIT_BYTES);
     long startTime = System.currentTimeMillis();
     logger.logAssignment(taskMap);
     long endTime = System.currentTimeMillis();
