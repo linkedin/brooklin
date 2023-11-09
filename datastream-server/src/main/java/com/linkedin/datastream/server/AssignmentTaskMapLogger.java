@@ -36,7 +36,7 @@ public class AssignmentTaskMapLogger {
     for (String host: taskMap.keySet()) {
       for (DatastreamTask task: taskMap.get(host)) {
         String logContext = String.format("Host=%s: Live task", host);
-        logStringsUnderSizeLimit(_log, task.toString(), logContext, 1, _sizeLimit);
+        logStringsUnderSizeLimit(_log, task.toString(), logContext, _sizeLimit);
       }
     }
   }
