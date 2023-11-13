@@ -202,6 +202,7 @@ public class ZkAdapter {
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
    * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
    * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
+   * @param logSizeLimitInBytes size limit for each log line in bytes
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
   @VisibleForTesting

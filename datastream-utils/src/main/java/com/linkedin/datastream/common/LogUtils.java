@@ -107,11 +107,11 @@ public class LogUtils {
   public static void logStringsUnderSizeLimit(Logger log, String message, String contextPrefix, double sizeLimit) {
     if (sizeLimit <= BUFFER_1KB) {
       throw new IllegalArgumentException("Log size limit cannot be set to less than or equal to 1KB");
-    } else if (isLessThanSizeLimit(contextPrefix, BUFFER_1KB)) {
+    } else if (!isLessThanSizeLimit(contextPrefix, BUFFER_1KB)) {
       throw new IllegalArgumentException("Context prefix cannot be longer than 1KB in size");
     } else {
       int bufferAdjustedSizeLimit = (int) (sizeLimit - BUFFER_1KB);
-      logStringsUnderSizeLimit(log, message, contextPrefix, 1, sizeLimit, bufferAdjustedSizeLimit);
+      logStringsUnderSizeLimit(log, message, contextPrefix, 1, bufferAdjustedSizeLimit);
     }
   }
 
@@ -121,12 +121,11 @@ public class LogUtils {
    * @param message string to be logged
    * @param contextPrefix string that provides context for what is being logged
    * @param part printed in the log message to keep track of how many parts a larger message has been split into
-   * @param sizeLimit size limit of each log line
    * @param adjustedSizeLimit buffer adjusted size limit to account for extra bytes in the log line (e.g. timestamp, avro wrapping)
    */
   private static void logStringsUnderSizeLimit(Logger log, String message, String contextPrefix, int part,
-      double sizeLimit, int adjustedSizeLimit) {
-    if (isLessThanSizeLimit(message, sizeLimit)) {
+      int adjustedSizeLimit) {
+    if (isLessThanSizeLimit(message, adjustedSizeLimit)) {
       if (part == 1) {
         log.info("{}={}", contextPrefix,  message);
       } else {
@@ -134,7 +133,7 @@ public class LogUtils {
       }
     } else {
       log.info("{} (part {})={}", contextPrefix, part, message.substring(0, adjustedSizeLimit));
-      logStringsUnderSizeLimit(log, message.substring(adjustedSizeLimit), contextPrefix, part + 1, sizeLimit, adjustedSizeLimit);
+      logStringsUnderSizeLimit(log, message.substring(adjustedSizeLimit), contextPrefix, part + 1, adjustedSizeLimit);
     }
   }
 
@@ -145,7 +144,7 @@ public class LogUtils {
    */
   private static boolean isLessThanSizeLimit(String message, double sizeLimit) {
     double sizeInMB = getStringSizeInBytes(message);
-    return sizeInMB + BUFFER_1KB < sizeLimit;
+    return sizeInMB < sizeLimit;
   }
 
   /**

@@ -32,7 +32,7 @@ public class TestAssignmentTaskMapLogger {
   private static final DatastreamTask MOCK_TASK = mock(DatastreamTask.class);
   private static final DatastreamTask MOCK_TASK_2 = mock(DatastreamTask.class);
   private static final DatastreamTask MOCK_LARGE_TASK = Mockito.spy(new DatastreamTaskImpl());
-  private static final double SIZE_LIMIT_BYTES = 1024 * 1024;
+  private static final double SIZE_LIMIT_BYTES = 1024 * 4;
 
   @Test
   public void testTasksLessThanSizeLimit() {
@@ -83,7 +83,7 @@ public class TestAssignmentTaskMapLogger {
   @Test
   public void testTasksSlightlyLessThanSizeLimit() {
     final Logger log = mock(Logger.class);
-    Mockito.doReturn(createCustomSizeString(SIZE_LIMIT_BYTES - 1024)).when(MOCK_LARGE_TASK).toString();
+    Mockito.doReturn(createCustomSizeString(SIZE_LIMIT_BYTES - 100)).when(MOCK_LARGE_TASK).toString();
 
     Map<String, Set<DatastreamTask>> taskMap = new HashMap<>();
     taskMap.put("host1", ImmutableSet.of(MOCK_TASK));

@@ -23,6 +23,7 @@ public class AssignmentTaskMapLogger {
   /**
    * Constructor
    * @param logger logger to be used for logging
+   * @param logSizeLimitInBytes size limit for each log line in bytes
    */
   public AssignmentTaskMapLogger(Logger logger, double logSizeLimitInBytes) {
     _log = logger;
