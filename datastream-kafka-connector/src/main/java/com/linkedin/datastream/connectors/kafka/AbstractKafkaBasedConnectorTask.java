@@ -17,9 +17,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -33,6 +36,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
@@ -59,6 +63,8 @@ import com.linkedin.datastream.server.DatastreamProducerRecord;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskStatus;
 import com.linkedin.datastream.server.api.transport.SendCallback;
+
+import static java.util.concurrent.TimeUnit.*;
 
 
 /**
@@ -711,7 +717,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       consumer.commitSync(offsets.get(), _commitTimeout);
       _kafkaTopicPartitionTracker.onOffsetsCommitted(offsets.get());
     } else {
-      consumer.commitSync(_commitTimeout);
+      commitConsumed(consumer);
+    }
+  }
+
+  private void commitConsumed(Consumer<?, ?> consumer) {
+    CompletableFuture<Map<TopicPartition, OffsetAndMetadata>> future = new CompletableFuture<>();
+    OffsetCommitCallback callback = (offsets, e) -> {
+      if (e == null) future.complete(offsets);
+      else future.completeExceptionally(e);
+    };
+
+    consumer.commitAsync(callback);
+    try {
+      Map<TopicPartition, OffsetAndMetadata> committed = future.get(_commitTimeout.toMillis(), MILLISECONDS);
+      _kafkaTopicPartitionTracker.onOffsetsCommitted(committed);
+    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+      throw new RuntimeException(e);
     }
   }
 
