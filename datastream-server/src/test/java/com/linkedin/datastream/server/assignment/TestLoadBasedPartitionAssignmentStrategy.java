@@ -86,13 +86,14 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     int throughputInfoFetchRetryPeriodMs = 200;
     int defaultPartitionBytesInKBRate = 10;
     int defaultPartitionMsgInRate = 20;
+    double logSizeLimitInBytes = 1024 * 1024;
     ZkClient zkClient = null;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, taskCapacityMBps, taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs,
         throughputInfoFetchRetryPeriodMs, zkClient, _clusterName, true, true,
-        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate);
+        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate, logSizeLimitInBytes);
 
     testFallbackToBaseClassWhenElasticTaskCountIsDisabled(mockProvider, strategy);
   }
@@ -113,12 +114,13 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     ZkClient zkClient = _zkClient;
     int defaultPartitionBytesInKBRate = 10;
     int defaultPartitionMsgInRate = 20;
+    double logSizeLimitInBytes = 1024 * 1024;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, taskCapacityMBps, taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs,
         throughputInfoFetchRetryPeriodMs, zkClient, _clusterName, false, true,
-        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate);
+        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate, logSizeLimitInBytes);
 
     testFallbackToBaseClassWhenElasticTaskCountIsDisabled(mockProvider, strategy);
   }
@@ -160,12 +162,13 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     ZkClient zkClient = _zkClient;
     int defaultPartitionBytesInKBRate = 10;
     int defaultPartitionMsgInRate = 20;
+    double logSizeLimitInBytes = 1024 * 1024;
 
     LoadBasedPartitionAssignmentStrategy strategy = Mockito.spy(new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, taskCapacityMBps, taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs,
         throughputInfoFetchRetryPeriodMs, zkClient, _clusterName, true, true,
-        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate));
+        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate, logSizeLimitInBytes));
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
     ds1.getSource().setPartitions(0);
@@ -207,12 +210,13 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     ZkClient zkClient = _zkClient;
     int defaultPartitionBytesInKBRate = 10;
     int defaultPartitionMsgInRate = 20;
+    double logSizeLimitInBytes = 1024 * 1024;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, taskCapacityMBps, taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs,
         throughputInfoFetchRetryPeriodMs, zkClient, _clusterName, true, true,
-        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate);
+        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate, logSizeLimitInBytes);
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
     ds1.getSource().setPartitions(0);
@@ -253,12 +257,13 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     ZkClient zkClient = _zkClient;
     int defaultPartitionBytesInKBRate = 10;
     int defaultPartitionMsgInRate = 20;
+    double logSizeLimitInBytes = 1024 * 1024;
 
     LoadBasedPartitionAssignmentStrategy strategy = new LoadBasedPartitionAssignmentStrategy(mockProvider,
         maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, taskCapacityMBps, taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs,
         throughputInfoFetchRetryPeriodMs, zkClient, _clusterName, true, true,
-        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate);
+        defaultPartitionBytesInKBRate, defaultPartitionMsgInRate, logSizeLimitInBytes);
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
     ds1.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(10));
@@ -330,13 +335,14 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     ZkClient zkClient = _zkClient;
     int defaultPartitionBytesInKBRate = 10;
     int defaultPartitionMsgInRate = 20;
+    double logSizeLimitInBytes = 2000;
 
     LoadBasedPartitionAssignmentStrategy strategy = Mockito.spy(
         new LoadBasedPartitionAssignmentStrategy(mockProvider, maxTasks, imbalanceThreshold, maxPartitionPerTask,
             enableElasticTaskAssignment, partitionsPerTask, partitionFullnessFactorPct, taskCapacityMBps,
             taskCapacityUtilizationPct, throughputInfoFetchTimeoutMs, throughputInfoFetchRetryPeriodMs, zkClient,
             _clusterName, true, enablePartitionCountBasedEstimation,
-            defaultPartitionBytesInKBRate, defaultPartitionMsgInRate));
+            defaultPartitionBytesInKBRate, defaultPartitionMsgInRate, logSizeLimitInBytes));
 
     Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds1")[0];
     ds1.getMetadata().put(StickyPartitionAssignmentStrategy.CFG_MIN_TASKS, String.valueOf(1));

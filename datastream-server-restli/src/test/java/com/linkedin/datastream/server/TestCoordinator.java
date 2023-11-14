@@ -2977,7 +2977,7 @@ public class TestCoordinator {
     ZkAdapter createZkAdapter() {
       return spy(new ZkAdapter(getConfig().getZkAddress(), getConfig().getCluster(),
           getConfig().getDefaultTransportProviderName(), getConfig().getZkSessionTimeout(),
-          getConfig().getZkConnectionTimeout(), 1000, this));
+          getConfig().getZkConnectionTimeout(), 1000, 1024 * 1024, this));
     }
   }
 
