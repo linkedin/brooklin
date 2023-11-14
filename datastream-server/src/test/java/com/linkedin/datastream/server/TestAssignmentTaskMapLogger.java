@@ -69,9 +69,9 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(1)).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
+    verify(log).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
 
     verifyNoMoreInteractions(log);
   }
@@ -96,9 +96,9 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(1)).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
+    verify(log).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
 
     verifyNoMoreInteractions(log);
   }
@@ -123,10 +123,10 @@ public class TestAssignmentTaskMapLogger {
     long duration = endTime - startTime;
     System.out.println("Log assignment duration: " + duration + " ms");
 
-    verify(log, times(1)).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
-    verify(log, times(1)).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(3), anyString());
+    verify(log).info(eq("{}={}"), eq("Host=host1: Live task"), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(1), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(2), anyString());
+    verify(log).info(eq("{} (part {})={}"), eq("Host=host2: Live task"), eq(3), anyString());
 
     verifyNoMoreInteractions(log);
   }
