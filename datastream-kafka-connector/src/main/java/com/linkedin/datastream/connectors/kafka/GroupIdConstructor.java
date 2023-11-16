@@ -77,14 +77,14 @@ public interface GroupIdConstructor {
       groupId = datastream.getMetadata().get(DatastreamMetadataConstants.GROUP_ID);
       logger.ifPresent(log -> log.info("Datastream {} has group ID specified in metadata. Will use that ID: {}",
           datastream.getName(), groupId));
-    } else if (!existingDatastreamsWithGroupIdOverride.isEmpty()) {
+    } else if (!existingDatastreamsWithGroupIdOverride.isEmpty() && DatastreamUtils.isReuseAllowed(datastream)) {
       // if existing datastream has group ID in it already, copy it over.
       groupId = existingDatastreamsWithGroupIdOverride.get(0).getMetadata().get(DatastreamMetadataConstants.GROUP_ID);
       logger.ifPresent(
           log -> log.info("Found existing datastream {} for datastream {} with group ID. Copying its group id: {}",
               existingDatastreamsWithGroupIdOverride.get(0).getName(), datastream.getName(), groupId));
     } else {
-      // else create and and keep it in metadata.
+      // else create and keep it in metadata.
       groupId = constructGroupId(datastream);
       logger.ifPresent(
           log -> log.info("Constructed group ID for datastream {}. Group id: {}", datastream.getName(), groupId));
