@@ -1622,11 +1622,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             zkDatastream.setStatus(DatastreamStatus.STOPPED);
             _log.info("Transitioning to STOPPED state dsName={}", zkDatastream.getName());
             if (!_adapter.updateDatastream(zkDatastream)) {
-              _log.error("Failed to update to stopped state dsName={}", zkDatastream.getName());
+              _log.error("ZK update to STOPPED failed, dsName={} status={}", zkDatastream.getName(), zkDatastream.getStatus());
               success = false;
             }
           } else {
-            _log.info("Not in stopping state, dsName={} status={}", zkDatastream.getName(), zkDatastream.getStatus());
+            _log.info("Not in STOPPING state, dsName={} status={}", zkDatastream.getName(), zkDatastream.getStatus());
           }
         }
       }
