@@ -1611,20 +1611,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private boolean markDatastreamsStopped(List<DatastreamGroup> stoppingDatastreamGroups, Set<String> failedStreams) {
     boolean success = true;
     boolean forceStop = _config.getForceStopStreamsOnFailure();
-    Set<String> stoppingStreams =
-        fetchDatastreamGroupsWithStatus(Collections.singletonList(DatastreamStatus.STOPPING)).
-            stream().flatMap(dg -> dg.getDatastreams().stream()).map(Datastream::getName).
-            collect(Collectors.toSet());
+
     for (DatastreamGroup datastreamGroup : stoppingDatastreamGroups) {
       for (Datastream datastream : datastreamGroup.getDatastreams()) {
         // Only streams that were confirmed to have stopped successfully will be transitioned to STOPPED state
-        if (stoppingStreams.contains(datastream.getName()) &&
-            (forceStop || !failedStreams.contains(datastream.getName()))) {
-          datastream.setStatus(DatastreamStatus.STOPPED);
-          _log.info("Transitioned datastream {} to STOPPED state", datastream.getName());
-          if (!_adapter.updateDatastream(datastream)) {
-            _log.error("Failed to update datastream: {} to stopped state", datastream.getName());
-            success = false;
+        if (forceStop || !failedStreams.contains(datastream.getName())) {
+          // fetch the latest from ZK, only STOPPING state datastreams will be marked as STOPPED
+          Datastream zkDatastream = _datastreamCache.getDatastream(datastream.getName(), true);
+          if (zkDatastream.getStatus() == DatastreamStatus.STOPPING) {
+            zkDatastream.setStatus(DatastreamStatus.STOPPED);
+            _log.info("Transitioning to STOPPED state dsName={}", zkDatastream.getName());
+            if (!_adapter.updateDatastream(zkDatastream)) {
+              _log.error("ZK update to STOPPED failed, dsName={} status={}", zkDatastream.getName(), zkDatastream.getStatus());
+              success = false;
+            }
+          } else {
+            _log.info("Not in STOPPING state, dsName={} status={}", zkDatastream.getName(), zkDatastream.getStatus());
           }
         }
       }
