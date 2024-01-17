@@ -2348,7 +2348,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         try {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
-            // metrics
             handleEvent(event);
             notifyThreadsWaitingForCoordinatorObjectSynchronization();
           }
