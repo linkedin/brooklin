@@ -2364,7 +2364,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
             handleEvent(event);
-//            notifyThreadsWaitingForCoordinatorObjectSynchronization();
           }
         } catch (InterruptedException e) {
           _log.warn("CoordinatorEventProcessor interrupted", e);
@@ -2373,7 +2372,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.error("CoordinatorEventProcessor failed", t);
         }
       }
-//      notifyThreadsWaitingForCoordinatorObjectSynchronization();
       _log.info("END CoordinatorEventProcessor");
     }
   }
