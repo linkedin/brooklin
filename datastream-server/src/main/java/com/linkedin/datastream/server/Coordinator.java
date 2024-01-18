@@ -220,7 +220,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
   private volatile boolean _shutdown = false;
   // TODO we have _shutdown, eventThread and now _coordinatorStopped, for some distinct usage,
-  //  we should see if we can revisit and refactor to have less variation
+  //  we should revisit and refactor to have less variation
   private volatile boolean _coordinatorStopped = false;
 
   private CoordinatorEventProcessor _eventThread;
