@@ -219,9 +219,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
   private volatile boolean _shutdown = false;
-  // TODO we have _shutdown, eventThread and now _handleEventCompleted, for some distinct usage,
+  // TODO we have _shutdown, eventThread and now _coordinatorEventThreadExiting, for some distinct usage,
   //  we should revisit and refactor to have less variation
-  private volatile boolean _handleEventCompleted = false;
+  private volatile boolean _coordinatorEventThreadExiting = false;
 
   private CoordinatorEventProcessor _eventThread;
   private ScheduledExecutorService _scheduledExecutor;
@@ -383,13 +383,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // This intrinsic conditional variable(CV) helps to halt threads (zk callback threads, main server thread) before
       // attempting to acquire the Coordinator object. We never halt the event thread (coordinator thread)
       // explicitly via this CV.
-      _log.info("Thread {} will wait for notification from the event thread for {} ms.",
-          Thread.currentThread().getName(), duration.toMillis());
+
       // The goal of this wait is to give eventThread a chance to acquire a lock on the coordinator object for the handleEvent
       // ideally, we would use while loop here to avoid spurious signals, but in our case, we have a while loop
       // which calls this method, so it is ok. Also, this if condition helps us to not continue go into wait mode,
       // because it may cause shutdown to not run gracefully if the connecting deployment system has shorter timeouts
-      if (!_handleEventCompleted) {
+      if (!_coordinatorEventThreadExiting) {
+        _log.info("Thread {} will wait for notification from the event thread for {} ms.",
+            Thread.currentThread().getName(), duration.toMillis());
         this.wait(duration.toMillis());
       }
 
@@ -2257,7 +2258,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // We are only calling notify on the synchronized Coordinator Object's ("this") waiting threads.
   // Suppressing the Naked_Notify warning on this.
   protected synchronized void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
-    _handleEventCompleted = true;
+    _coordinatorEventThreadExiting = true;
     this.notifyAll();
   }
 
@@ -2368,7 +2369,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.error("CoordinatorEventProcessor failed", t);
         }
       }
-      notifyThreadsWaitingForCoordinatorObjectSynchronization();
+      synchronized (this) {
+        _coordinatorEventThreadExiting = true;
+        this.notifyAll();
+      }
       _log.info("END CoordinatorEventProcessor");
     }
   }
