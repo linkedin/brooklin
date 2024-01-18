@@ -219,7 +219,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
   private volatile boolean _shutdown = false;
-  private volatile boolean _notified = false;
+  private volatile boolean _coordinatorStopped = false;
 
   private CoordinatorEventProcessor _eventThread;
   private ScheduledExecutorService _scheduledExecutor;
@@ -383,7 +383,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // explicitly via this CV.
       _log.info("Thread {} will wait for notification from the event thread for {} ms.",
           Thread.currentThread().getName(), duration.toMillis());
-      while (!_notified) {
+      while (!_coordinatorStopped) {
         this.wait(duration.toMillis());
       }
 
@@ -2251,7 +2251,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // We are only calling notify on the synchronized Coordinator Object's ("this") waiting threads.
   // Suppressing the Naked_Notify warning on this.
   protected synchronized void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
-    _notified = true;
+    _coordinatorStopped = true;
     this.notifyAll();
   }
 
