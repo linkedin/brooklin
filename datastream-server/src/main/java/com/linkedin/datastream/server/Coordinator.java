@@ -383,7 +383,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // explicitly via this CV.
       _log.info("Thread {} will wait for notification from the event thread for {} ms.",
           Thread.currentThread().getName(), duration.toMillis());
-      while (!_coordinatorStopped) {
+      if (!_coordinatorStopped) {
         this.wait(duration.toMillis());
       }
 
