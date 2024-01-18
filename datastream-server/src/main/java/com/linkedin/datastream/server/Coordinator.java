@@ -385,6 +385,10 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // explicitly via this CV.
       _log.info("Thread {} will wait for notification from the event thread for {} ms.",
           Thread.currentThread().getName(), duration.toMillis());
+      // The goal of this wait is to give eventThread a chance to acquire a lock on the coordinator object for the handleEvent
+      // ideally, we would use while loop here to avoid spurious signals, but in our case, we have a while loop
+      // which calls this method, so it is ok. Also, this if condition helps us to not continue go into wait mode,
+      // because it may cause shutdown to not run gracefully if the connecting deployment system has shorter timeouts
       if (!_handleEventCompleted) {
         this.wait(duration.toMillis());
       }
