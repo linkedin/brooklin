@@ -31,10 +31,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -1168,7 +1166,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   protected synchronized void handleEvent(CoordinatorEvent event) {
-    _eventBeingHandled = true;
     _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
     boolean isLeader = _adapter.isLeader();
     if (!isLeader && isLeaderEvent(event.getType())) {
