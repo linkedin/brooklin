@@ -23,7 +23,6 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   public static final String CFG_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = "enablePartitionNumBasedTaskCountEstimation";
   public static final String CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE = "defaultPartitionBytesInKBRate";
   public static final String CFG_DEFAULT_PARTITION_MSGS_IN_RATE = "defaultPartitionMsgsInRate";
-  public static final String CFG_LOG_SIZE_LIMIT_IN_BYTES = "logSizeLimitInBytes";
 
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_TIMEOUT_MS = (int) Duration.ofSeconds(10).toMillis();
   private static final int DEFAULT_THROUGHPUT_INFO_FETCH_RETRY_PERIOD_MS = (int) Duration.ofSeconds(1).toMillis();
@@ -33,7 +32,6 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   private static final boolean DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION = false;
   private static final int DEFAULT_PARTITION_BYTES_IN_KB_RATE = 5;
   private static final int DEFAULT_PARTITION_MSGS_IN_RATE = 5;
-  private static final double DEFAULT_LOG_SIZE_LIMIT_IN_BYTES = 1024 * 1024;
 
 
   private final int _taskCapacityMBps;
@@ -44,7 +42,6 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
   private final boolean _enablePartitionNumBasedTaskCountEstimation;
   private final int _defaultPartitionBytesInKBRate;
   private final int _defaultPartitionMsgsInRate;
-  private final double _logSizeLimitInBytes;
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategyConfig}
@@ -63,7 +60,6 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
         DEFAULT_ENABLE_PARTITION_NUM_BASED_TASK_COUNT_ESTIMATION);
     _defaultPartitionBytesInKBRate = props.getInt(CFG_DEFAULT_PARTITION_BYTES_IN_KB_RATE, DEFAULT_PARTITION_BYTES_IN_KB_RATE);
     _defaultPartitionMsgsInRate = props.getInt(CFG_DEFAULT_PARTITION_MSGS_IN_RATE, DEFAULT_PARTITION_MSGS_IN_RATE);
-    _logSizeLimitInBytes = props.getDouble(CFG_LOG_SIZE_LIMIT_IN_BYTES, DEFAULT_LOG_SIZE_LIMIT_IN_BYTES);
   }
 
   /**
@@ -120,9 +116,5 @@ public class LoadBasedPartitionAssignmentStrategyConfig extends PartitionAssignm
 
   public int getDefaultPartitionMsgsInRate() {
     return _defaultPartitionMsgsInRate;
-  }
-
-  public double getLogSizeLimitInBytes() {
-    return _logSizeLimitInBytes;
   }
 }

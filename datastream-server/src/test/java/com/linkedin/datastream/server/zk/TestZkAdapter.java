@@ -56,7 +56,6 @@ public class TestZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(com.linkedin.datastream.server.zk.TestZkAdapter.class);
   private static final int ZK_WAIT_IN_MS = 500;
   private static final long ZK_DEBOUNCE_TIMER_MS = 1000;
-  private static final double LOG_SIZE_LIMIT_IN_BYTES = 1024 * 1024;
 
   private final String defaultTransportProviderName = "test";
   private EmbeddedZookeeper _embeddedZookeeper;
@@ -107,8 +106,7 @@ public class TestZkAdapter {
 
   private ZkAdapter createZkAdapter(String testCluster) {
     return new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, ZK_DEBOUNCE_TIMER_MS,
-        LOG_SIZE_LIMIT_IN_BYTES, null);
+        ZkClient.DEFAULT_SESSION_TIMEOUT, ZkClient.DEFAULT_CONNECTION_TIMEOUT, ZK_DEBOUNCE_TIMER_MS, null);
   }
 
   @Test
@@ -142,11 +140,11 @@ public class TestZkAdapter {
     // start two ZkAdapters, which is corresponding to two Coordinator instances
     //
     ZkAdapter adapter1 = new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        1000, 15000, ZK_DEBOUNCE_TIMER_MS, LOG_SIZE_LIMIT_IN_BYTES, null);
+        1000, 15000, ZK_DEBOUNCE_TIMER_MS, null);
     adapter1.connect();
 
     ZkAdapter adapter2 = new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        1000, 15000, ZK_DEBOUNCE_TIMER_MS, LOG_SIZE_LIMIT_IN_BYTES, null);
+        1000, 15000, ZK_DEBOUNCE_TIMER_MS, null);
     adapter2.connect();
 
     //
@@ -172,7 +170,7 @@ public class TestZkAdapter {
     adapter2.disconnect();
     // now a new client goes online
     ZkAdapter adapter3 = new ZkAdapter(_zkConnectionString, testCluster, defaultTransportProviderName,
-        1000, 15000, ZK_DEBOUNCE_TIMER_MS, LOG_SIZE_LIMIT_IN_BYTES, null);
+        1000, 15000, ZK_DEBOUNCE_TIMER_MS, null);
     adapter3.connect();
 
     //
@@ -725,7 +723,7 @@ public class TestZkAdapter {
     public ZkClientInterceptingAdapter(String zkConnectionString, String testCluster, String defaultTransportProviderName,
         int defaultSessionTimeoutMs, int defaultConnectionTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
       super(zkConnectionString, testCluster, defaultTransportProviderName, defaultSessionTimeoutMs,
-          defaultConnectionTimeoutMs, debounceTimerMs, LOG_SIZE_LIMIT_IN_BYTES, listener);
+          defaultConnectionTimeoutMs, debounceTimerMs, listener);
       _sleepMs = defaultSessionTimeoutMs;
     }
 

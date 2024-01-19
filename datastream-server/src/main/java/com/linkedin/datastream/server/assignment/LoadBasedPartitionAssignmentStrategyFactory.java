@@ -45,7 +45,7 @@ public class LoadBasedPartitionAssignmentStrategyFactory extends StickyPartition
         config.getTaskCapacityUtilizationPct(), config.getThroughputInfoFetchTimeoutMs(),
         config.getThroughputInfoFetchRetryPeriodMs(), zkClient, _config.getCluster(),
         config.isEnableThroughputBasedPartitionAssignment(), config.isEnablePartitionNumBasedTaskCountEstimation(),
-        config.getDefaultPartitionBytesInKBRate(), config.getDefaultPartitionMsgsInRate(), config.getLogSizeLimitInBytes());
+        config.getDefaultPartitionBytesInKBRate(), config.getDefaultPartitionMsgsInRate());
   }
 
   protected PartitionThroughputProvider constructPartitionThroughputProvider() {
