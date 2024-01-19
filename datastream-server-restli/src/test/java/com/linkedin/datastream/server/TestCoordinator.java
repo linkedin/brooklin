@@ -4134,12 +4134,12 @@ public class TestCoordinator {
                       // Step 2
                       // Handling an event requires acquiring the coordinator's object.
                       handleEvent(new CoordinatorEvent(CoordinatorEvent.EventType.NO_OP, null));
-                      // Step 3
-                      notifyThreadsWaitingForCoordinatorObjectSynchronization();
                       if (isInterruptedInSleep) {
                         break;
                       }
                     }
+                    // Step 3
+                    notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
                 testCoordinatorEventProcessor[0].setDaemon(true);
@@ -4172,7 +4172,6 @@ public class TestCoordinator {
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
     properties.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
-    // custom heartbeat period of 2 second.
     properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(testHeartbeatPeriod));
 
     final Coordinator.CoordinatorEventProcessor[] testCoordinatorEventProcessor = {null};
@@ -4207,12 +4206,12 @@ public class TestCoordinator {
                       } catch (InterruptedException e) {
                         isInterruptedInSleep = true;
                       }
-                      // Step 3
-                      notifyThreadsWaitingForCoordinatorObjectSynchronization();
                       if (isInterruptedInSleep) {
                         break;
                       }
                     }
+                    // Step 3
+                    notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
                 testCoordinatorEventProcessor[0].setDaemon(true);
