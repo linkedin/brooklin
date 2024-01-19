@@ -341,13 +341,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // interrupt the thread if it's not gracefully shutdown
     CoordinatorEventProcessor eventThread = getEventThread();
     while (eventThread.isAlive()) {
-      // Waits to acquire the Coordinator object for a maximum of _heartbeat period.
-      // The time bound waiting prevents the caller thread to not infinitely wait if
-      // the event thread is already shutdown.
-      waitForNotificationFromEventThread(_heartbeatPeriod);
       try {
         _log.info("Attempting to interrupt the event thread.");
         eventThread.interrupt();
+        // Waits to acquire the Coordinator object for a maximum of _heartbeat period.
+        // The time bound waiting prevents the caller thread to not infinitely wait if
+        // the event thread is already shutdown.
+        waitForNotificationFromEventThread(_heartbeatPeriod);
         eventThread.join(EVENT_THREAD_SHORT_JOIN_TIMEOUT);
       } catch (InterruptedException e) {
         _log.warn("Exception caught while interrupting the event thread", e);
@@ -2259,6 +2259,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // be waiting on acquiring access on the Coordinator object.
   // We are only calling notify on the synchronized Coordinator Object's ("this") waiting threads.
   // Suppressing the Naked_Notify warning on this.
+  @VisibleForTesting
   protected synchronized void notifyThreadsWaitingForCoordinatorObjectSynchronization() {
     _coordinatorEventThreadExiting = true;
     this.notifyAll();
