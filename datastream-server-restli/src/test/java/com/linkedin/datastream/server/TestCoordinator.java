@@ -4167,12 +4167,11 @@ public class TestCoordinator {
   @Test
   public void testSessionExpiryCallbackThreadAttemptingToAcquireCoordinatorObjectAfterHandlingEvent() throws Exception {
     String testCluster = "dummyCluster";
-    long testHeartbeatPeriod = Duration.ofSeconds(2).toMillis();
+    long testHeartbeatPeriod = Duration.ofSeconds(5).toMillis();
 
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
     properties.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, _zkConnectionString);
-    // custom heartbeat period of 2 second.
     properties.put(CoordinatorConfig.CONFIG_HEARTBEAT_PERIOD_MS, String.valueOf(testHeartbeatPeriod));
 
     final Coordinator.CoordinatorEventProcessor[] testCoordinatorEventProcessor = {null};
@@ -4203,7 +4202,7 @@ public class TestCoordinator {
                         // Making sure we sleep for less than heartbeat period to
                         // mock the scenario where the zk session expiry thread
                         // is waiting for notification from the event thread.
-                        Thread.sleep(testHeartbeatPeriod - Duration.ofMillis(500).toMillis());
+                        Thread.sleep(testHeartbeatPeriod - Duration.ofMillis(2000).toMillis());
                       } catch (InterruptedException e) {
                         isInterruptedInSleep = true;
                       }
