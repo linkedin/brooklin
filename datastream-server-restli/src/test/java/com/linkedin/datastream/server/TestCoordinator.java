@@ -4134,12 +4134,12 @@ public class TestCoordinator {
                       // Step 2
                       // Handling an event requires acquiring the coordinator's object.
                       handleEvent(new CoordinatorEvent(CoordinatorEvent.EventType.NO_OP, null));
-                      // Step 3
-                      notifyThreadsWaitingForCoordinatorObjectSynchronization();
                       if (isInterruptedInSleep) {
                         break;
                       }
                     }
+                    // Step 3
+                    notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
                 testCoordinatorEventProcessor[0].setDaemon(true);
@@ -4167,7 +4167,7 @@ public class TestCoordinator {
   @Test
   public void testSessionExpiryCallbackThreadAttemptingToAcquireCoordinatorObjectAfterHandlingEvent() throws Exception {
     String testCluster = "dummyCluster";
-    long testHeartbeatPeriod = Duration.ofSeconds(5).toMillis();
+    long testHeartbeatPeriod = Duration.ofSeconds(2).toMillis();
 
     Properties properties = new Properties();
     properties.put(CoordinatorConfig.CONFIG_CLUSTER, testCluster);
@@ -4202,16 +4202,16 @@ public class TestCoordinator {
                         // Making sure we sleep for less than heartbeat period to
                         // mock the scenario where the zk session expiry thread
                         // is waiting for notification from the event thread.
-                        Thread.sleep(testHeartbeatPeriod - Duration.ofMillis(2000).toMillis());
+                        Thread.sleep(testHeartbeatPeriod - Duration.ofMillis(500).toMillis());
                       } catch (InterruptedException e) {
                         isInterruptedInSleep = true;
                       }
-                      // Step 3
-                      notifyThreadsWaitingForCoordinatorObjectSynchronization();
                       if (isInterruptedInSleep) {
                         break;
                       }
                     }
+                    // Step 3
+                    notifyThreadsWaitingForCoordinatorObjectSynchronization();
                   }
                 };
                 testCoordinatorEventProcessor[0].setDaemon(true);
