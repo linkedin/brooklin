@@ -3230,6 +3230,7 @@ public class TestCoordinator {
       Assert.assertTrue(t != null && t.isAlive());
       Assert.assertTrue(PollUtils.poll(() -> instance1.getIsLeader().getAsBoolean(), 100, 30000));
     }
+    instance1._coordinatorEventThreadExiting = false;
 
     instance1.stop();
     instance1.getDatastreamCache().getZkclient().close();
