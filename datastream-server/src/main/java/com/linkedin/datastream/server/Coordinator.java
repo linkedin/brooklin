@@ -2372,6 +2372,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
       synchronized (Coordinator.class) {
         _coordinatorEventThreadExiting = true;
+        _log.info("notify waiting threads for Coordinator object lock, "
+            + "_coordinatorEventThreadExiting={}", _coordinatorEventThreadExiting);
         notifyAll();
       }
       _log.info("END CoordinatorEventProcessor");
