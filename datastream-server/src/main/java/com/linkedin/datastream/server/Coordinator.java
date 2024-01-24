@@ -390,7 +390,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (!_coordinatorEventThreadExiting) {
         _log.info("Thread {} will wait for notification from the event thread for {} ms.",
             Thread.currentThread().getName(), duration.toMillis());
-        this.wait(duration.toMillis());
+        wait(duration.toMillis());
       }
 
     } catch (InterruptedException exception) {
@@ -2370,9 +2370,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.error("CoordinatorEventProcessor failed", t);
         }
       }
-      synchronized (this) {
+      synchronized (Coordinator.class) {
         _coordinatorEventThreadExiting = true;
-        this.notifyAll();
+        notifyAll();
       }
       _log.info("END CoordinatorEventProcessor");
     }
