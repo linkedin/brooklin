@@ -221,7 +221,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private volatile boolean _shutdown = false;
   // TODO we have _shutdown, eventThread and now _coordinatorEventThreadExiting, for some distinct usage,
   //  we should revisit and refactor to have less variation
-  private volatile boolean _coordinatorEventThreadExiting = false;
+  protected volatile boolean _coordinatorEventThreadExiting = false;
 
   private CoordinatorEventProcessor _eventThread;
   private ScheduledExecutorService _scheduledExecutor;
@@ -2370,6 +2370,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           _log.error("CoordinatorEventProcessor failed", t);
         }
       }
+      _log.info("Exiting eventThread _shutdown={} isInterrupted={}", _shutdown, isInterrupted());
       synchronized (Coordinator.this) {
         _coordinatorEventThreadExiting = true;
         _log.info("notify waiting threads for Coordinator object lock, "
