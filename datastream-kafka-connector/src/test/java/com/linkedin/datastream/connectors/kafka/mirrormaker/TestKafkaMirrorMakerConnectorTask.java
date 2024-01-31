@@ -96,6 +96,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
 
   private static final long CONNECTOR_AWAIT_STOP_TIMEOUT_MS = 30000;
   private static final long DEBOUNCE_TIMER_MS = 1000;
+  private static final double LOG_SIZE_LIMIT_IN_BYTES = 1024;
   private static final Logger LOG = LoggerFactory.getLogger(TestKafkaMirrorMakerConnectorTask.class);
 
   @Test
@@ -1084,7 +1085,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
   private void createAndConnectZkAdapter(DatastreamTaskImpl task) {
     ZkAdapter zkAdapter =
         new ZkAdapter(_kafkaCluster.getZkConnection(), "testCluster", null, ZkClient.DEFAULT_SESSION_TIMEOUT,
-            ZkClient.DEFAULT_CONNECTION_TIMEOUT, DEBOUNCE_TIMER_MS, null);
+            ZkClient.DEFAULT_CONNECTION_TIMEOUT, DEBOUNCE_TIMER_MS, LOG_SIZE_LIMIT_IN_BYTES, null);
     task.setZkAdapter(zkAdapter);
     zkAdapter.connect();
   }

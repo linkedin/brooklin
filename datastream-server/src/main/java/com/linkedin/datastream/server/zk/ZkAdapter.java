@@ -49,6 +49,7 @@ import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamUtils;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.common.zk.ZkClient;
+import com.linkedin.datastream.server.AssignmentTaskMapLogger;
 import com.linkedin.datastream.server.AssignmentToken;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamTask;
@@ -132,6 +133,7 @@ public class ZkAdapter {
   private final int _connectionTimeoutMs;
   private final int _operationRetryTimeoutMs;
   private final long _debounceTimerMs;
+  private final double _logSizeLimitInBytes;
 
   private ZkClient _zkclient;
   private String _instanceName;
@@ -176,16 +178,19 @@ public class ZkAdapter {
    * @param operationRetryTimeoutMs Timeout to use for retrying failed retriable operations. A value lesser than 0 is
    *                         considered as retry forever until a connection has been reestablished.
    * @param debounceTimerMs debounce timer to be used to delay the lock clean up.
+   * @param logSizeLimitInBytes size limit of log messages in bytes
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, int operationRetryTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
+      int connectionTimeoutMs, int operationRetryTimeoutMs, long debounceTimerMs, double logSizeLimitInBytes,
+      ZkAdapterListener listener) {
     _zkServers = zkServers;
     _cluster = cluster;
     _sessionTimeoutMs = sessionTimeoutMs;
     _connectionTimeoutMs = connectionTimeoutMs;
     _operationRetryTimeoutMs = operationRetryTimeoutMs;
     _debounceTimerMs = debounceTimerMs;
+    _logSizeLimitInBytes = logSizeLimitInBytes;
     _listener = listener;
     _defaultTransportProviderName = defaultTransportProviderName;
   }
@@ -197,13 +202,14 @@ public class ZkAdapter {
    * @param defaultTransportProviderName Default transport provider to use for a newly created task
    * @param sessionTimeoutMs Session timeout to use for the connection with the ZooKeeper server
    * @param connectionTimeoutMs Connection timeout to use for the connection with the ZooKeeper server
+   * @param logSizeLimitInBytes size limit for each log line in bytes
    * @param listener ZKAdapterListener implementation to receive callbacks based on various znode changes
    */
   @VisibleForTesting
   public ZkAdapter(String zkServers, String cluster, String defaultTransportProviderName, int sessionTimeoutMs,
-      int connectionTimeoutMs, long debounceTimerMs, ZkAdapterListener listener) {
+      int connectionTimeoutMs, long debounceTimerMs, double logSizeLimitInBytes, ZkAdapterListener listener) {
     this(zkServers, cluster, defaultTransportProviderName, sessionTimeoutMs, connectionTimeoutMs, -1,
-        debounceTimerMs, listener);
+        debounceTimerMs, logSizeLimitInBytes, listener);
   }
 
   /**
@@ -610,7 +616,9 @@ public class ZkAdapter {
    * have been cleaned up after each task reassignment.
    */
   public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
-    LOG.info("All live tasks: " + _liveTaskMap);
+    LOG.info("Logging all live tasks...");
+    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(LOG, _logSizeLimitInBytes);
+    assignmentLogger.logAssignment(_liveTaskMap);
     return new HashMap<>(_liveTaskMap);
   }
 

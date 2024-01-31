@@ -28,6 +28,7 @@ import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
+import com.linkedin.datastream.server.AssignmentTaskMapLogger;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.DatastreamGroupPartitionsMetadata;
@@ -58,6 +59,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
   private final LoadBasedPartitionAssigner _assigner;
   private final int _defaultPartitionBytesInKBRate;
   private final int _defaultPartitionMsgsInRate;
+  private final double _logSizeLimitInBytes;
 
   /**
    * Creates an instance of {@link LoadBasedPartitionAssignmentStrategy}
@@ -67,7 +69,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       int partitionFullnessFactorPct, int taskCapacityMBps, int taskCapacityUtilizationPct,
       int throughputInfoFetchTimeoutMs, int throughputInfoFetchRetryPeriodMs, ZkClient zkClient, String clusterName,
       boolean enableThroughputBasedPartitionAssignment, boolean enablePartitionNumBasedTaskCountEstimation,
-      int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate) {
+      int defaultPartitionBytesInKBRate, int defaultPartitionMsgsInRate, double logSizeLimitInBytes) {
     super(maxTasks, imbalanceThreshold, maxPartitionPerTask, enableElasticTaskAssignment, partitionsPerTask,
         partitionFullnessFactorPct, zkClient, clusterName);
     _throughputProvider = throughputProvider;
@@ -79,6 +81,7 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     _enablePartitionNumBasedTaskCountEstimation = enablePartitionNumBasedTaskCountEstimation;
     _defaultPartitionBytesInKBRate = defaultPartitionBytesInKBRate;
     _defaultPartitionMsgsInRate = defaultPartitionMsgsInRate;
+    _logSizeLimitInBytes = logSizeLimitInBytes;
 
     LOG.info("Task capacity : {}MBps, task capacity utilization : {}%, Throughput info fetch timeout : {} ms, "
         + "throughput info fetch retry period : {} ms, throughput based partition assignment : {}, "
@@ -112,7 +115,9 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
         currentAssignment, datastreamGroupName);
     Set<String> assignedPartitions = assignedPartitionsAndTaskCount.getKey();
     int taskCount = assignedPartitionsAndTaskCount.getValue();
-    LOG.info("Old partition assignment info, assignment: {}", currentAssignment);
+    LOG.info("Logging old partition assignment info...");
+    AssignmentTaskMapLogger assignmentLogger = new AssignmentTaskMapLogger(LOG, _logSizeLimitInBytes);
+    assignmentLogger.logAssignment(currentAssignment);
     Validate.isTrue(taskCount > 0, String.format("No tasks found for datastream group %s", datastreamGroup));
     Validate.isTrue(currentAssignment.size() > 0,
         "Zero tasks assigned. Retry leader partition assignment");
