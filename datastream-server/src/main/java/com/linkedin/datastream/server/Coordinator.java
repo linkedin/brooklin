@@ -85,6 +85,7 @@ import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.NUM_TASKS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
@@ -2052,6 +2053,59 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     } catch (Exception e) {
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.VALIDATE_DATASTREAMS_UPDATE_NUM_ERRORS, 1);
       throw e;
+    }
+  }
+
+  /**
+   * Verify certain checks before proceeding with datastream update. Compares few fields with existing datastream to
+   * check if update can be allowed or not
+   * @param datastream New state of datastream
+   * @param oldDatastream Current datastream
+   * @throws DatastreamValidationException if update cannot be allowed
+   */
+  public void verifyUpdateDatastreamChecks(Datastream datastream, Datastream oldDatastream) throws DatastreamValidationException {
+    String key = datastream.getName();
+    if (!oldDatastream.hasConnectorName() || !datastream.hasConnectorName()) {
+      throw new DatastreamValidationException(String.format("Failed to update %s because connector is not present."
+          + " Are they valid? old: %s, new: %s", key, oldDatastream, datastream));
+    }
+    if (!datastream.getConnectorName().equals(oldDatastream.getConnectorName())) {
+      throw new DatastreamValidationException(String.format("Failed to update %s. Can't update connector in update request."
+          + " old: %s, new: %s", key, oldDatastream, datastream));
+    }
+    if (!oldDatastream.hasTransportProviderName() || !datastream.hasTransportProviderName()) {
+      throw new DatastreamValidationException(String.format("Failed to update %s. Can't update transport provider in"
+          + " update request. old: %s, new: %s", key, oldDatastream, datastream));
+    }
+    if (!datastream.getTransportProviderName().equals(oldDatastream.getTransportProviderName())) {
+      throw new DatastreamValidationException(String.format("Failed to update %s. Can't update transport provider in"
+          + " update request. old: %s new: %s", key, oldDatastream, datastream));
+    }
+    if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
+      throw new DatastreamValidationException(String.format("Failed to update %s because destination is not set. "
+          + "Are they initialized? old: %s, new: %s", key, oldDatastream, datastream));
+    }
+
+    if (!oldDatastream.hasStatus() || !datastream.hasStatus()) {
+      throw new DatastreamValidationException(String.format("Failed to update %s because status is not present."
+          + " Are they valid? old: %s, new: %s", key, oldDatastream, datastream));
+    }
+    if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
+      throw new DatastreamValidationException(String.format("Failed to update %s. Can't update status in update request."
+          + " old: %s new: %s", key, oldDatastream, datastream));
+    }
+
+    if (datastream.getMetadata().containsKey(NUM_TASKS) &&
+        !datastream.getMetadata().get(NUM_TASKS).equals(oldDatastream.getMetadata().get(NUM_TASKS))) {
+      throw new DatastreamValidationException(String.format("Failed to update %s. Can't update numTasks."
+          + " old: %s new: %s", key, oldDatastream, datastream));
+    }
+
+    if (!_config.getOverrideDatastreamUpdateChecks()) {
+      if (!datastream.getDestination().equals(oldDatastream.getDestination())) {
+        throw new DatastreamValidationException(String.format("Failed to update %s because destination is immutable."
+            + " old: %s new: %s", key, oldDatastream, datastream));
+      }
     }
   }
 

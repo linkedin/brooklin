@@ -207,44 +207,7 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
       // connector, transport provider, destination or status (use pause/resume to update status).
       // Writing into a different destination should essentially be for a new datastream.
       try {
-        if (!oldDatastream.hasConnectorName() || !datastream.hasConnectorName()) {
-          throw new DatastreamValidationException(String.format("Failed to update %s because connector is not present."
-                  + " Are they valid? old: %s, new: %s", key, oldDatastream, datastream));
-        }
-        if (!datastream.getConnectorName().equals(oldDatastream.getConnectorName())) {
-          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update connector in update request."
-                  + " old: %s, new: %s", key, oldDatastream, datastream));
-        }
-        if (!oldDatastream.hasTransportProviderName() || !datastream.hasTransportProviderName()) {
-          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update transport provider in"
-              + " update request. old: %s, new: %s", key, oldDatastream, datastream));
-        }
-        if (!datastream.getTransportProviderName().equals(oldDatastream.getTransportProviderName())) {
-          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update transport provider in"
-                  + " update request. old: %s new: %s", key, oldDatastream, datastream));
-        }
-        if (!oldDatastream.hasDestination() || !datastream.hasDestination()) {
-          throw new DatastreamValidationException(String.format("Failed to update %s because destination is not set. "
-                  + "Are they initialized? old: %s, new: %s", key, oldDatastream, datastream));
-        }
-        if (!datastream.getDestination().equals(oldDatastream.getDestination())) {
-          throw new DatastreamValidationException(String.format("Failed to update %s because destination is immutable."
-                  + " old: %s new: %s", key, oldDatastream, datastream));
-        }
-        if (!oldDatastream.hasStatus() || !datastream.hasStatus()) {
-          throw new DatastreamValidationException(String.format("Failed to update %s because status is not present."
-                  + " Are they valid? old: %s, new: %s", key, oldDatastream, datastream));
-        }
-        if (!datastream.getStatus().equals(oldDatastream.getStatus())) {
-          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update status in update request."
-                  + " old: %s new: %s", key, oldDatastream, datastream));
-        }
-
-        if (datastream.getMetadata().containsKey(NUM_TASKS) &&
-            !datastream.getMetadata().get(NUM_TASKS).equals(oldDatastream.getMetadata().get(NUM_TASKS))) {
-          throw new DatastreamValidationException(String.format("Failed to update %s. Can't update numTasks."
-              + " old: %s new: %s", key, oldDatastream, datastream));
-        }
+        _coordinator.verifyUpdateDatastreamChecks(datastream, oldDatastream);
 
         LOG.info("[UPDATE] old datastream = {}, new datastream = {}", oldDatastream, datastream);
       } catch (DatastreamValidationException e) {
