@@ -145,6 +145,15 @@ public class PausedSourcePartitionMetadata {
         Reason.SEND_ERROR, ex);
   }
 
+  /**
+   * Creates a PausedSourcePartitionMetadata to represent a partition that needs to be paused due to errors encountered
+   * while accessing the topic/partition.
+   * @param start Start time when the partition was paused.
+   * @param pauseDuration Duration for which the partition should be paused. The duration is used to check if partition
+   *                      should be resumed.
+   * @param reason  the reason for the pause
+   * @param ex Exception related to this send error, if any
+   */
   public static PausedSourcePartitionMetadata pollError(Instant start, Duration pauseDuration, Reason reason, Exception ex) {
     return new PausedSourcePartitionMetadata(() ->Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
         reason, ex);
