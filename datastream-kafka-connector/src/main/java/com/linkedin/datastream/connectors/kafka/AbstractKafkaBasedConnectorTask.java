@@ -619,18 +619,16 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.warn("Poll fail with exception", e);
       throw e;
     } else {
-      _logger.warn(
-          String.format("Poll threw an exception. Sleeping for %d seconds and repoll from consumer, poll attempt: %d",
-              _retrySleepDuration.getSeconds(), _pollAttempts.intValue()), e);
+      _logger.warn("Failed to poll. repoll from consumer, poll attempt={}", _pollAttempts.intValue(), e);
       // add partition into pause list on topic not authz for access
       if (e instanceof TopicAuthorizationException) {
         TopicAuthorizationException tae = (TopicAuthorizationException) e;
-        Set<String> unauthorizedTopics = tae.unauthorizedTopics();
+        final Set<String> unauthorizedTopics = tae.unauthorizedTopics();
         _logger.warn("Not authorized to access, they will be added to auto-pause set, topics={}", unauthorizedTopics);
         for (String topic: unauthorizedTopics) {
           List<PartitionInfo> partitionInfos = _consumer.partitionsFor(topic);
           for (PartitionInfo partitionInfo : partitionInfos) {
-            TopicPartition tp = new TopicPartition(topic, partitionInfo.partition());
+            final TopicPartition tp = new TopicPartition(topic, partitionInfo.partition());
             _logger.warn("Adding source topic partition={} to auto-pause set", tp);
             _autoPausedSourcePartitions.put(tp, PausedSourcePartitionMetadata.pollError(Instant.now(),
                 _pauseErrorPartitionDuration, PausedSourcePartitionMetadata.Reason.TOPIC_NOT_AUTHORIZED, tae));
