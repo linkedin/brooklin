@@ -28,6 +28,7 @@ public class PausedSourcePartitionMetadata {
   public enum Reason {
     EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD("Number of in-flight messages for partition exceeded threshold"),
     SEND_ERROR("Failed to produce messages from this partition"),
+    TOPIC_NOT_AUTHORIZED("Topic not authorized for consume"),
     TOPIC_NOT_CREATED("Topic not created on the destination side");
 
     private final String _description;
@@ -142,5 +143,10 @@ public class PausedSourcePartitionMetadata {
   public static PausedSourcePartitionMetadata sendError(Instant start, Duration pauseDuration, Exception ex) {
     return new PausedSourcePartitionMetadata(() -> Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
         Reason.SEND_ERROR, ex);
+  }
+
+  public static PausedSourcePartitionMetadata pollError(Instant start, Duration pauseDuration, Reason reason, Exception ex) {
+    return new PausedSourcePartitionMetadata(() ->Duration.between(start, Instant.now()).compareTo(pauseDuration) > 0,
+        reason, ex);
   }
 }

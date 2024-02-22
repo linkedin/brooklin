@@ -35,7 +35,9 @@ import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
 import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 
@@ -620,9 +622,23 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
       _logger.warn(
           String.format("Poll threw an exception. Sleeping for %d seconds and repoll from consumer, poll attempt: %d",
               _retrySleepDuration.getSeconds(), _pollAttempts.intValue()), e);
-    }
-    if (!_shutdown) {
-      Thread.sleep(_retrySleepDuration.toMillis());
+      // add partition into pause list on topic not authz for access
+      if (e instanceof TopicAuthorizationException) {
+        TopicAuthorizationException tae = (TopicAuthorizationException) e;
+        Set<String> unauthorizedTopics = tae.unauthorizedTopics();
+        _logger.warn("Not authorized to access, they will be added to auto-pause set, topics={}", unauthorizedTopics);
+        for (String topic: unauthorizedTopics) {
+          List<PartitionInfo> partitionInfos = _consumer.partitionsFor(topic);
+          for (PartitionInfo partitionInfo : partitionInfos) {
+            TopicPartition tp = new TopicPartition(topic, partitionInfo.partition());
+            _logger.warn("Adding source topic partition={} to auto-pause set", tp);
+            _autoPausedSourcePartitions.put(tp, PausedSourcePartitionMetadata.pollError(Instant.now(),
+                _pauseErrorPartitionDuration, PausedSourcePartitionMetadata.Reason.TOPIC_NOT_AUTHORIZED, tae));
+          }
+        }
+        // update datastream task for pause, this will be used in preConsumerPollHook
+        _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+      }
     }
   }
 
@@ -946,6 +962,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     long numAutoPausedPartitionsOnError = 0;
     long numAutoPausedPartitionsAwaitingDestTopic = 0;
     long numAutoPausedPartitionsOnInFlightMessages = 0;
+    long numAutoPausedPartitionsAwaitingSourceTopicAccess = 0;
     for (PausedSourcePartitionMetadata metadata : _autoPausedSourcePartitions.values()) {
       switch (metadata.getReason()) {
         case SEND_ERROR:
@@ -953,6 +970,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
           break;
         case EXCEEDED_MAX_IN_FLIGHT_MSG_THRESHOLD:
           numAutoPausedPartitionsOnInFlightMessages++;
+          break;
+        case TOPIC_NOT_AUTHORIZED:
+          numAutoPausedPartitionsAwaitingSourceTopicAccess++;
           break;
         case TOPIC_NOT_CREATED:
           numAutoPausedPartitionsAwaitingDestTopic++;
@@ -964,6 +984,7 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
     _consumerMetrics.updateNumAutoPausedPartitionsOnError(numAutoPausedPartitionsOnError);
     _consumerMetrics.updateNumAutoPausedPartitionsOnInFlightMessages(numAutoPausedPartitionsOnInFlightMessages);
     _consumerMetrics.updateNumAutoPausedPartitionsAwaitingDestTopic(numAutoPausedPartitionsAwaitingDestTopic);
+    _consumerMetrics.updateNumAutoPausedPartitionsAwaitingSourceTopicAccess(numAutoPausedPartitionsAwaitingSourceTopicAccess);
     _consumerMetrics.updateNumConfigPausedPartitions(partitionsToPause.size() - _autoPausedSourcePartitions.size());
   }
 
