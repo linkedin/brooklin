@@ -625,17 +625,22 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
         TopicAuthorizationException tae = (TopicAuthorizationException) e;
         final Set<String> unauthorizedTopics = tae.unauthorizedTopics();
         _logger.warn("Not authorized to access, they will be added to auto-pause set, topics={}", unauthorizedTopics);
-        for (String topic: unauthorizedTopics) {
-          List<PartitionInfo> partitionInfos = _consumer.partitionsFor(topic);
-          for (PartitionInfo partitionInfo : partitionInfos) {
-            final TopicPartition tp = new TopicPartition(topic, partitionInfo.partition());
-            _logger.warn("Adding source topic partition={} to auto-pause set", tp);
-            _autoPausedSourcePartitions.put(tp, PausedSourcePartitionMetadata.pollError(Instant.now(),
-                _pauseErrorPartitionDuration, PausedSourcePartitionMetadata.Reason.TOPIC_NOT_AUTHORIZED, tae));
-          }
-        }
-        // update datastream task for pause, this will be used in preConsumerPollHook
-        _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+         try {
+           for (String topic: unauthorizedTopics) {
+             List<PartitionInfo> partitionInfos = _consumer.partitionsFor(topic);
+             for (PartitionInfo partitionInfo : partitionInfos) {
+               final TopicPartition tp = new TopicPartition(topic, partitionInfo.partition());
+               _logger.warn("Adding source topic partition={} to auto-pause set", tp);
+               _autoPausedSourcePartitions.put(tp, PausedSourcePartitionMetadata.pollError(Instant.now(),
+                   _pauseErrorPartitionDuration, PausedSourcePartitionMetadata.Reason.TOPIC_NOT_AUTHORIZED, tae));
+             }
+           }
+           // update datastream task for pause, this will be used in preConsumerPollHook
+           _taskUpdates.add(DatastreamConstants.UpdateType.PAUSE_RESUME_PARTITIONS);
+         } catch (Exception ex) {
+           _logger.warn("Failed to perform auto-pause on source error", ex);
+         }
+
       }
     }
   }

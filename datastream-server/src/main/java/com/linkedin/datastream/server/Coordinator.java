@@ -1176,9 +1176,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   protected synchronized void handleEvent(CoordinatorEvent event) {
     _log.info("START: Handle event " + event.getType() + ", Instance: " + _adapter.getInstanceName());
     boolean isLeader = _adapter.isLeader();
-    if (isLeader) { // explicitly not using ternary operator here to not couple _isLeaderBusy with isLeader
-      _isLeaderBusy = true;
-    }
     if (!isLeader && isLeaderEvent(event.getType())) {
       _log.info("Skipping event {} isLeader: false", event.getType());
       _log.info("END: Handle event " + event);
@@ -2367,6 +2364,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         try {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
+            _isLeaderBusy = _adapter.isLeader();
             handleEvent(event);
             _isLeaderBusy = false;
           }
