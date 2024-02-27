@@ -95,6 +95,9 @@ public class DatabaseChunkedReader implements Closeable {
 
   private DatabaseChunkedReaderMetrics _metrics;
 
+  private long _statementExecutionDelayMs;
+  private long _lastStatementExecutionMs = 0;
+
   /**
    * Create a DatabaseChunkedReader instance
    * @param props Configuration
@@ -123,6 +126,7 @@ public class DatabaseChunkedReader implements Closeable {
     _connection = connection;
     _chunkedQueryManager = _databaseChunkedReaderConfig.getChunkedQueryManager();
     _skipBadMessagesEnabled = _databaseChunkedReaderConfig.getShouldSkipBadMessage();
+    _statementExecutionDelayMs = _databaseChunkedReaderConfig.getStatementExecutionDelay();
 
     if (StringUtils.isBlank(db)) {
       _database = _connection.getMetaData().getUserName();
@@ -183,8 +187,18 @@ public class DatabaseChunkedReader implements Closeable {
   }
 
   private void executeChunkedQuery(PreparedStatement stmt) throws SQLException {
+    long executionDelayMs = System.currentTimeMillis() - _lastStatementExecutionMs;
+    if (executionDelayMs < _statementExecutionDelayMs) {
+      try {
+        Thread.sleep(Math.max(0, _statementExecutionDelayMs - executionDelayMs));
+      } catch (InterruptedException e) {
+        throw new DatastreamRuntimeException("Failed to Thread.sleep() before next statement execution", e);
+      }
+    }
+
     long timeStart = System.currentTimeMillis();
     _queryResultSet = stmt.executeQuery();
+    _lastStatementExecutionMs = System.currentTimeMillis();
     _metrics.updateQueryExecutionDuration(System.currentTimeMillis() - timeStart);
     _metrics.updateQueryExecutionRate();
   }
@@ -342,6 +356,10 @@ public class DatabaseChunkedReader implements Closeable {
       row = getNextRow();
     }
     return row;
+  }
+
+  public long getLastStatementExecutionMs() {
+    return _lastStatementExecutionMs;
   }
 
   /**

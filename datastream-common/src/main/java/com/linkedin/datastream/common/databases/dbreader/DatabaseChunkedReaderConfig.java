@@ -28,6 +28,8 @@ public class DatabaseChunkedReaderConfig {
   // cache the query results and only return fetchSize rows to the driver.
   public static final String FETCH_SIZE = "fetchSize";
   public static final String SKIP_BAD_MESSAGE = "skipBadMessage";
+  // Adds a delay between DB connection statement executions. This is useful to throttle Brooklin queries.
+  public static final String STATEMENT_EXECUTION_DELAY = "statementExecutionDelay";
   // Max number of rows to fetch for each query. This will help the server limit the number of full row
   // fetches that it has to do. For example in Oracle, a ROWNUM <= 1000 will add a stopKey constraint where the DB will
   // only look for first 1000 matches that match the specified constraints and will do a full row fetch only for these.
@@ -38,12 +40,14 @@ public class DatabaseChunkedReaderConfig {
   private static final int DEFAULT_FETCH_SIZE = 10000;
   private static final long DEFAULT_ROW_COUNT_LIMIT = 50000;
   private static final boolean DEFAULT_SKIP_BAD_MESSAGE = false;
+  private static final long DEFAULT_STATEMENT_EXECUTION_DELAY = 0;
 
   private final int _queryTimeout;
   private final int _fetchSize;
   private final long _rowCountLimit;
   private ChunkedQueryManager _chunkedQueryManager;
   private final boolean _shouldSkipBadMessage;
+  private final long _statementExecutionDelay;
 
   /**
    * Constructor for DatabaseChunkedReaderConfig
@@ -61,6 +65,7 @@ public class DatabaseChunkedReaderConfig {
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
     _shouldSkipBadMessage = verifiableProperties.getBoolean(SKIP_BAD_MESSAGE, DEFAULT_SKIP_BAD_MESSAGE);
+    _statementExecutionDelay = verifiableProperties.getLong(STATEMENT_EXECUTION_DELAY, DEFAULT_STATEMENT_EXECUTION_DELAY);
 
     String queryManagerClass = verifiableProperties.getString(DATABASE_QUERY_MANAGER_CLASS_NAME);
     if (StringUtils.isBlank(queryManagerClass)) {
@@ -91,5 +96,9 @@ public class DatabaseChunkedReaderConfig {
 
   public boolean getShouldSkipBadMessage() {
     return _shouldSkipBadMessage;
+  }
+
+  public long getStatementExecutionDelay() {
+    return _statementExecutionDelay;
   }
 }

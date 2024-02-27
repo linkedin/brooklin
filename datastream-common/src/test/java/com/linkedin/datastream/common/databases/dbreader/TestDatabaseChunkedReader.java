@@ -290,6 +290,7 @@ public class TestDatabaseChunkedReader {
     reader.subscribe(Collections.singletonList(0), null);
     for (DatabaseRow row = reader.poll(); row != null; row = reader.poll()) {
       Assert.assertEquals(row, new DatabaseRow(Collections.singletonList(field)));
+      Assert.assertTrue(reader.getLastStatementExecutionMs() > 0);
       count++;
     }
     Assert.assertEquals(2, count);
