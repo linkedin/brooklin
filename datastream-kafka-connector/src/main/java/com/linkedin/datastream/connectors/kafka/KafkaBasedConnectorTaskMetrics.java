@@ -116,11 +116,11 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         numAutoPausedPartitionsOnInFlightMessages::get);
     AtomicLong numAutoPausedPartitionsAwaitingDestTopic =
         NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
-    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
         numAutoPausedPartitionsAwaitingDestTopic::get);
     AtomicLong numAutoPausedPartitionsAwaitingSourceTopicAccess =
         NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
-    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS,
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS,
         numAutoPausedPartitionsAwaitingSourceTopicAccess::get);
     AtomicLong numTopics = NUM_TOPICS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, numTopics::get);
