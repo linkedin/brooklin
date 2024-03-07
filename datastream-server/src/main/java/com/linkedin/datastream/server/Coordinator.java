@@ -229,6 +229,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private Future<?> _leaderDatastreamAddOrDeleteEventScheduledFuture = null;
   private Future<?> _leaderDoAssignmentScheduledFuture = null;
   private volatile boolean _zkSessionExpired = false;
+  private boolean _isLeaderBusy = false;
 
   // Cache all the throughput violating topics per datastream
   private final Map<String, Set<String>> _throughputViolatingTopicsMap = new HashMap<>();
@@ -2363,7 +2364,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         try {
           CoordinatorEvent event = _eventQueue.take();
           if (event != null) {
+            _isLeaderBusy = _adapter.isLeader();
             handleEvent(event);
+            _isLeaderBusy = false;
           }
         } catch (InterruptedException e) {
           _log.warn("CoordinatorEventProcessor interrupted", e);
@@ -2417,6 +2420,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private static final String MAX_PARTITION_COUNT_IN_TASK = "maxPartitionCountInTask";
     private static final String NUM_PAUSED_DATASTREAMS_GROUPS = "numPausedDatastreamsGroups";
     private static final String IS_LEADER = "isLeader";
+    private static final String IS_LEADER_BUSY = "isLeaderBusy";
     private static final String ZK_SESSION_EXPIRED = "zkSessionExpired";
     public static final String NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM = "numThroughputViolatingTopics";
 
@@ -2557,6 +2561,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .put(NUM_PAUSED_DATASTREAMS_GROUPS, PAUSED_DATASTREAMS_GROUPS::get)
           .put(IS_LEADER, () -> _coordinator.getIsLeader().getAsBoolean() ? 1 : 0)
           .put(ZK_SESSION_EXPIRED, () -> _coordinator.isZkSessionExpired() ? 1 : 0)
+          .put(IS_LEADER_BUSY, () -> _coordinator._isLeaderBusy ? 1 : 0)
           .build();
       gaugeMetrics.forEach(this::registerGauge);
 

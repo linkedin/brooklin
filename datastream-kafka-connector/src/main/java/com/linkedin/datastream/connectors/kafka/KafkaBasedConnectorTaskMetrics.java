@@ -43,6 +43,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
   // keeps track of paused partitions that are auto paused because destination does not exist yet
   public static final String NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC =
       "numAutoPausedPartitionsAwaitingDestTopic";
+  public static final String NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS =
+      "numAutoPausedPartitionsAwaitingSourceTopicAccess";
   // keeps track of number of topics that are assigned to the task
   public static final String NUM_TOPICS = "numTopics";
   // keeps track of how long it takes to return from poll()
@@ -64,6 +66,8 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
       new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC =
       new ConcurrentHashMap<>();
+  private static final Map<String, AtomicLong> AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS =
+      new ConcurrentHashMap<>();
 
   private static final Map<String, AtomicLong> NUM_TOPICS_PER_METRIC_KEY = new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> NUM_CONFIG_PAUSED_PARTITIONS_PER_METRIC_KEY = new ConcurrentHashMap<>();
@@ -73,11 +77,14 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
       new ConcurrentHashMap<>();
   private static final Map<String, AtomicLong> NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY =
       new ConcurrentHashMap<>();
+  private static final Map<String, AtomicLong> NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS_PER_METRIC_KEY
+      = new ConcurrentHashMap<>();
 
   private final AtomicLong _numConfigPausedPartitions;
   private final AtomicLong _numAutoPausedPartitionsOnError;
   private final AtomicLong _numAutoPausedPartitionsOnInFlightMessages;
   private final AtomicLong _numAutoPausedPartitionsAwaitingDestTopic;
+  private final AtomicLong _numAutoPausedPartitionsAwaitingSourceTopicAccess;
   private final AtomicLong _numTopics;
 
   private final Histogram _pollDurationMsMetric;
@@ -93,6 +100,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     _numAutoPausedPartitionsOnError = new AtomicLong(0);
     _numAutoPausedPartitionsOnInFlightMessages = new AtomicLong(0);
     _numAutoPausedPartitionsAwaitingDestTopic = new AtomicLong(0);
+    _numAutoPausedPartitionsAwaitingSourceTopicAccess = new AtomicLong(0);
     _numTopics = new AtomicLong(0);
     AtomicLong numConfigPausedPartitions =
         NUM_CONFIG_PAUSED_PARTITIONS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
@@ -108,8 +116,12 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         numAutoPausedPartitionsOnInFlightMessages::get);
     AtomicLong numAutoPausedPartitionsAwaitingDestTopic =
         NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
-    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
         numAutoPausedPartitionsAwaitingDestTopic::get);
+    AtomicLong numAutoPausedPartitionsAwaitingSourceTopicAccess =
+        NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS,
+        numAutoPausedPartitionsAwaitingSourceTopicAccess::get);
     AtomicLong numTopics = NUM_TOPICS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, numTopics::get);
 
@@ -136,6 +148,10 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC,
         aggNumAutoPausedPartitionsAwaitingDestTopic::get);
+    AtomicLong aggNumAutoPausedPartitionsAwaitingSourceTopicAccess =
+        AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS.computeIfAbsent(className, k -> new AtomicLong(0));
+    DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS,
+        aggNumAutoPausedPartitionsAwaitingSourceTopicAccess::get);
     AtomicLong aggNumTopics = AGGREGATED_NUM_TOPICS.computeIfAbsent(className, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, AGGREGATE, NUM_TOPICS, aggNumTopics::get);
   }
@@ -189,6 +205,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, NUM_TOPICS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, CONSUMER_OFFSET_WATERMARK_SPAN);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(_className, _key, CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION);
@@ -237,6 +254,16 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     long delta = val - _numAutoPausedPartitionsAwaitingDestTopic.getAndSet(val);
     updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC_PER_METRIC_KEY,
         AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC);
+  }
+
+  /**
+   * Set number of auto paused partitions awaiting source topic access
+   * @param val Value to set to
+   */
+  public void updateNumAutoPausedPartitionsAwaitingSourceTopicAccess(long val) {
+    long delta = val - _numAutoPausedPartitionsAwaitingSourceTopicAccess.getAndSet(val);
+    updateMetrics(delta, NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS_PER_METRIC_KEY,
+        AGGREGATED_NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS);
   }
 
   /**
@@ -303,6 +330,7 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
+    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS));
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
     metrics.add(new BrooklinGaugeInfo(prefix + CONSUMER_OFFSET_WATERMARK_SPAN));
     metrics.add(new BrooklinGaugeInfo(prefix + CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION));
