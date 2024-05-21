@@ -4,7 +4,7 @@ allprojects {
 
 subprojects {
   apply plugin: 'maven-publish'
-  apply plugin: 'com.jfrog.bintray'
+//  apply plugin: 'com.jfrog.bintray'
   apply plugin: 'com.jfrog.artifactory'
   apply plugin: 'pegasus'
 
@@ -189,22 +189,22 @@ subprojects {
     }
   }
 
-  bintray {
-    user = System.getenv('BINTRAY_USER')
-    key = System.getenv('BINTRAY_KEY')
-    publications = allPublications
-    pkg {
-      repo = 'maven'
-      name = 'brooklin'
-      userOrg = 'linkedin'
-      licenses = ['BSD 2-Clause']
-      vcsUrl = 'https://www.github.com/linkedin/brooklin'
-      publicDownloadNumbers = true
-      version {
-        name = project.version
-      }
-      publish = false
-      override = false
-    }
-  }
+//  bintray {
+//    user = System.getenv('BINTRAY_USER')
+//    key = System.getenv('BINTRAY_KEY')
+//    publications = allPublications
+//    pkg {
+//      repo = 'maven'
+//      name = 'brooklin'
+//      userOrg = 'linkedin'
+//      licenses = ['BSD 2-Clause']
+//      vcsUrl = 'https://www.github.com/linkedin/brooklin'
+//      publicDownloadNumbers = true
+//      version {
+//        name = project.version
+//      }
+//      publish = false
+//      override = false
+//    }
+//  }
 }
