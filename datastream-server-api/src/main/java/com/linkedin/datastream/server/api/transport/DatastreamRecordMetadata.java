@@ -123,6 +123,17 @@ public class DatastreamRecordMetadata {
     return _topic;
   }
 
+ /**
+  * Gets the topic name without any decorations or modifications.
+  * This base implementation simply returns the topic name as is.
+  * Subclasses may override this method to provide custom topic name undecorating logic.
+  * @return The undecorated topic name
+  */
+ public String getUndecoratedTopic() {
+   // It is kept for backward compatibility.
+   return _topic;
+ }
+
   /**
    * An index identifying the exact {@link com.linkedin.datastream.common.BrooklinEnvelope} event produced,
    * from those obtainable through {@link com.linkedin.datastream.server.DatastreamProducerRecord#getEvents()}
