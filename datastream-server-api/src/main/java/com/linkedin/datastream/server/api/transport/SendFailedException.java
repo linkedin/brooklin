@@ -12,6 +12,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 /**
  * Exception used when sending data fails
  */
+@SuppressWarnings("serial")
 public class SendFailedException extends Exception {
   private static final long serialVersionUID = 1;
   private final DatastreamTask _datastreamTask;
