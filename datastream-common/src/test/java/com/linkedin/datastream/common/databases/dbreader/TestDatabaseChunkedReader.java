@@ -66,7 +66,7 @@ public class TestDatabaseChunkedReader {
       + "],\"meta\":\"dbTableName=TEST_DB_TEST_TABLE;pk=key1,key2,key3;\"}";
   private static final Schema TEST_COMPOSITE_KEY_TABLE_SCHEMA = Schema.parse(TEST_COMPOSITE_KEY_TABLE_SCHEMA_STR);
   private static final String TEST_SIMPLE_KEY_TABLE = "TEST_SIMPLE_SCHEMA";
-  private static final String TEST_SIMPLE_QUERY = "SELECT * FROM " + TEST_SIMPLE_KEY_TABLE;
+  private static final String TEST_SIMPLE_QUERY = "SELECT * FROM " + TEST_SIMPLE_KEY_TABLE + " ORDER BY KEY1";
   private static final List<String> TEST_SIMPLE_KEYS = Collections.singletonList("key1");
   private static final String TEST_SIMPLE_SCHEMA_STR =
       "{\"type\":\"record\",\"name\":\"SIMPLE_SCHEMA\",\"namespace\":\"com.linkedin.events.simpleschema\", \"fields\":["
@@ -88,7 +88,7 @@ public class TestDatabaseChunkedReader {
     Properties props = new Properties();
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + QUERY_TIMEOUT_SECS, "10000"); //10 secs
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + FETCH_SIZE, "100");
-    //props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
+    props.setProperty(DB_READER_DOMAIN_CONFIG + "." + SKIP_BAD_MESSAGE, skipBadMsg.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + ROW_COUNT_LIMIT, chunkSize.toString());
     props.setProperty(DB_READER_DOMAIN_CONFIG + "." + DATABASE_QUERY_MANAGER_CLASS_NAME,
         "com.linkedin.datastream.common.databases.dbreader.MySqlChunkedQueryManager");
@@ -327,7 +327,7 @@ public class TestDatabaseChunkedReader {
         new DatabaseChunkedReader(props, mockDs.getConnection(), TEST_SIMPLE_QUERY, "TEST_DB", TEST_SIMPLE_KEY_TABLE, mockDBSource,
             "TEST_CHECKPOINT");
     Map<String, Object> checkpoint = new HashMap<>();
-    checkpoint.put("key1", null);
+    checkpoint.put("key1", 99);
     reader.subscribe(Collections.singletonList(0), checkpoint);
     reader.poll();
     // Verify that a call to setObject was done with supplied key value
