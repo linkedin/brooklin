@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build:
@@ -21,7 +21,7 @@ jobs:
           java-version: '8'
 
       - name: Make build.sh executable
-        run: chmod +x ./build.sh
+        run: chmod +x ./.github/scripts/build.sh
 
       - name: Run build script
         run: ./.github/scripts/build.sh
