@@ -337,7 +337,7 @@ public class EventProducer implements DatastreamEventProducer {
     if (_numEventsOutsideAltSlaLogEnabled) {
       try {
         if (sourceToDestinationLatencyMs > _availabilityThresholdAlternateSlaMs) {
-          TopicPartition topicPartition = new TopicPartition(metadata.getTopic(), metadata.getSourcePartition());
+          TopicPartition topicPartition = new TopicPartition(metadata.getUndecoratedTopic(), metadata.getSourcePartition());
           int numEvents = _trackEventsOutsideAltSlaMap.getOrDefault(topicPartition, 0);
           _trackEventsOutsideAltSlaMap.put(topicPartition, numEvents + 1);
         }
@@ -506,7 +506,8 @@ public class EventProducer implements DatastreamEventProducer {
         // Report metrics
         checkpoint(metadata.getPartition(), metadata.getCheckpoint());
         // Reporting separate metrics for throughput violating topics.
-        if (_throughputViolatingTopicsProvider.apply(_datastreamTask).contains(metadata.getTopic())) {
+
+        if (_throughputViolatingTopicsProvider.apply(_datastreamTask).contains(metadata.getUndecoratedTopic())) {
           reportMetricsForThroughputViolatingTopics(metadata, eventSourceTimestamp, eventSendTimestamp);
         } else {
           reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
