@@ -8,7 +8,6 @@ repositories {
         maven {
             url "https://linkedin.jfrog.io/artifactory/open-source"
         }
-        maven { url "https://repo.grails.org/grails/core/" }
     }
 }
 
