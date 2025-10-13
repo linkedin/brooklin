@@ -27,13 +27,13 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *            (
      *                SELECT * FROM TABLE
      *            ) nestedTab1
-     *        WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 3 ) )
+     *        WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 3 ) )
      *        ORDER BY KEY1
      *    ) as nestedTab2 LIMIT 10;
      */
     String firstExpected =
         "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
-            + "WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 3 ) ) ORDER BY KEY1 ) as nestedTab2 LIMIT 10";
+            + "WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 3 ) ) ORDER BY KEY1 ) as nestedTab2 LIMIT 10";
 
     /**
      *   SELECT * FROM
@@ -42,12 +42,12 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *           (
      *               SELECT * FROM TABLE
      *           ) nestedTab1
-     *       WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) )
+     *       WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) )
      *       ORDER BY KEY1
      *   ) as nestedTab2 LIMIT 10;
      */
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
-        + "WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) ) ORDER BY KEY1 ) as nestedTab2 LIMIT 10";
+        + "WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) ) ORDER BY KEY1 ) as nestedTab2 LIMIT 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEY, CHUNK_SIZE, PARTITION_COUNT, PARTITION);
   }
 
@@ -64,10 +64,10 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *           (
      *               SELECT * FROM TABLE
      *           ) nestedTab1
-     *       WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) ) ORDER BY KEY1
+     *       WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 2 , 5 ) ) ORDER BY KEY1
      *   ) as nestedTab2 LIMIT 10;
      */
-    String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) "
+    String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) "
         + "IN ( 2 , 5 ) ) ORDER BY KEY1 ) as nestedTab2 LIMIT 10";
 
     /**
@@ -77,11 +77,11 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *           (
      *               SELECT * FROM TABLE
      *           ) nestedTab1
-     *       WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) ) AND ( ( KEY1 > ? ) ) ORDER BY KEY1
+     *       WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 2 , 5 ) ) AND ( ( KEY1 > ? ) ) ORDER BY KEY1
      *   ) as nestedTab2 LIMIT 10;
      */
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
-        + "WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) ) "
+        + "WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 ) ) , 10 ) IN ( 2 , 5 ) ) "
         + "AND ( ( KEY1 > ? ) ) ORDER BY KEY1 ) as nestedTab2 LIMIT 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEY, CHUNK_SIZE, PARTITION_COUNT,
         PARTITIONS);
@@ -96,12 +96,12 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *       SELECT * FROM
      *           (
      *               SELECT * FROM TABLE
-     *           ) nestedTab1 WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 3 ) )
+     *           ) nestedTab1 WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) )
      *       ORDER BY KEY1 , KEY2
      *   ) as nestedTab2 LIMIT 10;
      */
     String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1"
-        + " WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 3 ) ) ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";
+        + " WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";
 
     /**
      *   SELECT * FROM
@@ -110,12 +110,12 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *           (
      *               SELECT * FROM TABLE
      *           ) nestedTab1
-     *       WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
+     *       WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
      *       ORDER BY KEY1 , KEY2
      *   ) as nestedTab2 LIMIT 10;
      */
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
-        + "WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) ) "
+        + "WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 3 ) ) AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) ) "
         + "ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEYS, CHUNK_SIZE, PARTITION_COUNT,
         PARTITION);
@@ -130,12 +130,12 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *       SELECT * FROM
      *           (
      *               SELECT * FROM TABLE
-     *           ) nestedTab1 WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) )
+     *           ) nestedTab1 WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 2 , 5 ) )
      *       ORDER BY KEY1 , KEY2
      *   ) as nestedTab2 LIMIT 10;
      */
     String firstExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
-        + "WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) ) "
+        + "WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 2 , 5 ) ) "
         + "ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";
 
     /**
@@ -145,13 +145,13 @@ public class TestMysqlChunkedQueryManager extends TestChunkedQueryManagerBase {
      *        SELECT * FROM
      *            (
      *                SELECT * FROM TABLE
-     *            ) nestedTab1 WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) )
+     *            ) nestedTab1 WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 2 , 5 ) )
      *              AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
      *        ORDER BY KEY1 , KEY2
      *    ) as nestedTab2 LIMIT 10;
      */
     String chunkedExpected = "SELECT * FROM ( SELECT * FROM ( SELECT * FROM TABLE ) nestedTab1 "
-        + "WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) , 16, 10 ) , 10 ) IN ( 2 , 5 ) ) "
+        + "WHERE ( MOD ( CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 2 , 5 ) ) "
         + "AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) ) ORDER BY KEY1 , KEY2 ) as nestedTab2 LIMIT 10";
     testQueryString(MANAGER, firstExpected, chunkedExpected, NESTED_QUERY, KEYS, CHUNK_SIZE, PARTITION_COUNT,
         PARTITIONS);

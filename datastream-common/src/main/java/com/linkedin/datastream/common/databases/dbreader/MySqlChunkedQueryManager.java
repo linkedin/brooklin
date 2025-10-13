@@ -19,7 +19,7 @@ public class MySqlChunkedQueryManager implements ChunkedQueryManager {
   private static final String SELECT_FROM = "SELECT * FROM ( ";
 
   /** Generate base predicate for sharding keys to given number of partitions.
-   *  Ex: MOD ( CONV ( MD5 ( CONCAT ( K1, K2, K3 ) ) , 16, 10 ) , 10 ) for a table with 3 keys {K1, K2, K3} and 10 partitions */
+   *  Ex: MOD ( CRC32 ( CONCAT ( K1, K2, K3 ) ), 10 ) for a table with 3 keys {K1, K2, K3} and 10 partitions */
   private static String generatePerPartitionHashPredicate(List<String> keys, int partitionCount) {
     StringBuilder query = new StringBuilder();
     int keyCount = keys.size();
@@ -31,17 +31,15 @@ public class MySqlChunkedQueryManager implements ChunkedQueryManager {
     }
     query.append(" )");
 
-    // Wrap that with MOD, CONV, and MD5 to generate a hash for sharding
-    // MOD ( CONV ( MD5 ( CONCAT ( A, B, C ) ) , 16, 10 ) , 10 )
-    query.insert(0, "MD5 ( ").append(" )");
-    // 16, 10 converts from HEX to DEC
-    query.insert(0, "CONV ( ").append(" , 16, 10 )");
+    // Wrap that with MOD, CRC32 to generate a hash for sharding
+    // MOD ( CRC32 ( CONCAT ( A, B, C ) ) , 10 )
+    query.insert(0, "CRC32 ( ").append(" )");
     query.insert(0, "MOD ( ").append(" , ").append(partitionCount).append(" )");
     return query.toString();
   }
 
   /** Generate predicate for filtering rows hashing to the assigned partitions :
-   *  Ex: WHERE ( MOD ( CONV ( MD5 ( CONCAT ( K1, K2, K3 ) ) , 16, 10 ) , 10 ) IN (1 , 6 ) )
+   *  Ex: WHERE ( MOD ( CRC32 ( CONCAT ( K1, K2, K3 ) ), 10 ) IN (1 , 6 ) )
    *  where 1 and 6 are the assigned partitions, 10 the partition count and, {K1, K2, K3} the keys of the table
    */
   private static String generateFullPartitionHashPredicate(String perPartitionPredicate, List<Integer> partitions) {
@@ -121,7 +119,7 @@ public class MySqlChunkedQueryManager implements ChunkedQueryManager {
     //      SELECT * FROM
     //          (
     //              SELECT * FROM TABLE
-    //          ) nestedTab1 WHERE ( MOD ( CONV ( MD5 ( CONCAT ( KEY1 , KEY2 ) ) 16, 10 ) , 10 ) IN ( 2 , 5 ) )
+    //          ) nestedTab1 WHERE ( MOD CRC32 ( CONCAT ( KEY1 , KEY2 ) ) , 10 ) IN ( 2 , 5 ) )
     //      AND ( ( KEY1 > ? ) OR ( KEY1 = ? AND KEY2 > ? ) )
     //      ORDER BY KEY1 , KEY2
     //  ) as nestedTab2 LIMIT 10;
