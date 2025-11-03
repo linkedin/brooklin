@@ -337,6 +337,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
       });
 
       _zkAdapter.acquireTask(this, timeout);
+      setStatus(DatastreamTaskStatus.ok("Task lock acquired"));
     } catch (Exception e) {
       LOG.error(String.format("Failed to acquire task: %s with dependencies: %s", this.getDatastreamTaskName(),
           String.join(",", this.getDependencies())), e);
