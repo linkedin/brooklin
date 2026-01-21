@@ -10,8 +10,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.StringUtils;
@@ -29,10 +31,10 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
- /**
-  * ZooKeeper-backed {@link CheckpointProvider} that maintains {@link DatastreamTask}
-  * processing state information, e.g. offsets/checkpoints, errors.
-  */
+/**
+ * ZooKeeper-backed {@link CheckpointProvider} that maintains {@link DatastreamTask}
+ * processing state information, e.g. offsets/checkpoints, errors.
+ */
 public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   public static final String CHECKPOINT_KEY_NAME = "sourceCheckpoint";
@@ -51,13 +53,14 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       new TypeReference<ConcurrentHashMap<Integer, String>>() {
       };
 
-  private final ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpointsToCommit = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<DatastreamTask, Map<Integer, String>> _checkpoints = new ConcurrentHashMap<>();
+  private final Set<DatastreamTask> _checkpointsToCommit = new HashSet<>();
   private final ConcurrentHashMap<DatastreamTask, Instant> _lastCommitTime = new ConcurrentHashMap<>();
 
-   /**
-    * Construct an instance of ZookeeperCheckpointProvider
-    * @param zkAdapter ZooKeeper client adapter to use
-    */
+  /**
+   * Construct an instance of ZookeeperCheckpointProvider
+   * @param zkAdapter ZooKeeper client adapter to use
+   */
   public ZookeeperCheckpointProvider(ZkAdapter zkAdapter) {
     _zkAdapter = zkAdapter;
     // Initialize metrics
@@ -66,7 +69,10 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   @Override
   public void unassignDatastreamTask(DatastreamTask task) {
-    _checkpointsToCommit.remove(task);
+    _checkpoints.remove(task);
+    synchronized (_checkpointsToCommit) {
+      _checkpointsToCommit.remove(task);
+    }
     _lastCommitTime.remove(task);
   }
 
@@ -82,12 +88,19 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       if (!_lastCommitTime.containsKey(task) || Instant.now()
           .isAfter(_lastCommitTime.get(task).plus(CHECKPOINT_INTERVAL))) {
         writeCheckpointsToStore(task);
+        synchronized (_checkpointsToCommit) {
+          _checkpointsToCommit.remove(task);
+        }
+      } else {
+        synchronized (_checkpointsToCommit) {
+          _checkpointsToCommit.add(task);
+        }
       }
     }
   }
 
   private Map<Integer, String> getOrAddCheckpointMap(DatastreamTask task) {
-    return _checkpointsToCommit.computeIfAbsent(task, k -> new HashMap<>());
+    return _checkpoints.computeIfAbsent(task, k -> new HashMap<>());
   }
 
   private void writeCheckpointsToStore(DatastreamTask task) {
@@ -101,7 +114,7 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
       _dynamicMetricsManager.createOrUpdateHistogram(MODULE, CHECKPOINT_COMMIT_LATENCY_MS,
           System.currentTimeMillis() - startTime);
 
-      Map<Integer, String> committedCheckpoints = _checkpointsToCommit.get(task);
+      Map<Integer, String> committedCheckpoints = _checkpoints.get(task);
       // This check is necessary since task may have been unassigned/removed by a concurrent call to unassignDatastreamTask().
       if (committedCheckpoints != null) {
         // Clear the checkpoints to commit.
@@ -113,8 +126,11 @@ public class ZookeeperCheckpointProvider implements CheckpointProvider {
 
   @Override
   public void flush() {
-    LOG.info("Flushing checkpoints for {} datatstream tasks to ZooKeeper", _checkpointsToCommit.size());
-    _checkpointsToCommit.keySet().forEach(this::writeCheckpointsToStore);
+    synchronized (_checkpointsToCommit) {
+      LOG.info("Flushing checkpoints for {} datatstream tasks to ZooKeeper", _checkpointsToCommit.size());
+      _checkpointsToCommit.forEach(this::writeCheckpointsToStore);
+      _checkpointsToCommit.clear();
+    }
     LOG.info("Flushing checkpoints to ZooKeeper completed successfully");
   }
 
