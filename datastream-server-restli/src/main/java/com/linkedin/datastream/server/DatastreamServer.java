@@ -393,15 +393,17 @@ public class DatastreamServer {
     }
 
     // Start the DMS REST endpoint.
-    try {
-      _jettyLauncher.start();
-      _httpPort = _jettyLauncher.getPort();
-      // httpPort might be modified when _jettyLauncher start, so set the port of _serverComponentHealthAggregator.
-      _serverComponentHealthAggregator.setPort(_httpPort);
-      _isStarted = true;
-    } catch (Exception ex) {
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to start embedded Jetty.", ex);
+    if (_jettyLauncher != null) {
+      try {
+        _jettyLauncher.start();
+        _httpPort = _jettyLauncher.getPort();
+        // httpPort might be modified when _jettyLauncher start, so set the port of _serverComponentHealthAggregator.
+        _serverComponentHealthAggregator.setPort(_httpPort);
+      } catch (Exception ex) {
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to start embedded Jetty.", ex);
+      }
     }
+    _isStarted = true;
   }
 
   /**
