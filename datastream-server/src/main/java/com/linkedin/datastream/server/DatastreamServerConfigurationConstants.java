@@ -16,7 +16,7 @@ public final class DatastreamServerConfigurationConstants {
   public static final String CONFIG_CSV_METRICS_DIR = CONFIG_PREFIX + "csvMetricsDir";
   public static final String CONFIG_ZK_ADDRESS = CoordinatorConfig.CONFIG_ZK_ADDRESS;
   public static final String CONFIG_CLUSTER_NAME = CoordinatorConfig.CONFIG_CLUSTER;
-  public static final String CONFIG_ENABLE_EMBEDDED_JETTY = "enableEmbeddedJetty";
+  public static final String CONFIG_ENABLE_EMBEDDED_JETTY = CONFIG_PREFIX + "enableEmbeddedJetty";
   public static final String CONFIG_FACTORY_CLASS_NAME = "factoryClassName";
   public static final String CONFIG_CONNECTOR_BOOTSTRAP_TYPE = "bootstrapConnector";
   public static final String CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY = "assignmentStrategyFactory";
