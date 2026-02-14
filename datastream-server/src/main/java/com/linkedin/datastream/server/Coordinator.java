@@ -865,8 +865,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     try {
       getAssignmentsFuture(assignmentChangeFutures, start, isDatastreamUpdate);
     } catch (TimeoutException e) {
-      // if it's timeout then we will retry
-      _log.warn("Timeout when doing the assignment", e);
+      // Clear the current assignment state to force full reconciliation on the next assignment change.
+      // Without this, _assignedDatastreamTasks retains stale state from the previous successful assignment,
+      // causing the next handleAssignmentChange() to compute an incorrect diff. For example, a task that was
+      // unassigned and stopped by the connector but not removed from _assignedDatastreamTasks (due to this
+      // timeout) would be incorrectly treated as "already running" if re-assigned, resulting in no
+      // ConnectorTask being created. Clearing follows the same pattern as onSessionExpired().
+      _log.warn("Timeout when doing the assignment. Clearing current assignment state to force full "
+          + "reconciliation on next assignment change.", e);
+      _assignedDatastreamTasks.clear();
       retryHandleAssignmentChange(isDatastreamUpdate);
       return;
     } catch (InterruptedException e) {
