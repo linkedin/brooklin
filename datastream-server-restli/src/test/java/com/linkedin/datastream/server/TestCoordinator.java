@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
@@ -4503,6 +4504,145 @@ public class TestCoordinator {
       _coordinator = coordinator;
       _resource = resource;
       _connector = connector;
+    }
+  }
+
+  /**
+   * Sets the private static final ASSIGNMENT_TIMEOUT field on Coordinator via Unsafe.
+   * Returns the original value so it can be restored.
+   * Uses sun.misc.Unsafe because JDK 17+ no longer allows modifying static final fields via standard reflection.
+   */
+  private Duration setAssignmentTimeout(Duration newTimeout) throws Exception {
+    Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+    unsafeField.setAccessible(true);
+    sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+
+    Field field = Coordinator.class.getDeclaredField("ASSIGNMENT_TIMEOUT");
+    Object base = unsafe.staticFieldBase(field);
+    long offset = unsafe.staticFieldOffset(field);
+
+    Duration original = (Duration) unsafe.getObject(base, offset);
+    unsafe.putObject(base, offset, newTimeout);
+    return original;
+  }
+
+  @Test
+  public void testHandleAssignmentChangeClearsStateOnTimeout() throws Exception {
+    String testCluster = "testHandleAssignmentChangeClearsStateOnTimeout";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    // Reduce ASSIGNMENT_TIMEOUT so the test doesn't wait 90 seconds
+    Duration originalTimeout = setAssignmentTimeout(Duration.ofSeconds(1));
+
+    try {
+      Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+
+      // A connector that blocks on onAssignmentChange long enough to trigger the timeout
+      CountDownLatch blockingLatch = new CountDownLatch(1);
+      TestHookConnector slowConnector = new TestHookConnector("slowConnector", testConnectorType) {
+        @Override
+        public void onAssignmentChange(List<DatastreamTask> tasks) {
+          try {
+            // Block for longer than ASSIGNMENT_TIMEOUT (1 second)
+            blockingLatch.await(5, TimeUnit.SECONDS);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+          super.onAssignmentChange(tasks);
+        }
+      };
+
+      instance1.addConnector(testConnectorType, slowConnector, new BroadcastStrategy(Optional.empty()), false,
+          new SourceBasedDeduper(), null);
+      instance1.start();
+
+      ZkClient zkClient = new ZkClient(_zkConnectionString);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+
+      // Wait for the timeout to occur and state to be cleared
+      Assert.assertTrue(PollUtils.poll(() -> instance1.getDatastreamTasks().isEmpty(), 200, 10000),
+          "Expected _assignedDatastreamTasks to be cleared after assignment timeout");
+
+      // Unblock the connector so it can process retried assignments
+      blockingLatch.countDown();
+
+      // After unblocking, the retried assignment should succeed
+      assertConnectorAssignment(slowConnector, 10000, datastreamName1);
+
+      // Verify the coordinator has the task tracked after successful retry
+      Assert.assertFalse(instance1.getDatastreamTasks().isEmpty(),
+          "Expected _assignedDatastreamTasks to be populated after successful retry");
+
+      instance1.stop();
+      instance1.getDatastreamCache().getZkclient().close();
+      zkClient.close();
+    } finally {
+      setAssignmentTimeout(originalTimeout);
+    }
+  }
+
+  /**
+   * Verifies that after a timeout clears _assignedDatastreamTasks, a re-assignment
+   * does NOT skip the task (i.e., the task is not incorrectly treated as "already running").
+   * This is the core bug that the clear() fix addresses.
+   */
+  @Test
+  public void testHandleAssignmentChangeTimeoutDoesNotSkipTaskOnReassignment() throws Exception {
+    String testCluster = "testHandleAssignmentChangeTimeoutDoesNotSkipTaskOnReassignment";
+    String testConnectorType = "testConnectorType";
+    String datastreamName1 = "datastream1";
+
+    // Reduce ASSIGNMENT_TIMEOUT so the test doesn't wait 90 seconds
+    Duration originalTimeout = setAssignmentTimeout(Duration.ofSeconds(1));
+
+    try {
+      java.util.concurrent.atomic.AtomicInteger assignmentChangeCount = new java.util.concurrent.atomic.AtomicInteger(0);
+      // Block only the first onAssignmentChange; let subsequent ones through immediately
+      CountDownLatch blockFirstAssignment = new CountDownLatch(1);
+
+      Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+
+      TestHookConnector connector = new TestHookConnector("connector1", testConnectorType) {
+        @Override
+        public void onAssignmentChange(List<DatastreamTask> tasks) {
+          int count = assignmentChangeCount.incrementAndGet();
+          if (count == 1) {
+            // Block the first assignment to trigger timeout. Use a long wait so the
+            // coordinator's 1-second timeout fires while we're still blocked.
+            try {
+              blockFirstAssignment.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+            }
+          }
+          super.onAssignmentChange(tasks);
+        }
+      };
+
+      instance1.addConnector(testConnectorType, connector, new BroadcastStrategy(Optional.empty()), false,
+          new SourceBasedDeduper(), null);
+      instance1.start();
+
+      ZkClient zkClient = new ZkClient(_zkConnectionString);
+      DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, datastreamName1);
+
+      // Unblock the first (timed-out) assignment after giving coordinator time to timeout and retry
+      Thread.sleep(3000);
+      blockFirstAssignment.countDown();
+
+      // The retry should successfully assign the task even though the first attempt timed out
+      assertConnectorAssignment(connector, 15000, datastreamName1);
+
+      // Verify the coordinator has the task tracked properly after successful retry
+      Assert.assertFalse(instance1.getDatastreamTasks().isEmpty(),
+          "Expected _assignedDatastreamTasks to be populated after successful retry");
+
+      instance1.stop();
+      instance1.getDatastreamCache().getZkclient().close();
+      zkClient.close();
+    } finally {
+      setAssignmentTimeout(originalTimeout);
     }
   }
 }
