@@ -4508,21 +4508,20 @@ public class TestCoordinator {
   }
 
   /**
-   * Sets the private static final ASSIGNMENT_TIMEOUT field on Coordinator via Unsafe.
+   * Sets the private static final ASSIGNMENT_TIMEOUT field on Coordinator via reflection.
    * Returns the original value so it can be restored.
-   * Uses sun.misc.Unsafe because JDK 17+ no longer allows modifying static final fields via standard reflection.
    */
   private Duration setAssignmentTimeout(Duration newTimeout) throws Exception {
-    Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-    unsafeField.setAccessible(true);
-    sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
-
     Field field = Coordinator.class.getDeclaredField("ASSIGNMENT_TIMEOUT");
-    Object base = unsafe.staticFieldBase(field);
-    long offset = unsafe.staticFieldOffset(field);
+    field.setAccessible(true);
 
-    Duration original = (Duration) unsafe.getObject(base, offset);
-    unsafe.putObject(base, offset, newTimeout);
+    // Remove the 'final' modifier so we can write to the field
+    Field modifiersField = Field.class.getDeclaredField("modifiers");
+    modifiersField.setAccessible(true);
+    modifiersField.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
+
+    Duration original = (Duration) field.get(null);
+    field.set(null, newTimeout);
     return original;
   }
 
