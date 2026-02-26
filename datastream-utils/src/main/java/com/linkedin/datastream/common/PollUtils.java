@@ -121,7 +121,7 @@ public final class PollUtils {
    * @return true if condition is met, false otherwise
    */
   public static <T> boolean poll(InterruptablePredicate<T> cond, long periodMs, long timeoutMs, T arg) {
-    long elapsedMs = 0;
+    long startMs = System.currentTimeMillis();
     if (timeoutMs > 0 && periodMs > timeoutMs) {
       return false;
     }
@@ -134,8 +134,7 @@ public final class PollUtils {
       } catch (InterruptedException e) {
         break;
       }
-      elapsedMs += periodMs;
-      if (timeoutMs > 0 && elapsedMs >= timeoutMs) {
+      if (timeoutMs > 0 && System.currentTimeMillis() - startMs >= timeoutMs) {
         break;
       }
     }
@@ -152,7 +151,7 @@ public final class PollUtils {
    */
   public static <T> Optional<T> poll(InterruptableSupplier<T> interruptableSupplier, InterruptablePredicate<T> cond,
       long periodMs, long timeoutMs) {
-    long elapsedMs = 0;
+    long startMs = System.currentTimeMillis();
     if (periodMs > timeoutMs) {
       return Optional.empty();
     }
@@ -167,8 +166,7 @@ public final class PollUtils {
       } catch (InterruptedException e) {
         break;
       }
-      elapsedMs += periodMs;
-      if (elapsedMs >= timeoutMs) {
+      if (System.currentTimeMillis() - startMs >= timeoutMs) {
         break;
       }
     }
