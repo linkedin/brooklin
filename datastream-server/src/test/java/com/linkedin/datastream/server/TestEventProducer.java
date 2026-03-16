@@ -16,6 +16,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
@@ -153,6 +154,111 @@ public class TestEventProducer {
         metrics.getMetric("EventProducer." + datastreamName + "." + EventProducer.EVENTS_LATENCY_MS_STRING));
     Assert.assertNotNull(
         metrics.getMetric("EventProducer." + datastreamName + "." + EventProducer.EVENTS_SEND_LATENCY_MS_STRING));
+  }
+
+  @Test
+  public void testThroughputAttributionMetrics() {
+    String datastreamName = "datastream-testThroughputAttributionMetrics";
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    byte[] key = new byte[10];
+    byte[] value = new byte[20];
+    long expectedBytes = key.length + value.length; // 30
+
+    String someTopicName = "someTopicName";
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    Properties props = new Properties();
+    props.put(EventProducer.CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.TRUE.toString());
+    EventProducer eventProducer =
+        new EventProducer(task, transport, new NoOpCheckpointProvider(), props, false);
+
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.setPartition(0);
+    builder.setSourceCheckpoint("0");
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    builder.addEvent(new BrooklinEnvelope(key, value, null, new HashMap<>()));
+    eventProducer.send(builder.build(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    String connectorType = DummyConnector.CONNECTOR_TYPE;
+
+    Meter dbBytesRate = (Meter) metrics.getMetric("EventProducer.db.testDatabase." + EventProducer.BYTES_PRODUCED_RATE);
+    Assert.assertNotNull(dbBytesRate, "Per-database bytesProducedRate should exist");
+    Assert.assertEquals(dbBytesRate.getCount(), expectedBytes);
+
+    Meter dbEventRate = (Meter) metrics.getMetric("EventProducer.db.testDatabase.eventProduceRate");
+    Assert.assertNotNull(dbEventRate, "Per-database eventProduceRate should exist");
+    Assert.assertEquals(dbEventRate.getCount(), 1);
+
+    Meter aggBytesRate = (Meter) metrics.getMetric("EventProducer.aggregate." + EventProducer.BYTES_PRODUCED_RATE);
+    Assert.assertNotNull(aggBytesRate, "Aggregate bytesProducedRate should exist");
+    Assert.assertEquals(aggBytesRate.getCount(), expectedBytes);
+
+    Meter connectorBytesRate = (Meter) metrics.getMetric("EventProducer." + connectorType + "." + EventProducer.BYTES_PRODUCED_RATE);
+    Assert.assertNotNull(connectorBytesRate, "Connector-type bytesProducedRate should exist");
+    Assert.assertEquals(connectorBytesRate.getCount(), expectedBytes);
+  }
+
+  @Test
+  public void testThroughputMetricsDisabledByDefault() {
+    String datastreamName = "datastream-testThroughputMetricsDisabled";
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/someDatabase/someTable");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    String someTopicName = "someTopicName";
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    // Do NOT set CONFIG_ENABLE_THROUGHPUT_METRICS — it should default to false
+    EventProducer eventProducer =
+        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(metrics.getMetric("EventProducer.db.someDatabase." + EventProducer.BYTES_PRODUCED_RATE),
+        "bytesProducedRate should not exist when throughput metrics are disabled");
+    Assert.assertNull(metrics.getMetric("EventProducer.aggregate." + EventProducer.BYTES_PRODUCED_RATE),
+        "aggregate bytesProducedRate should not exist when throughput metrics are disabled");
+  }
+
+  @Test
+  public void testNoDatabaseMetricForBmmUri() {
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "datastream-testBmmUri")[0];
+    // BMM source uses double-slash URI — no database segment should be extracted
+    datastream.getSource().setConnectionString("kafka://broker:9092/someTopic");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    Properties props = new Properties();
+    props.put(EventProducer.CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.TRUE.toString());
+    EventProducer eventProducer =
+        new EventProducer(task, new NoOpTransportProviderAdminFactory.NoOpTransportProvider(),
+            new NoOpCheckpointProvider(), props, false);
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(metrics.getMetric("EventProducer.db.someTopic." + EventProducer.BYTES_PRODUCED_RATE),
+        "No per-database metric should exist for BMM double-slash URI");
+    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate." + EventProducer.BYTES_PRODUCED_RATE),
+        "Aggregate bytesProducedRate should still exist for BMM");
   }
 
   private DatastreamProducerRecord createDatastreamProducerRecord() {
