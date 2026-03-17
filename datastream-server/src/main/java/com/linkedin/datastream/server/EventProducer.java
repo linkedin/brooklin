@@ -5,6 +5,8 @@
  */
 package com.linkedin.datastream.server;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -52,6 +54,18 @@ public class EventProducer implements DatastreamEventProducer {
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
   public static final String CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS = "enablePerTopicEventLatencyMetrics";
+  /**
+   * When enabled, emits per-source-database throughput attribution metrics keyed as
+   * {@code EventProducer.db.<databaseName>.bytesProducedRate} and
+   * {@code EventProducer.db.<databaseName>.eventProduceRate}.
+   * Applies only to CDC connectors whose source URI uses a single-slash scheme
+   * (e.g. {@code espresso:/}, {@code mysql:/}, {@code tidb:/}).
+   * Double-slash URIs (e.g. {@code kafka://}) produce no database metrics.
+   *
+   * <p><b>Cardinality warning:</b> each distinct database name creates a new metric series.
+   * Enable only when the set of source databases is bounded and well-understood.
+   */
+  public static final String CONFIG_ENABLE_THROUGHPUT_METRICS = "enableThroughputAttributionMetrics";
 
   // Default flush interval, It is intentionally kept at low frequency. If a particular connectors wants
   // a more frequent flush (high traffic connectors), it can perform that on it's own.
@@ -79,7 +93,9 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
   private static final String DROPPED_SENT_FROM_SERIALIZATION_ERROR = "droppedSentFromSerializationError";
+  static final String BYTES_PRODUCED_RATE = "bytesProducedRate";
   private static final String AGGREGATE = "aggregate";
+
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
   private static final String DEFAULT_WARN_LOG_LATENCY_ENABLED = "false";
@@ -109,6 +125,9 @@ public class EventProducer implements DatastreamEventProducer {
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
   private final boolean _enablePerTopicEventLatencyMetrics;
+  private final boolean _enableThroughputMetrics;
+  // Cached source database name parsed from the connection string at construction time (null for non-CDC sources)
+  private final String _sourceDatabase;
   private final Duration _flushInterval;
   private final Function<DatastreamTask, Set<String>> _throughputViolatingTopicsProvider;
 
@@ -187,6 +206,12 @@ public class EventProducer implements DatastreamEventProducer {
     _enablePerTopicEventLatencyMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS,
             Boolean.FALSE.toString()));
+
+    _enableThroughputMetrics =
+        Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.FALSE.toString()));
+
+    String[] sourceParts = getSourcePathParts();
+    _sourceDatabase = (sourceParts != null && sourceParts.length > 1) ? sourceParts[1] : null;
 
     _logger.info("Created event producer with customCheckpointing={}", customCheckpointing);
 
@@ -281,10 +306,17 @@ public class EventProducer implements DatastreamEventProducer {
       record.setEventsSendTimestamp(System.currentTimeMillis());
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
+      final long numSerializedBytes = record.getEvents().stream()
+          .mapToLong(e -> {
+            long keySize = e.key().filter(k -> k instanceof byte[]).map(k -> (long) ((byte[]) k).length).orElse(0L);
+            long valSize = e.value().filter(v -> v instanceof byte[]).map(v -> (long) ((byte[]) v).length).orElse(0L);
+            return keySize + valSize;
+          })
+          .sum();
       if (isBroadcast) {
         broadcastMetadata = _transportProvider.broadcast(destination, record,
             (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
-                recordEventsSendTimestamp));
+                recordEventsSendTimestamp, numSerializedBytes));
         _logger.debug("Broadcast completed with {}", broadcastMetadata);
         if (broadcastMetadata.isMessageSerializationError()) {
           _logger.warn("Broadcast of record {} to destination {} failed because of serialization error.",
@@ -293,7 +325,7 @@ public class EventProducer implements DatastreamEventProducer {
       } else {
         _transportProvider.send(destination, record,
             (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
-                recordEventsSendTimestamp));
+                recordEventsSendTimestamp, numSerializedBytes));
       }
     } catch (Exception e) {
       String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
@@ -365,7 +397,8 @@ public class EventProducer implements DatastreamEventProducer {
    * per DatastreamProducerRecord (i.e. by the number of events within the record), only increment all metrics by 1
    * to avoid overcounting.
    */
-  private void reportMetrics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp, long eventsSendTimestamp) {
+  private void reportMetrics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp, long eventsSendTimestamp,
+      long numBytes) {
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = getDatastreamName();
 
@@ -413,6 +446,7 @@ public class EventProducer implements DatastreamEventProducer {
     }
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
+    reportThroughputAttributionMetrics(numBytes);
   }
 
   /**
@@ -424,7 +458,7 @@ public class EventProducer implements DatastreamEventProducer {
    * to avoid overcounting.
    */
   private void reportMetricsForThroughputViolatingTopics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp,
-      long eventsSendTimestamp) {
+      long eventsSendTimestamp, long numBytes) {
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : getDatastreamName();
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
@@ -457,6 +491,7 @@ public class EventProducer implements DatastreamEventProducer {
     }
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
+    reportThroughputAttributionMetrics(numBytes);
   }
 
   // Report Event Latency metrics for aggregate, connector and topic/datastream
@@ -492,7 +527,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
-      long eventSourceTimestamp, long eventSendTimestamp) {
+      long eventSourceTimestamp, long eventSendTimestamp, long numBytes) {
 
     SendFailedException sendFailedException = null;
 
@@ -505,9 +540,9 @@ public class EventProducer implements DatastreamEventProducer {
         // Reporting separate metrics for throughput violating topics.
 
         if (_throughputViolatingTopicsProvider.apply(_datastreamTask).contains(metadata.getUndecoratedTopic())) {
-          reportMetricsForThroughputViolatingTopics(metadata, eventSourceTimestamp, eventSendTimestamp);
+          reportMetricsForThroughputViolatingTopics(metadata, eventSourceTimestamp, eventSendTimestamp, numBytes);
         } else {
-          reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp);
+          reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp, numBytes);
         }
       }
     } catch (Exception e) {
@@ -601,8 +636,34 @@ public class EventProducer implements DatastreamEventProducer {
     return String.format("EventProducer producerId=%d", _producerId);
   }
 
+  private void reportThroughputAttributionMetrics(long numBytes) {
+    if (!_enableThroughputMetrics) {
+      return;
+    }
+    if (_sourceDatabase != null) {
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "db." + _sourceDatabase, BYTES_PRODUCED_RATE, numBytes);
+      _dynamicMetricsManager.createOrUpdateMeter(MODULE, "db." + _sourceDatabase, EVENT_PRODUCE_RATE, 1);
+    }
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, BYTES_PRODUCED_RATE, numBytes);
+    _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), BYTES_PRODUCED_RATE, numBytes);
+  }
+
   private String getDatastreamName() {
     return _datastreamTask.getDatastreams().get(0).getName();
+  }
+
+  // Returns path segments ["CLUSTER", "DATABASE", "TABLE"] for CDC single-slash URIs, null for BMM double-slash URIs.
+  // Consistent with MySqlKafkaSource, TiDBKafkaSource, and EspressoSource parsing in brooklin-li-common.
+  private String[] getSourcePathParts() {
+    try {
+      URI uri = new URI(_datastreamTask.getDatastreamSource().getConnectionString());
+      if (uri.getAuthority() != null) {
+        return null; // double-slash URI (e.g. kafka://host/topic) — no cluster/database segments
+      }
+      return uri.getPath().substring(1).split("/");
+    } catch (URISyntaxException e) {
+      return null;
+    }
   }
 
   /**
@@ -615,6 +676,7 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + TOTAL_EVENTS_PRODUCED));
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX + EVENT_PRODUCE_RATE));
+    metrics.add(new BrooklinMeterInfo(METRICS_PREFIX + BYTES_PRODUCED_RATE));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + DROPPED_SENT_FROM_SERIALIZATION_ERROR));
