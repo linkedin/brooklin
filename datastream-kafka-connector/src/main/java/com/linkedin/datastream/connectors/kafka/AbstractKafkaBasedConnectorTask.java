@@ -604,9 +604,8 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void handleNoOffsetForPartitionException(NoOffsetForPartitionException e) {
     _logger.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
     if (!_shutdown) {
-      // Default to EARLIEST for CDC connectors to avoid data loss for CDC+Bootstrap use-case.
-      // Starting from EARLIEST ensures the consumer reads all records including bootstrap
-      // snapshot data and change events from the bootstrap window. (DATAPIPES-33203)
+      // Default to EARLIEST to reuse any existing snapshot/data already in the topic when no
+      // committed offset is found. The auto.offset.reset consumer property wins if explicitly set.
       seekToStartPosition(_consumer, e.partitions(),
           _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST));
     }

@@ -195,25 +195,12 @@ public class EventProducer implements DatastreamEventProducer {
     _newStreamSlaGracePeriodMs = Long.parseLong(
         config.getProperty(NEW_STREAM_SLA_GRACE_PERIOD_MS, DEFAULT_NEW_STREAM_SLA_GRACE_PERIOD_MS));
 
-    // Use the oldest (min) CREATION_MS across deduped datastreams sharing this task. Once any one
-    // stream has been running past the grace window, the underlying consumer is at HEAD and SLA
-    // reporting should resume; using the newest creation time would let a freshly deduped stream
-    // suppress SLA on long-running siblings. Zero/missing/malformed values are filtered out and
-    // fall through to the fail-open default (0 → grace disabled).
-    long creationMs = 0;
-    try {
-      if (task.getDatastreams() != null && !task.getDatastreams().isEmpty()) {
-        creationMs = task.getDatastreams().stream()
-            .map(ds -> ds.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "0"))
-            .mapToLong(Long::parseLong)
-            .filter(ms -> ms > 0)
-            .min()
-            .orElse(0L);
-      }
-    } catch (Exception e) {
-      _logger.warn("Failed to parse stream creation time, SLA grace period will not be applied", e);
-    }
-    _streamCreationTimeMs = creationMs;
+    // Source-database parsing pulled forward so we can gate stream-creation-time parsing on
+    // whether this is a CDC source. Non-CDC sources (BMM kafka://, Inlogs, etc.) don't have a
+    // bootstrap window worth masking, so skip the work entirely for them.
+    String[] sourceParts = getSourcePathParts();
+    _sourceDatabase = (sourceParts != null && sourceParts.length > 1) ? sourceParts[1] : null;
+    _streamCreationTimeMs = (_sourceDatabase != null) ? parseStreamCreationTimeMs(task) : 0L;
 
     _warnLogLatencyEnabled =
         Boolean.parseBoolean(config.getProperty(WARN_LOG_LATENCY_ENABLED, DEFAULT_WARN_LOG_LATENCY_ENABLED));
@@ -239,9 +226,6 @@ public class EventProducer implements DatastreamEventProducer {
 
     _enableThroughputMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.FALSE.toString()));
-
-    String[] sourceParts = getSourcePathParts();
-    _sourceDatabase = (sourceParts != null && sourceParts.length > 1) ? sourceParts[1] : null;
 
     _logger.info("Created event producer with customCheckpointing={}", customCheckpointing);
 
@@ -372,6 +356,37 @@ public class EventProducer implements DatastreamEventProducer {
     return broadcastMetadata;
   }
 
+  /**
+   * Returns true while a CDC stream is still within its bootstrap-catch-up grace window.
+   * For non-CDC sources {@code _streamCreationTimeMs} is left at 0 by the constructor, so the
+   * arithmetic naturally short-circuits to false and SLA reporting is unaffected.
+   */
+  private boolean isWithinSlaGracePeriod() {
+    return (System.currentTimeMillis() - _streamCreationTimeMs) < _newStreamSlaGracePeriodMs;
+  }
+
+  /**
+   * Parse the stream creation time used for SLA grace-period gating. When multiple datastreams
+   * share a task via dedup, returns the oldest (min) CREATION_MS so a freshly deduped stream
+   * cannot suppress SLA on long-running siblings. Zero / missing / malformed values are filtered
+   * out; the method returns 0 in those cases (grace disabled, fail-open to SLA reporting).
+   */
+  private long parseStreamCreationTimeMs(DatastreamTask task) {
+    try {
+      if (task.getDatastreams() != null && !task.getDatastreams().isEmpty()) {
+        return task.getDatastreams().stream()
+            .map(ds -> ds.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "0"))
+            .mapToLong(Long::parseLong)
+            .filter(ms -> ms > 0)
+            .min()
+            .orElse(0L);
+      }
+    } catch (Exception e) {
+      _logger.warn("Failed to parse stream creation time, SLA grace period will not be applied", e);
+    }
+    return 0L;
+  }
+
   // Report SLA metrics for aggregate, connector and task
   private void reportSLAMetrics(String topicOrDatastreamName, boolean isWithinSLA, String metricNameForWithinSLA,
       String metricNameForOutsideSLA) {
@@ -439,18 +454,10 @@ public class EventProducer implements DatastreamEventProducer {
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
 
-      // Skip SLA reporting for newly created CDC streams during grace period (DATAPIPES-33203).
-      // CDC streams starting from EARLIEST offset have large initial lag during bootstrap catch-up
-      // which would trigger false SLA violations. CDC sources are identified by single-slash URI
-      // scheme (e.g. espresso:/, mysql:/, tidb:/) which yields a non-null _sourceDatabase; BMM
-      // double-slash URIs (kafka://) yield null and are excluded so MirrorMaker reports SLA from
-      // the first event.
-      boolean isCdcSource = _sourceDatabase != null;
-      boolean isWithinGracePeriod = isCdcSource
-          && _streamCreationTimeMs > 0
-          && (System.currentTimeMillis() - _streamCreationTimeMs) < _newStreamSlaGracePeriodMs;
-
-      if (!isWithinGracePeriod) {
+      // SLA reporting is suppressed while a CDC stream is still draining its initial bootstrap
+      // backlog from EARLIEST; latency histograms above continue to fire so backlog visibility
+      // is preserved.
+      if (!isWithinSlaGracePeriod()) {
         reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
             EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
 
