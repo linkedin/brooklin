@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.ErrorLogger;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
@@ -90,6 +91,8 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String WARN_LOG_LATENCY_THRESHOLD_MS = "warnLogLatencyThresholdMs";
   private static final String NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_ENABLED = "numEventsOutsideAltSlaLogEnabled";
   private static final String NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_FREQUENCY_MS = "numEventsOutsideAltSlaFrequencyMs";
+  private static final String NEW_STREAM_SLA_GRACE_PERIOD_MS = "newStreamSlaGracePeriodMs";
+  private static final String DEFAULT_NEW_STREAM_SLA_GRACE_PERIOD_MS = "7200000"; // 2 hours
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
   private static final String DROPPED_SENT_FROM_SERIALIZATION_ERROR = "droppedSentFromSerializationError";
@@ -114,6 +117,10 @@ public class EventProducer implements DatastreamEventProducer {
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparison with the main SLA
   private final int _availabilityThresholdAlternateSlaMs;
+  // Grace period for new streams: skip SLA reporting for streams newer than this duration
+  private final long _newStreamSlaGracePeriodMs;
+  // Timestamp when the stream was created (from datastream metadata)
+  private final long _streamCreationTimeMs;
   // Whether to enable warning logs if the latency threshold is met
   private final boolean _warnLogLatencyEnabled;
   // Latency threshold at which to log a warning message
@@ -184,6 +191,29 @@ public class EventProducer implements DatastreamEventProducer {
 
     _availabilityThresholdAlternateSlaMs = Integer.parseInt(
         config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
+
+    _newStreamSlaGracePeriodMs = Long.parseLong(
+        config.getProperty(NEW_STREAM_SLA_GRACE_PERIOD_MS, DEFAULT_NEW_STREAM_SLA_GRACE_PERIOD_MS));
+
+    // Use the oldest (min) CREATION_MS across deduped datastreams sharing this task. Once any one
+    // stream has been running past the grace window, the underlying consumer is at HEAD and SLA
+    // reporting should resume; using the newest creation time would let a freshly deduped stream
+    // suppress SLA on long-running siblings. Zero/missing/malformed values are filtered out and
+    // fall through to the fail-open default (0 → grace disabled).
+    long creationMs = 0;
+    try {
+      if (task.getDatastreams() != null && !task.getDatastreams().isEmpty()) {
+        creationMs = task.getDatastreams().stream()
+            .map(ds -> ds.getMetadata().getOrDefault(DatastreamMetadataConstants.CREATION_MS, "0"))
+            .mapToLong(Long::parseLong)
+            .filter(ms -> ms > 0)
+            .min()
+            .orElse(0L);
+      }
+    } catch (Exception e) {
+      _logger.warn("Failed to parse stream creation time, SLA grace period will not be applied", e);
+    }
+    _streamCreationTimeMs = creationMs;
 
     _warnLogLatencyEnabled =
         Boolean.parseBoolean(config.getProperty(WARN_LOG_LATENCY_ENABLED, DEFAULT_WARN_LOG_LATENCY_ENABLED));
@@ -409,11 +439,24 @@ public class EventProducer implements DatastreamEventProducer {
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
 
-      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
-          EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
+      // Skip SLA reporting for newly created CDC streams during grace period (DATAPIPES-33203).
+      // CDC streams starting from EARLIEST offset have large initial lag during bootstrap catch-up
+      // which would trigger false SLA violations. CDC sources are identified by single-slash URI
+      // scheme (e.g. espresso:/, mysql:/, tidb:/) which yields a non-null _sourceDatabase; BMM
+      // double-slash URIs (kafka://) yield null and are excluded so MirrorMaker reports SLA from
+      // the first event.
+      boolean isCdcSource = _sourceDatabase != null;
+      boolean isWithinGracePeriod = isCdcSource
+          && _streamCreationTimeMs > 0
+          && (System.currentTimeMillis() - _streamCreationTimeMs) < _newStreamSlaGracePeriodMs;
 
-      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
-          EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
+      if (!isWithinGracePeriod) {
+        reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
+            EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
+
+        reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
+            EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
+      }
 
       if (_logger.isDebugEnabled()) {
         if (sourceToDestinationLatencyMs > _availabilityThresholdSlaMs) {
