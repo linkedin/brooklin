@@ -6,8 +6,10 @@
 package com.linkedin.datastream.server;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,6 +23,7 @@ import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.BrooklinEnvelope;
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
 import com.linkedin.datastream.connectors.DummyConnector;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
 import com.linkedin.datastream.serde.SerDe;
@@ -341,6 +344,47 @@ public class TestEventProducer {
     Assert.assertNotNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "eventsLatencyMs should be emitted by default (flag absent)");
+  }
+
+  @Test
+  public void testDisableSlaMetricIgnoredOnDedupedTask() {
+    // Two datastreams sharing one task simulates the deduped case. Honoring the flag here would
+    // suppress eventsLatencyMs for the other stream in the group too — so the producer should
+    // ignore it.
+    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-deduped-1")[0];
+    Datastream ds2 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-deduped-2")[0];
+    // Only one of the deduped streams sets the flag
+    ds1.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
+    // Force shared task prefix so DatastreamTaskImpl treats them as a single deduped task
+    String sharedPrefix = DatastreamTaskImpl.getTaskPrefix(ds1);
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, sharedPrefix);
+    ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, sharedPrefix);
+    List<Datastream> dedupedStreams = Arrays.asList(ds1, ds2);
+    DatastreamTaskImpl task = new DatastreamTaskImpl(dedupedStreams);
+
+    String someTopicName = "someTopicName";
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    EventProducer eventProducer =
+        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    // Flag must be ignored — eventsLatencyMs should still be emitted for the deduped group
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must still be emitted for deduped tasks even if one stream sets the flag");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer.aggregate." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "Aggregate eventsLatencyMs must still be emitted for deduped tasks");
   }
 
   @Test
