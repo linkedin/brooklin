@@ -51,6 +51,7 @@ public class EventProducer implements DatastreamEventProducer {
 
   public static final String CFG_SKIP_MSG_SERIALIZATION_ERRORS = "skipMessageOnSerializationErrors";
   public static final String DEFAULT_SKIP_MSG_SERIALIZATION_ERRORS = "false";
+  public static final String CFG_DISABLE_SLA_METRIC = "system.disableSlaMetric";
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
   public static final String CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS = "enablePerTopicEventLatencyMetrics";
@@ -125,6 +126,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
   private final boolean _enablePerTopicEventLatencyMetrics;
+  private final boolean _disableSlaMetric;
   private final boolean _enableThroughputMetrics;
   // Cached source database name parsed from the connection string at construction time (null for non-CDC sources)
   private final String _sourceDatabase;
@@ -206,6 +208,8 @@ public class EventProducer implements DatastreamEventProducer {
     _enablePerTopicEventLatencyMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS,
             Boolean.FALSE.toString()));
+
+    _disableSlaMetric = getDisableSlaMetric(task);
 
     _enableThroughputMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.FALSE.toString()));
@@ -407,7 +411,9 @@ public class EventProducer implements DatastreamEventProducer {
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
+      if (!_disableSlaMetric) {
+        reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
+      }
 
       reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
           EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
@@ -580,6 +586,19 @@ public class EventProducer implements DatastreamEventProducer {
         .map(Datastream::getMetadata)
         .map(metadata -> metadata.getOrDefault(CFG_SKIP_MSG_SERIALIZATION_ERRORS, skipMessageOnSerializationErrors))
         .orElse(skipMessageOnSerializationErrors));
+  }
+
+  /**
+   * Looks for config {@value CFG_DISABLE_SLA_METRIC} in the datastream metadata and returns its value.
+   * Default value is false.
+   */
+  private boolean getDisableSlaMetric(DatastreamTask task) {
+    return Boolean.parseBoolean(task.getDatastreams()
+        .stream()
+        .findFirst()
+        .map(Datastream::getMetadata)
+        .map(metadata -> metadata.getOrDefault(CFG_DISABLE_SLA_METRIC, Boolean.FALSE.toString()))
+        .orElse(Boolean.FALSE.toString()));
   }
 
   @Override
