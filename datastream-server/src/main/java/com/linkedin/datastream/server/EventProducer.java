@@ -592,27 +592,20 @@ public class EventProducer implements DatastreamEventProducer {
    * Looks for config {@value CFG_DISABLE_SLA_METRIC} in the datastream metadata and returns its value.
    * Default value is false.
    *
-   * <p>The flag is only honored for tasks owning a single datastream. When a task hosts multiple
-   * datastreams (i.e. they are deduped onto the same task and share one EventProducer), one
-   * stream's opt-out would otherwise suppress {@code eventsLatencyMs} for every stream in the
-   * group. In that case the flag is ignored and a warning is logged.
+   * <p>Only honored for tasks owning a single datastream. Deduped tasks (multiple datastreams
+   * sharing one EventProducer) always return false, since one stream's opt-out would otherwise
+   * suppress {@code eventsLatencyMs} for every stream in the group.
    */
   private boolean getDisableSlaMetric(DatastreamTask task) {
-    boolean requested = Boolean.parseBoolean(task.getDatastreams()
+    if (task.getDatastreams().size() > 1) {
+      return false;
+    }
+    return Boolean.parseBoolean(task.getDatastreams()
         .stream()
         .findFirst()
         .map(Datastream::getMetadata)
         .map(metadata -> metadata.getOrDefault(CFG_DISABLE_SLA_METRIC, Boolean.FALSE.toString()))
         .orElse(Boolean.FALSE.toString()));
-
-    if (requested && task.getDatastreams().size() > 1) {
-      _logger.warn("Ignoring {}=true on task {} because it hosts {} deduped datastreams; "
-              + "the flag is only honored for non-deduped streams to avoid suppressing the metric "
-              + "for other streams in the group.",
-          CFG_DISABLE_SLA_METRIC, task.getDatastreamTaskName(), task.getDatastreams().size());
-      return false;
-    }
-    return requested;
   }
 
   @Override
