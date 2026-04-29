@@ -261,6 +261,128 @@ public class TestEventProducer {
         "Aggregate bytesProducedRate should still exist for BMM");
   }
 
+  @Test
+  public void testDisableSlaMetricSuppressesEventsLatencyMs() {
+    String datastreamName = "datastream-testDisableSlaMetric";
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    String someTopicName = "someTopicName";
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    EventProducer eventProducer =
+        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    String connectorType = DummyConnector.CONNECTOR_TYPE;
+
+    // eventsLatencyMs must NOT be emitted at any level when flag is set
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "Per-topic eventsLatencyMs should not exist when system.disableSlaMetric=true");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer.aggregate." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "Aggregate eventsLatencyMs should not exist when system.disableSlaMetric=true");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + connectorType + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "Connector-type eventsLatencyMs should not exist when system.disableSlaMetric=true");
+
+    // Within/outside SLA counters must still be emitted
+    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventsProducedWithinSla"),
+        "Aggregate eventsProducedWithinSla should still exist when SLA metric is disabled");
+    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventsProducedOutsideSla"),
+        "Aggregate eventsProducedOutsideSla should still exist when SLA metric is disabled");
+
+    // totalEventsProduced and eventProduceRate must still be emitted
+    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.totalEventsProduced"),
+        "totalEventsProduced should still exist when SLA metric is disabled");
+    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventProduceRate"),
+        "eventProduceRate should still exist when SLA metric is disabled");
+
+    // eventsSendLatencyMs is unrelated to the flag and must still be emitted
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_SEND_LATENCY_MS_STRING),
+        "eventsSendLatencyMs should still exist when SLA metric is disabled");
+  }
+
+  @Test
+  public void testDisableSlaMetricDefaultEmitsEventsLatencyMs() {
+    String datastreamName = "datastream-testDisableSlaMetricDefault";
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    // Do NOT set CFG_DISABLE_SLA_METRIC — should default to false
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    String someTopicName = "someTopicName";
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    EventProducer eventProducer =
+        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs should be emitted by default (flag absent)");
+  }
+
+  @Test
+  public void testDisableSlaMetricDoesNotAffectThroughputViolatingPath() {
+    String datastreamName = "datastream-testDisableSlaMetricThroughput";
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+
+    String someTopicName = "throughputViolatingTopic";
+    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
+      @Override
+      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
+        DatastreamRecordMetadata metadata =
+            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+        onComplete.onCompletion(metadata, null);
+      }
+    };
+
+    // Provider routes this topic to the throughput-violating path
+    EventProducer eventProducer = new EventProducer(task, transport, new NoOpCheckpointProvider(),
+        new Properties(), false, t -> Collections.singleton(someTopicName));
+
+    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+
+    // The throughput-violating latency metric must keep flowing even when the SLA flag is set
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "."
+            + EventProducer.THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING),
+        "throughputViolatingEventsLatencyMs should still be emitted when system.disableSlaMetric=true");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer.aggregate." + EventProducer.THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING),
+        "Aggregate throughputViolatingEventsLatencyMs should still be emitted");
+
+    // The standard eventsLatencyMs is on the other branch and shouldn't be emitted at all here
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "Standard eventsLatencyMs should not be emitted on the throughput-violating path");
+  }
+
   private DatastreamProducerRecord createDatastreamProducerRecord() {
     return createDatastreamProducerRecord(0, "0", 1);
   }
