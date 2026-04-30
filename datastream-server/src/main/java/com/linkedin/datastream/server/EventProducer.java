@@ -73,6 +73,7 @@ public class EventProducer implements DatastreamEventProducer {
   public static final String DEFAULT_FLUSH_INTERVAL_MS = String.valueOf(Duration.ofMinutes(5).toMillis());
 
   static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
+  static final String SLA_EXCLUDED_LATENCY_MS_STRING = "slaExcludedLatencyMs";
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
@@ -409,11 +410,11 @@ public class EventProducer implements DatastreamEventProducer {
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
-      // Report availability metrics
+      // Report availability metrics. Streams that opt out via system.disableSlaMetric still emit
+      // a latency histogram, but under slaExcludedLatencyMs so they don't pollute the SLA metric.
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      if (!_disableSlaMetric) {
-        reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
-      }
+      String latencyMetricName = _disableSlaMetric ? SLA_EXCLUDED_LATENCY_MS_STRING : EVENTS_LATENCY_MS_STRING;
+      reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, latencyMetricName);
 
       reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
           EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
@@ -707,6 +708,9 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + DROPPED_SENT_FROM_SERIALIZATION_ERROR));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_STRING, Optional.of(
+        Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
+            BrooklinHistogramInfo.PERCENTILE_999))));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + SLA_EXCLUDED_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
             BrooklinHistogramInfo.PERCENTILE_999))));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_SEND_LATENCY_MS_STRING));

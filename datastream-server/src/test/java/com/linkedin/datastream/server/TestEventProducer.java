@@ -265,7 +265,7 @@ public class TestEventProducer {
   }
 
   @Test
-  public void testDisableSlaMetricSuppressesEventsLatencyMs() {
+  public void testDisableSlaMetricRedirectsToSlaExcludedLatencyMs() {
     String datastreamName = "datastream-testDisableSlaMetric";
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
     datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
@@ -299,6 +299,17 @@ public class TestEventProducer {
     Assert.assertNull(
         metrics.getMetric("EventProducer." + connectorType + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "Connector-type eventsLatencyMs should not exist when system.disableSlaMetric=true");
+
+    // slaExcludedLatencyMs must be emitted at all three levels in place of eventsLatencyMs
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "Per-topic slaExcludedLatencyMs should be emitted when system.disableSlaMetric=true");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer.aggregate." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "Aggregate slaExcludedLatencyMs should be emitted when system.disableSlaMetric=true");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + connectorType + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "Connector-type slaExcludedLatencyMs should be emitted when system.disableSlaMetric=true");
 
     // Within/outside SLA counters must still be emitted
     Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventsProducedWithinSla"),
@@ -344,6 +355,9 @@ public class TestEventProducer {
     Assert.assertNotNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "eventsLatencyMs should be emitted by default (flag absent)");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "slaExcludedLatencyMs should not be emitted by default (flag absent)");
   }
 
   @Test
@@ -385,6 +399,9 @@ public class TestEventProducer {
     Assert.assertNotNull(
         metrics.getMetric("EventProducer.aggregate." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "Aggregate eventsLatencyMs must still be emitted for deduped tasks");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "slaExcludedLatencyMs must not be emitted for deduped tasks");
   }
 
   @Test
@@ -425,6 +442,10 @@ public class TestEventProducer {
     Assert.assertNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "Standard eventsLatencyMs should not be emitted on the throughput-violating path");
+    // slaExcludedLatencyMs is also on the standard path; should not be emitted on the throughput-violating path
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "slaExcludedLatencyMs should not be emitted on the throughput-violating path");
   }
 
   private DatastreamProducerRecord createDatastreamProducerRecord() {
