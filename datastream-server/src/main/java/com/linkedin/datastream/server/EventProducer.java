@@ -194,13 +194,7 @@ public class EventProducer implements DatastreamEventProducer {
 
     _newStreamSlaGracePeriodMs = Long.parseLong(
         config.getProperty(NEW_STREAM_SLA_GRACE_PERIOD_MS, DEFAULT_NEW_STREAM_SLA_GRACE_PERIOD_MS));
-
-    // Source-database parsing pulled forward so we can gate stream-creation-time parsing on
-    // whether this is a CDC source. Non-CDC sources (BMM kafka://, Inlogs, etc.) don't have a
-    // bootstrap window worth masking, so skip the work entirely for them.
-    String[] sourceParts = getSourcePathParts();
-    _sourceDatabase = (sourceParts != null && sourceParts.length > 1) ? sourceParts[1] : null;
-    _streamCreationTimeMs = (_sourceDatabase != null) ? parseStreamCreationTimeMs(task) : 0L;
+    _streamCreationTimeMs = parseStreamCreationTimeMs(task);
 
     _warnLogLatencyEnabled =
         Boolean.parseBoolean(config.getProperty(WARN_LOG_LATENCY_ENABLED, DEFAULT_WARN_LOG_LATENCY_ENABLED));
@@ -226,6 +220,9 @@ public class EventProducer implements DatastreamEventProducer {
 
     _enableThroughputMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.FALSE.toString()));
+
+    String[] sourceParts = getSourcePathParts();
+    _sourceDatabase = (sourceParts != null && sourceParts.length > 1) ? sourceParts[1] : null;
 
     _logger.info("Created event producer with customCheckpointing={}", customCheckpointing);
 
@@ -356,12 +353,19 @@ public class EventProducer implements DatastreamEventProducer {
     return broadcastMetadata;
   }
 
+  private boolean isCdcSource() {
+    return _sourceDatabase != null;
+  }
+
   /**
-   * Returns true while a CDC stream is still within its bootstrap-catch-up grace window.
-   * For non-CDC sources {@code _streamCreationTimeMs} is left at 0 by the constructor, so the
-   * arithmetic naturally short-circuits to false and SLA reporting is unaffected.
+   * Returns true while a CDC stream is still within its cdc-catch-up grace window. Non-CDC
+   * sources (BMM kafka://, Inlogs, etc.) always return false here so SLA reporting is
+   * unaffected for them.
    */
   private boolean isWithinSlaGracePeriod() {
+    if (!isCdcSource()) {
+      return false;
+    }
     return (System.currentTimeMillis() - _streamCreationTimeMs) < _newStreamSlaGracePeriodMs;
   }
 
@@ -454,9 +458,8 @@ public class EventProducer implements DatastreamEventProducer {
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
 
-      // SLA reporting is suppressed while a CDC stream is still draining its initial bootstrap
-      // backlog from EARLIEST; latency histograms above continue to fire so backlog visibility
-      // is preserved.
+      // SLA reporting is suppressed while a CDC stream is still draining its initial cdc backlog
+      // from EARLIEST; latency histograms above continue to fire so backlog visibility is preserved.
       if (!isWithinSlaGracePeriod()) {
         reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
             EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
