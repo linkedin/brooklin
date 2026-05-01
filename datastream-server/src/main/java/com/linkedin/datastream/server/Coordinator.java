@@ -554,31 +554,30 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // This helper function populates the violations to local cache from the datastream metadata on every update call.
   // Also note that updates to this local cache follows the behavior of replace-all, and not incremental.
   private void populateThroughputViolatingTopicsMap(List<DatastreamGroup> datastreamGroups) {
+    // Build into a local map first so a mid-iteration exception leaves the live map untouched.
+    Map<String, Set<String>> next = new HashMap<>();
+    datastreamGroups.forEach(datastreamGroup -> datastreamGroup.getDatastreams().forEach(datastream -> {
+      if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(THROUGHPUT_VIOLATING_TOPICS)) {
+        return;
+      }
+      String commaSeparatedViolatingTopics = datastream.getMetadata().get(THROUGHPUT_VIOLATING_TOPICS);
+      String[] violatingTopics = Arrays.stream(commaSeparatedViolatingTopics.split(","))
+          .map(String::trim)
+          .filter(s -> !s.isEmpty())
+          .toArray(String[]::new);
+
+      if (violatingTopics.length > 0) {
+        next.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
+        _log.info("For datastream {}, Successfully reported throughput violating topics : {}", datastream.getName(),
+            violatingTopics);
+      }
+      _metrics.registerOrSetKeyedGauge(datastream.getName(),
+          CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM, () -> violatingTopics.length);
+    }));
     _throughputViolatingTopicsMapWriteLock.lock();
     try {
-      // clearing the cache as we would only maintain the latest reported information everytime.
       _throughputViolatingTopicsMap.clear();
-
-      // fetching new violations from the datastream object.
-      datastreamGroups.forEach(datastreamGroup -> datastreamGroup.getDatastreams().forEach(datastream -> {
-        if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(THROUGHPUT_VIOLATING_TOPICS)) {
-          // if the throughput violating metadata field does not exist, we skip handling logic and reporting metrics
-          return;
-        }
-        // parse csv formatted violations metadata-string for every datastream
-        String commaSeparatedViolatingTopics = datastream.getMetadata().get(THROUGHPUT_VIOLATING_TOPICS);
-        String[] violatingTopics = Arrays.stream(commaSeparatedViolatingTopics.split(","))
-            .filter(s -> !s.trim().isEmpty())
-            .toArray(String[]::new);
-
-        if (violatingTopics.length > 0) {
-          _throughputViolatingTopicsMap.put(datastream.getName(), new HashSet<>(Arrays.asList(violatingTopics)));
-          _log.info("For datastream {}, Successfully reported throughput violating topics : {}", datastream.getName(),
-              violatingTopics);
-        }
-        _metrics.registerOrSetKeyedGauge(datastream.getName(),
-            CoordinatorMetrics.NUM_THROUGHPUT_VIOLATING_TOPICS_PER_DATASTREAM, () -> violatingTopics.length);
-      }));
+      _throughputViolatingTopicsMap.putAll(next);
     } finally {
       _throughputViolatingTopicsMapWriteLock.unlock();
     }
@@ -750,7 +749,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         // On creating a datastream if the metadata contains any throughput violating topics, we populate the host level cache
         List<DatastreamGroup> datastreamGroups = _adapter.getInstanceAssignment(_adapter.getInstanceName())
             .stream()
-            .map(task -> new DatastreamGroup(getDatastreamTask(task).getDatastreams()))
+            .map(this::getDatastreamTask)
+            .filter(Objects::nonNull)
+            .map(task -> new DatastreamGroup(task.getDatastreams()))
             .collect(Collectors.toList());
         _log.info(
             "Populating the datastream violating topics to host level cache from the datastream objects on the create trigger");
