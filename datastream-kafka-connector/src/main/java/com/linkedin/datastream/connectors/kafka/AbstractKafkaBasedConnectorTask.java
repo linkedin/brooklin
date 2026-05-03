@@ -604,10 +604,9 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   protected void handleNoOffsetForPartitionException(NoOffsetForPartitionException e) {
     _logger.info("Poll threw NoOffsetForPartitionException for partitions {}.", e.partitions());
     if (!_shutdown) {
-      // Default to EARLIEST to reuse any existing snapshot/data already in the topic when no
-      // committed offset is found. The auto.offset.reset consumer property wins if explicitly set.
+      // Seek to start position, by default we are starting from latest one as we just start consumption
       seekToStartPosition(_consumer, e.partitions(),
-          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_EARLIEST));
+          _consumerProps.getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, CONSUMER_AUTO_OFFSET_RESET_CONFIG_LATEST));
     }
   }
 
