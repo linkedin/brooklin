@@ -356,8 +356,8 @@ public class TestEventProducer {
   }
 
   @Test
-  public void testLatencyHistogramRedirectedToNewlyOnboardedDuringGracePeriod() {
-    // During grace, the lag histogram is redirected from eventsLatencyMs to newlyOnboardedLatencyMs
+  public void testLatencyHistogramRedirectedToSlaIneligibleDuringGracePeriod() {
+    // During grace, the lag histogram is redirected from eventsLatencyMs to eventsLatencyMsSlaIneligible
     // so lag alerts on the primary metric do not fire on initial CDC catch-up. Both primary and
     // alternate SLA counters are suppressed entirely during the grace window.
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-latency")[0];
@@ -373,8 +373,8 @@ public class TestEventProducer {
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "eventsLatencyMs must NOT fire during grace period — that's what lag alerts are wired to");
     Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.NEWLY_ONBOARDED_LATENCY_MS_STRING),
-        "newlyOnboardedLatencyMs should receive the redirected latency observation during grace");
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING),
+        "eventsLatencyMsSlaIneligible should receive the redirected latency observation during grace");
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
         "Alternate-SLA counter should remain suppressed during grace period");
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
@@ -397,8 +397,8 @@ public class TestEventProducer {
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "eventsLatencyMs must fire once the grace period has expired");
     Assert.assertNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.NEWLY_ONBOARDED_LATENCY_MS_STRING),
-        "newlyOnboardedLatencyMs should not be touched outside the grace window");
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING),
+        "eventsLatencyMsSlaIneligible should not be touched outside the grace window");
   }
 
   @Test

@@ -73,7 +73,7 @@ public class EventProducer implements DatastreamEventProducer {
   public static final String DEFAULT_FLUSH_INTERVAL_MS = String.valueOf(Duration.ofMinutes(5).toMillis());
 
   static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
-  static final String NEWLY_ONBOARDED_LATENCY_MS_STRING = "newlyOnboardedLatencyMs";
+  static final String EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING = "eventsLatencyMsSlaIneligible";
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
@@ -119,7 +119,7 @@ public class EventProducer implements DatastreamEventProducer {
   // Alternate SLA for comparison with the main SLA
   private final int _availabilityThresholdAlternateSlaMs;
   // Grace period for newly created streams. While a stream is inside this window, primary/alternate
-  // SLA counters are suppressed and the latency histogram is redirected to newlyOnboardedLatencyMs.
+  // SLA counters are suppressed and the latency histogram is redirected to eventsLatencyMsSlaIneligible.
   private final long _newStreamGracePeriodMs;
   // Timestamp when the stream was created (from datastream metadata)
   private final long _streamCreationTimeMs;
@@ -374,7 +374,7 @@ public class EventProducer implements DatastreamEventProducer {
   /**
    * Single gate that decides whether to emit metrics to their regular destinations. When this
    * returns false, primary and alternate SLA counters are suppressed and the latency histogram
-   * is redirected to newlyOnboardedLatencyMs. Combines all suppression conditions in one place
+   * is redirected to eventsLatencyMsSlaIneligible. Combines all suppression conditions in one place
    * — additional conditions (e.g. per-datastream opt-out flags) should be ORed in here so call
    * sites do not need to know about every gating condition individually.
    */
@@ -472,10 +472,10 @@ public class EventProducer implements DatastreamEventProducer {
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      // Redirect the latency histogram to newlyOnboardedLatencyMs while SLA emission is suppressed
+      // Redirect the latency histogram to eventsLatencyMsSlaIneligible while SLA emission is suppressed
       // so lag alerts wired to eventsLatencyMs do not fire on the initial CDC catch-up. The
-      // catch-up curve is still observable on newlyOnboardedLatencyMs.
-      String latencyMetricName = shouldEmitMetric() ? EVENTS_LATENCY_MS_STRING : NEWLY_ONBOARDED_LATENCY_MS_STRING;
+      // catch-up curve is still observable on eventsLatencyMsSlaIneligible.
+      String latencyMetricName = shouldEmitMetric() ? EVENTS_LATENCY_MS_STRING : EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING;
       reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, latencyMetricName);
 
       // While shouldEmitMetric() returns false (currently only during the CDC catch-up grace
@@ -756,7 +756,7 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
             BrooklinHistogramInfo.PERCENTILE_999))));
-    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + NEWLY_ONBOARDED_LATENCY_MS_STRING, Optional.of(
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
             BrooklinHistogramInfo.PERCENTILE_999))));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_SEND_LATENCY_MS_STRING));
