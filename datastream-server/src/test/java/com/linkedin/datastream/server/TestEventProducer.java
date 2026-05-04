@@ -9,7 +9,6 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -18,6 +17,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 
@@ -264,188 +264,227 @@ public class TestEventProducer {
         "Aggregate bytesProducedRate should still exist for BMM");
   }
 
+  // ---------------------------------------------------------------------------
+  // SLA grace-period tests
+  //
+  // Aggregate-level counters are used as the assertion surface:
+  //   - EventProducer.aggregate.eventsProducedOutsideSla is pre-registered in the
+  //     constructor (count 0), so it always exists.
+  //   - EventProducer.aggregate.eventsProducedWithinSla is NOT pre-registered.
+  //     Its presence/absence is therefore a clean signal of whether
+  //     reportSLAMetrics() ran (i.e. whether the grace gate let the call through).
+  // ---------------------------------------------------------------------------
+
+  private static final String SLA_WITHIN_AGG = "EventProducer.aggregate.eventsProducedWithinSla";
+  private static final String SLA_WITHIN_ALT_AGG = "EventProducer.aggregate.eventsProducedWithinAlternateSla";
+
   @Test
-  public void testDisableSlaMetricRedirectsToSlaExcludedLatencyMs() {
-    String datastreamName = "datastream-testDisableSlaMetric";
-    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
-    datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
-    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
-
-    String someTopicName = "someTopicName";
-    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
-      @Override
-      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
-        DatastreamRecordMetadata metadata =
-            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
-        onComplete.onCompletion(metadata, null);
-      }
-    };
-
-    EventProducer eventProducer =
-        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
-
-    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+  public void testSlaGraceActiveForNewCdcStream() {
+    // CDC source (single-slash mysql:/) + freshly-created stream → grace gate engaged. Both
+    // primary and alternate SLA counter pairs are suppressed entirely.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-new")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
+        String.valueOf(System.currentTimeMillis()));
+    sendOneEventThroughProducer(datastream, new Properties());
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
-    String connectorType = DummyConnector.CONNECTOR_TYPE;
-
-    // eventsLatencyMs must NOT be emitted at any level when flag is set
-    Assert.assertNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "Per-topic eventsLatencyMs should not exist when system.disableSlaMetric=true");
-    Assert.assertNull(
-        metrics.getMetric("EventProducer.aggregate." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "Aggregate eventsLatencyMs should not exist when system.disableSlaMetric=true");
-    Assert.assertNull(
-        metrics.getMetric("EventProducer." + connectorType + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "Connector-type eventsLatencyMs should not exist when system.disableSlaMetric=true");
-
-    // slaExcludedLatencyMs must be emitted at all three levels in place of eventsLatencyMs
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
-        "Per-topic slaExcludedLatencyMs should be emitted when system.disableSlaMetric=true");
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer.aggregate." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
-        "Aggregate slaExcludedLatencyMs should be emitted when system.disableSlaMetric=true");
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + connectorType + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
-        "Connector-type slaExcludedLatencyMs should be emitted when system.disableSlaMetric=true");
-
-    // Within/outside SLA counters must still be emitted
-    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventsProducedWithinSla"),
-        "Aggregate eventsProducedWithinSla should still exist when SLA metric is disabled");
-    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventsProducedOutsideSla"),
-        "Aggregate eventsProducedOutsideSla should still exist when SLA metric is disabled");
-
-    // totalEventsProduced and eventProduceRate must still be emitted
-    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.totalEventsProduced"),
-        "totalEventsProduced should still exist when SLA metric is disabled");
-    Assert.assertNotNull(metrics.getMetric("EventProducer.aggregate.eventProduceRate"),
-        "eventProduceRate should still exist when SLA metric is disabled");
-
-    // eventsSendLatencyMs is unrelated to the flag and must still be emitted
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_SEND_LATENCY_MS_STRING),
-        "eventsSendLatencyMs should still exist when SLA metric is disabled");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Primary withinSla counter must not be created during grace period for new CDC stream");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Alternate-SLA counter must not be created during grace period for new CDC stream");
   }
 
   @Test
-  public void testDisableSlaMetricDefaultEmitsEventsLatencyMs() {
-    String datastreamName = "datastream-testDisableSlaMetricDefault";
-    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
-    // Do NOT set CFG_DISABLE_SLA_METRIC — should default to false
-    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
-
-    String someTopicName = "someTopicName";
-    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
-      @Override
-      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
-        DatastreamRecordMetadata metadata =
-            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
-        onComplete.onCompletion(metadata, null);
-      }
-    };
-
-    EventProducer eventProducer =
-        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
-
-    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+  public void testSlaGraceExpiredForOldCdcStream() {
+    // CDC source + creation timestamp older than the 2h default grace window → SLA reporting active.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-old")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    long threeHoursAgo = System.currentTimeMillis() - (3 * 60 * 60 * 1000L);
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+    sendOneEventThroughProducer(datastream, new Properties());
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "eventsLatencyMs should be emitted by default (flag absent)");
-    Assert.assertNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
-        "slaExcludedLatencyMs should not be emitted by default (flag absent)");
+    Counter withinAgg = (Counter) metrics.getMetric(SLA_WITHIN_AGG);
+    Assert.assertNotNull(withinAgg, "withinSla counter must be created once grace period has expired");
+    Assert.assertEquals(withinAgg.getCount(), 1L,
+        "Single send with fresh source timestamp should be reported as within SLA");
   }
 
   @Test
-  public void testDisableSlaMetricIgnoredOnDedupedTask() {
-    // Two datastreams sharing one task simulates the deduped case. Honoring the flag here would
-    // suppress eventsLatencyMs for the other stream in the group too — so the producer should
-    // ignore it.
-    Datastream ds1 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-deduped-1")[0];
-    Datastream ds2 = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-deduped-2")[0];
-    // Only one of the deduped streams sets the flag
-    ds1.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
-    // Force shared task prefix so DatastreamTaskImpl treats them as a single deduped task
-    String sharedPrefix = DatastreamTaskImpl.getTaskPrefix(ds1);
-    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, sharedPrefix);
-    ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, sharedPrefix);
-    List<Datastream> dedupedStreams = Arrays.asList(ds1, ds2);
-    DatastreamTaskImpl task = new DatastreamTaskImpl(dedupedStreams);
-
-    String someTopicName = "someTopicName";
-    TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
-      @Override
-      public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
-        DatastreamRecordMetadata metadata =
-            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
-        onComplete.onCompletion(metadata, null);
-      }
-    };
-
-    EventProducer eventProducer =
-        new EventProducer(task, transport, new NoOpCheckpointProvider(), new Properties(), false);
-
-    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+  public void testSlaGraceNotAppliedToMirrorMakerSource() {
+    // BMM source (double-slash kafka://) → _sourceDatabase == null → grace gate disabled regardless
+    // of CREATION_MS. This is the primary regression guard for the MM-exclusion fix.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-bmm-new")[0];
+    datastream.getSource().setConnectionString("kafka://broker:9092/someTopic");
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
+        String.valueOf(System.currentTimeMillis()));
+    sendOneEventThroughProducer(datastream, new Properties());
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
-    // Flag must be ignored — eventsLatencyMs should still be emitted for the deduped group
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "eventsLatencyMs must still be emitted for deduped tasks even if one stream sets the flag");
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer.aggregate." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "Aggregate eventsLatencyMs must still be emitted for deduped tasks");
-    Assert.assertNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
-        "slaExcludedLatencyMs must not be emitted for deduped tasks");
+    Counter withinAgg = (Counter) metrics.getMetric(SLA_WITHIN_AGG);
+    Assert.assertNotNull(withinAgg, "MirrorMaker streams must report SLA from the first event, regardless of stream age");
+    Assert.assertEquals(withinAgg.getCount(), 1L);
   }
 
   @Test
-  public void testDisableSlaMetricDoesNotAffectThroughputViolatingPath() {
-    String datastreamName = "datastream-testDisableSlaMetricThroughput";
-    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
-    datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, "true");
-    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+  public void testSlaGraceFailsOpenWhenCreationMsMissing() {
+    // CDC source but no CREATION_MS metadata → _streamCreationTimeMs stays 0 → gate disabled (fail-open).
+    // Note: DatastreamTestUtils.createDatastreams auto-populates CREATION_MS, so we explicitly remove
+    // it to exercise the missing-metadata path.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-nomd")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    datastream.getMetadata().remove(DatastreamMetadataConstants.CREATION_MS);
+    sendOneEventThroughProducer(datastream, new Properties());
 
-    String someTopicName = "throughputViolatingTopic";
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Missing CREATION_MS must fail open to SLA reporting, not silently suppress it");
+  }
+
+  @Test
+  public void testSlaGraceFailsOpenWhenCreationMsMalformed() {
+    // Malformed CREATION_MS → NumberFormatException caught in constructor → grace disabled.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-bad")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, "not-a-long");
+    sendOneEventThroughProducer(datastream, new Properties());
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Malformed CREATION_MS must fail open to SLA reporting");
+  }
+
+  @Test
+  public void testLatencyHistogramRedirectedToSlaIneligibleDuringGracePeriod() {
+    // During grace, the lag histogram is redirected from eventsLatencyMs to eventsLatencyMsSlaIneligible
+    // so lag alerts on the primary metric do not fire on initial CDC catch-up. Both primary and
+    // alternate SLA counters are suppressed entirely during the grace window.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-latency")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
+        String.valueOf(System.currentTimeMillis()));
+
+    String someTopicName = "graceLatencyTopic";
+    sendOneEventThroughProducer(datastream, new Properties(), someTopicName);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must NOT fire during grace period — that's what lag alerts are wired to");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING),
+        "eventsLatencyMsSlaIneligible should receive the redirected latency observation during grace");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Alternate-SLA counter should remain suppressed during grace period");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Primary SLA counter should remain suppressed during grace period");
+  }
+
+  @Test
+  public void testLatencyHistogramFiresOnPrimaryAfterGracePeriod() {
+    // Post-grace: latency observations go back to eventsLatencyMs (the metric lag alerts watch).
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-latency-old")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    long threeHoursAgo = System.currentTimeMillis() - (3 * 60 * 60 * 1000L);
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+
+    String someTopicName = "postGraceLatencyTopic";
+    sendOneEventThroughProducer(datastream, new Properties(), someTopicName);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must fire once the grace period has expired");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING),
+        "eventsLatencyMsSlaIneligible should not be touched outside the grace window");
+  }
+
+  @Test
+  public void testCustomGracePeriodOverride() {
+    // Operator-specified grace period should win over the 2h default. With a 1ms window, a stream
+    // created "now" should already be past grace by the time the producer records its first event.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-custom")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
+        String.valueOf(System.currentTimeMillis() - 10));
+
+    Properties props = new Properties();
+    props.put("newStreamGracePeriodMs", "1");
+    sendOneEventThroughProducer(datastream, props);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Custom 1ms grace period should expire before the first event is reported");
+  }
+
+  @Test
+  public void testSlaGraceDedupedTaskUsesOldestCreationTime() {
+    // Two CDC datastreams deduped onto one task: one created 3h ago, one created now.
+    // Grace gate must follow the OLDEST stream (3h ago, past grace) → SLA reporting active.
+    long now = System.currentTimeMillis();
+    long threeHoursAgo = now - (3 * 60 * 60 * 1000L);
+
+    Datastream oldDs = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-old")[0];
+    oldDs.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    oldDs.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+
+    Datastream newDs = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-new")[0];
+    newDs.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    newDs.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(now));
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(oldDs, newDs));
+    sendOneEventThroughTask(task, new Properties(), "someTopicName");
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Deduped task with at least one old stream must report SLA (oldest stream is past grace)");
+  }
+
+  @Test
+  public void testSlaGraceDedupedTaskAllStreamsNew() {
+    // All streams on the deduped task are within the grace window → SLA suppressed.
+    long now = System.currentTimeMillis();
+
+    Datastream newDsA = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-newA")[0];
+    newDsA.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    newDsA.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(now));
+
+    Datastream newDsB = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-newB")[0];
+    newDsB.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    newDsB.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(now - 60_000L));
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(newDsA, newDsB));
+    sendOneEventThroughTask(task, new Properties(), "someTopicName");
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "All streams within grace window → primary SLA suppressed across the deduped task");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Alternate-SLA counter must remain suppressed during grace across the deduped task");
+  }
+
+  private void sendOneEventThroughProducer(Datastream datastream, Properties props) {
+    sendOneEventThroughProducer(datastream, props, "someTopicName");
+  }
+
+  private void sendOneEventThroughProducer(Datastream datastream, Properties props, String topicName) {
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    sendOneEventThroughTask(task, props, topicName);
+  }
+
+  private void sendOneEventThroughTask(DatastreamTaskImpl task, Properties props, String topicName) {
     TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
       @Override
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
         DatastreamRecordMetadata metadata =
-            new DatastreamRecordMetadata(record.getCheckpoint(), someTopicName, record.getPartition().orElse(0));
+            new DatastreamRecordMetadata(record.getCheckpoint(), topicName, record.getPartition().orElse(0));
         onComplete.onCompletion(metadata, null);
       }
     };
-
-    // Provider routes this topic to the throughput-violating path
-    EventProducer eventProducer = new EventProducer(task, transport, new NoOpCheckpointProvider(),
-        new Properties(), false, t -> Collections.singleton(someTopicName));
-
+    EventProducer eventProducer = new EventProducer(task, transport, new NoOpCheckpointProvider(), props, false);
     eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
-
-    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
-
-    // The throughput-violating latency metric must keep flowing even when the SLA flag is set
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer." + someTopicName + "."
-            + EventProducer.THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING),
-        "throughputViolatingEventsLatencyMs should still be emitted when system.disableSlaMetric=true");
-    Assert.assertNotNull(
-        metrics.getMetric("EventProducer.aggregate." + EventProducer.THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING),
-        "Aggregate throughputViolatingEventsLatencyMs should still be emitted");
-
-    // The standard eventsLatencyMs is on the other branch and shouldn't be emitted at all here
-    Assert.assertNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "Standard eventsLatencyMs should not be emitted on the throughput-violating path");
-    // slaExcludedLatencyMs is also on the standard path; should not be emitted on the throughput-violating path
-    Assert.assertNull(
-        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
-        "slaExcludedLatencyMs should not be emitted on the throughput-violating path");
   }
 
   private DatastreamProducerRecord createDatastreamProducerRecord() {
