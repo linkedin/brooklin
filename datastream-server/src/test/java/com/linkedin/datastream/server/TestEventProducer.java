@@ -265,7 +265,7 @@ public class TestEventProducer {
   }
 
   // ---------------------------------------------------------------------------
-  // SLA grace-period tests (DATAPIPES-33203)
+  // SLA grace-period tests
   //
   // Aggregate-level counters are used as the assertion surface:
   //   - EventProducer.aggregate.eventsProducedOutsideSla is pre-registered in the
