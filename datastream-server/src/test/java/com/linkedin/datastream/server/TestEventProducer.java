@@ -280,7 +280,8 @@ public class TestEventProducer {
 
   @Test
   public void testSlaGraceActiveForNewCdcStream() {
-    // CDC source (single-slash mysql:/) + freshly-created stream → grace gate engaged → SLA suppressed.
+    // CDC source (single-slash mysql:/) + freshly-created stream → grace gate engaged. Only the
+    // primary SLA counter is suppressed; the alternate-SLA pair keeps emitting end-to-end.
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-new")[0];
     datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
@@ -289,9 +290,12 @@ public class TestEventProducer {
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
-        "withinSla counter must not be created during grace period for new CDC stream");
-    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
-        "withinAlternateSla counter must not be created during grace period for new CDC stream");
+        "Primary withinSla counter must not be created during grace period for new CDC stream");
+    Counter withinAltAgg = (Counter) metrics.getMetric(SLA_WITHIN_ALT_AGG);
+    Assert.assertNotNull(withinAltAgg,
+        "Alternate-SLA counter must keep emitting during grace period so observability is preserved");
+    Assert.assertEquals(withinAltAgg.getCount(), 1L,
+        "Single send with fresh source timestamp should be reported as within alternate SLA");
   }
 
   @Test
@@ -356,8 +360,9 @@ public class TestEventProducer {
 
   @Test
   public void testLatencyHistogramStillFiresDuringGracePeriod() {
-    // Latency histogram and per-topic latency metrics are intentionally NOT gated by the grace period
-    // so operators retain visibility into ramp-up backlogs even while SLA counters are suppressed.
+    // Latency histogram, alternate-SLA counters, and per-topic latency metrics are intentionally
+    // NOT gated by the grace period so operators retain visibility into ramp-up backlogs even
+    // while the primary SLA counter is suppressed.
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-latency")[0];
     datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
@@ -370,8 +375,10 @@ public class TestEventProducer {
     Assert.assertNotNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
         "Latency histogram must continue to fire during grace period");
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Alternate-SLA counter must fire during grace period");
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
-        "SLA counters should still be suppressed alongside the live latency histogram");
+        "Primary SLA counter should remain suppressed during grace period");
   }
 
   @Test
@@ -433,7 +440,9 @@ public class TestEventProducer {
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
-        "All streams within grace window → SLA suppressed across the deduped task");
+        "All streams within grace window → primary SLA suppressed across the deduped task");
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Alternate-SLA counter must keep emitting during grace period");
   }
 
   private void sendOneEventThroughProducer(Datastream datastream, Properties props) {

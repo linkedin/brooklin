@@ -458,15 +458,16 @@ public class EventProducer implements DatastreamEventProducer {
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
 
-      // SLA reporting is suppressed while a CDC stream is still draining its initial cdc backlog
-      // from EARLIEST; latency histograms above continue to fire so backlog visibility is preserved.
+      // During the CDC catch-up grace window suppress only the primary SLA counter so the strict
+      // 1-minute dashboard isn't polluted by initial backlog drain. The alternate SLA pair keeps
+      // emitting throughout — operators retain a coarser SLA signal end-to-end.
       if (!isWithinSlaGracePeriod()) {
         reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
             EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
-
-        reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
-            EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
       }
+
+      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
+          EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
 
       if (_logger.isDebugEnabled()) {
         if (sourceToDestinationLatencyMs > _availabilityThresholdSlaMs) {
