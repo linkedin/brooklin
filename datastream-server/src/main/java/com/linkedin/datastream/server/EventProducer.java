@@ -73,6 +73,7 @@ public class EventProducer implements DatastreamEventProducer {
   public static final String DEFAULT_FLUSH_INTERVAL_MS = String.valueOf(Duration.ofMinutes(5).toMillis());
 
   static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
+  static final String SLA_EXCLUDED_LATENCY_MS_STRING = "slaExcludedLatencyMs";
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
@@ -456,11 +457,15 @@ public class EventProducer implements DatastreamEventProducer {
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, EVENTS_LATENCY_MS_STRING);
+      // Redirect the latency histogram to slaExcludedLatencyMs during the CDC catch-up grace window
+      // so lag alerts wired to eventsLatencyMs do not fire on the initial backlog drain. The catch-up
+      // curve is still observable on slaExcludedLatencyMs.
+      String latencyMetricName = isWithinSlaGracePeriod() ? SLA_EXCLUDED_LATENCY_MS_STRING : EVENTS_LATENCY_MS_STRING;
+      reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, latencyMetricName);
 
-      // During the CDC catch-up grace window suppress only the primary SLA counter so the strict
-      // 1-minute dashboard isn't polluted by initial backlog drain. The alternate SLA pair keeps
-      // emitting throughout — operators retain a coarser SLA signal end-to-end.
+      // Primary SLA pair is suppressed during grace so the strict 1-minute dashboard isn't polluted
+      // by initial backlog drain. The alternate SLA pair keeps emitting throughout — operators retain
+      // a coarser SLA signal end-to-end.
       if (!isWithinSlaGracePeriod()) {
         reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
             EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
@@ -735,6 +740,9 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + DROPPED_SENT_FROM_SERIALIZATION_ERROR));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_STRING, Optional.of(
+        Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
+            BrooklinHistogramInfo.PERCENTILE_999))));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + SLA_EXCLUDED_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
             BrooklinHistogramInfo.PERCENTILE_999))));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_SEND_LATENCY_MS_STRING));

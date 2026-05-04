@@ -359,10 +359,10 @@ public class TestEventProducer {
   }
 
   @Test
-  public void testLatencyHistogramStillFiresDuringGracePeriod() {
-    // Latency histogram, alternate-SLA counters, and per-topic latency metrics are intentionally
-    // NOT gated by the grace period so operators retain visibility into ramp-up backlogs even
-    // while the primary SLA counter is suppressed.
+  public void testLatencyHistogramRedirectedToSlaExcludedDuringGracePeriod() {
+    // During grace, the lag histogram is redirected from eventsLatencyMs to slaExcludedLatencyMs
+    // so lag alerts on the primary metric do not fire on initial CDC catch-up. Alternate-SLA
+    // counters continue to emit so observability is preserved end-to-end.
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-latency")[0];
     datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
@@ -372,13 +372,36 @@ public class TestEventProducer {
     sendOneEventThroughProducer(datastream, new Properties(), someTopicName);
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
-    Assert.assertNotNull(
+    Assert.assertNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
-        "Latency histogram must continue to fire during grace period");
+        "eventsLatencyMs must NOT fire during grace period — that's what lag alerts are wired to");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "slaExcludedLatencyMs should receive the redirected latency observation during grace");
     Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
         "Alternate-SLA counter must fire during grace period");
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
         "Primary SLA counter should remain suppressed during grace period");
+  }
+
+  @Test
+  public void testLatencyHistogramFiresOnPrimaryAfterGracePeriod() {
+    // Post-grace: latency observations go back to eventsLatencyMs (the metric lag alerts watch).
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-latency-old")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    long threeHoursAgo = System.currentTimeMillis() - (3 * 60 * 60 * 1000L);
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+
+    String someTopicName = "postGraceLatencyTopic";
+    sendOneEventThroughProducer(datastream, new Properties(), someTopicName);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must fire once the grace period has expired");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
+        "slaExcludedLatencyMs should not be touched outside the grace window");
   }
 
   @Test
