@@ -277,11 +277,13 @@ public class TestEventProducer {
 
   private static final String SLA_WITHIN_AGG = "EventProducer.aggregate.eventsProducedWithinSla";
   private static final String SLA_WITHIN_ALT_AGG = "EventProducer.aggregate.eventsProducedWithinAlternateSla";
+  private static final String SLA_EXCLUDED_WITHIN_ALT_AGG = "EventProducer.aggregate.slaExcludedWithinAlternateSla";
 
   @Test
   public void testSlaGraceActiveForNewCdcStream() {
-    // CDC source (single-slash mysql:/) + freshly-created stream → grace gate engaged. Only the
-    // primary SLA counter is suppressed; the alternate-SLA pair keeps emitting end-to-end.
+    // CDC source (single-slash mysql:/) + freshly-created stream → grace gate engaged. Both regular
+    // SLA pairs are suppressed; the alternate-SLA evaluation is redirected to slaExcluded* counters
+    // so operators can still track grace-period stats without polluting the regular dashboards.
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-new")[0];
     datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
@@ -291,11 +293,13 @@ public class TestEventProducer {
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
         "Primary withinSla counter must not be created during grace period for new CDC stream");
-    Counter withinAltAgg = (Counter) metrics.getMetric(SLA_WITHIN_ALT_AGG);
-    Assert.assertNotNull(withinAltAgg,
-        "Alternate-SLA counter must keep emitting during grace period so observability is preserved");
-    Assert.assertEquals(withinAltAgg.getCount(), 1L,
-        "Single send with fresh source timestamp should be reported as within alternate SLA");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Regular alternate-SLA counter must not be touched during grace period");
+    Counter slaExcludedWithinAltAgg = (Counter) metrics.getMetric(SLA_EXCLUDED_WITHIN_ALT_AGG);
+    Assert.assertNotNull(slaExcludedWithinAltAgg,
+        "slaExcludedWithinAlternateSla counter must be created during grace for grace-period tracking");
+    Assert.assertEquals(slaExcludedWithinAltAgg.getCount(), 1L,
+        "Single send with fresh source timestamp should be reported as within alternate SLA threshold");
   }
 
   @Test
@@ -378,8 +382,10 @@ public class TestEventProducer {
     Assert.assertNotNull(
         metrics.getMetric("EventProducer." + someTopicName + "." + EventProducer.SLA_EXCLUDED_LATENCY_MS_STRING),
         "slaExcludedLatencyMs should receive the redirected latency observation during grace");
-    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
-        "Alternate-SLA counter must fire during grace period");
+    Assert.assertNotNull(metrics.getMetric(SLA_EXCLUDED_WITHIN_ALT_AGG),
+        "slaExcludedWithinAlternateSla counter must fire during grace period");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Regular alternate-SLA counter should remain untouched during grace period");
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
         "Primary SLA counter should remain suppressed during grace period");
   }
@@ -464,8 +470,10 @@ public class TestEventProducer {
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
         "All streams within grace window → primary SLA suppressed across the deduped task");
-    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
-        "Alternate-SLA counter must keep emitting during grace period");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Regular alternate-SLA counter must remain suppressed during grace");
+    Assert.assertNotNull(metrics.getMetric(SLA_EXCLUDED_WITHIN_ALT_AGG),
+        "slaExcludedWithinAlternateSla counter must fire during grace for the deduped task");
   }
 
   private void sendOneEventThroughProducer(Datastream datastream, Properties props) {

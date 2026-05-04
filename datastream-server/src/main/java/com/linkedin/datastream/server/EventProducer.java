@@ -96,6 +96,11 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_NEW_STREAM_SLA_GRACE_PERIOD_MS = "7200000"; // 2 hours
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
+  // Counterparts to EVENTS_PRODUCED_*_ALTERNATE_SLA, emitted only while a CDC stream is inside its
+  // catch-up grace window so the regular alternate-SLA dashboards stay clean while operators can
+  // still track grace-period stats on a dedicated counter.
+  private static final String SLA_EXCLUDED_WITHIN_ALTERNATE_SLA = "slaExcludedWithinAlternateSla";
+  private static final String SLA_EXCLUDED_OUTSIDE_ALTERNATE_SLA = "slaExcludedOutsideAlternateSla";
   private static final String DROPPED_SENT_FROM_SERIALIZATION_ERROR = "droppedSentFromSerializationError";
   static final String BYTES_PRODUCED_RATE = "bytesProducedRate";
   private static final String AGGREGATE = "aggregate";
@@ -371,6 +376,19 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   /**
+   * Single gate that decides whether to emit the regular primary / alternate SLA counters.
+   * Combines all current and future SLA-suppression conditions in one place — additional
+   * conditions (e.g. per-datastream opt-out flags) should be ORed in here so callers don't
+   * need to know about every gating condition individually.
+   */
+  private boolean shouldEmitSlaMetric() {
+    if (isWithinSlaGracePeriod()) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Parse the stream creation time used for SLA grace-period gating. When multiple datastreams
    * share a task via dedup, returns the oldest (min) CREATION_MS so a freshly deduped stream
    * cannot suppress SLA on long-running siblings. Zero / missing / malformed values are filtered
@@ -457,22 +475,25 @@ public class EventProducer implements DatastreamEventProducer {
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
-      // Redirect the latency histogram to slaExcludedLatencyMs during the CDC catch-up grace window
-      // so lag alerts wired to eventsLatencyMs do not fire on the initial backlog drain. The catch-up
-      // curve is still observable on slaExcludedLatencyMs.
-      String latencyMetricName = isWithinSlaGracePeriod() ? SLA_EXCLUDED_LATENCY_MS_STRING : EVENTS_LATENCY_MS_STRING;
+      // Redirect the latency histogram to slaExcludedLatencyMs while SLA emission is suppressed
+      // so lag alerts wired to eventsLatencyMs do not fire on the initial CDC catch-up. The
+      // catch-up curve is still observable on slaExcludedLatencyMs.
+      String latencyMetricName = shouldEmitSlaMetric() ? EVENTS_LATENCY_MS_STRING : SLA_EXCLUDED_LATENCY_MS_STRING;
       reportEventLatencyMetrics(topicOrDatastreamName, metadata, sourceToDestinationLatencyMs, latencyMetricName);
 
-      // Primary SLA pair is suppressed during grace so the strict 1-minute dashboard isn't polluted
-      // by initial backlog drain. The alternate SLA pair keeps emitting throughout — operators retain
-      // a coarser SLA signal end-to-end.
-      if (!isWithinSlaGracePeriod()) {
+      // While SLA emission is suppressed, the alternate SLA is still measured against its
+      // threshold but routed to a dedicated slaExcluded* counter pair so operators can track
+      // suppression-period stats without polluting the regular alternate-SLA dashboard.
+      if (shouldEmitSlaMetric()) {
         reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdSlaMs,
             EVENTS_PRODUCED_WITHIN_SLA, EVENTS_PRODUCED_OUTSIDE_SLA);
-      }
 
-      reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
-          EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
+        reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
+            EVENTS_PRODUCED_WITHIN_ALTERNATE_SLA, EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA);
+      } else {
+        reportSLAMetrics(topicOrDatastreamName, sourceToDestinationLatencyMs <= _availabilityThresholdAlternateSlaMs,
+            SLA_EXCLUDED_WITHIN_ALTERNATE_SLA, SLA_EXCLUDED_OUTSIDE_ALTERNATE_SLA);
+      }
 
       if (_logger.isDebugEnabled()) {
         if (sourceToDestinationLatencyMs > _availabilityThresholdSlaMs) {
@@ -738,6 +759,8 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinMeterInfo(METRICS_PREFIX + BYTES_PRODUCED_RATE));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA));
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + SLA_EXCLUDED_WITHIN_ALTERNATE_SLA));
+    metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + SLA_EXCLUDED_OUTSIDE_ALTERNATE_SLA));
     metrics.add(new BrooklinCounterInfo(METRICS_PREFIX + DROPPED_SENT_FROM_SERIALIZATION_ERROR));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_99,
