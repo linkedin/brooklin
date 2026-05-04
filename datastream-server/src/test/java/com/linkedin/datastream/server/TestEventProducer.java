@@ -465,6 +465,93 @@ public class TestEventProducer {
         "Alternate-SLA counter must remain suppressed during grace across the deduped task");
   }
 
+  // ---------------------------------------------------------------------------
+  // system.disableSlaMetric opt-out tests
+  //
+  // The opt-out is a per-datastream metadata flag that, when set, suppresses
+  // primary + alternate SLA counters and redirects the latency histogram from
+  // eventsLatencyMs to eventsLatencyMsSlaIneligible. Honored only for tasks
+  // that own a single datastream — deduped tasks ignore the flag so one
+  // stream's opt-out cannot suppress eventsLatencyMs for the whole group.
+  //
+  // Tests use a creation timestamp 3h in the past to bypass the CDC grace
+  // gate, so the only thing being exercised is the opt-out path itself.
+  // ---------------------------------------------------------------------------
+
+  @Test
+  public void testDisableSlaMetricSuppressesSlaCountersAndRedirectsLatency() {
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-opt-out")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    long threeHoursAgo = System.currentTimeMillis() - (3 * 60 * 60 * 1000L);
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+    datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, Boolean.TRUE.toString());
+
+    String topicName = "optOutLatencyTopic";
+    sendOneEventThroughProducer(datastream, new Properties(), topicName);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "Primary withinSla counter must not be created when system.disableSlaMetric=true");
+    Assert.assertNull(metrics.getMetric(SLA_WITHIN_ALT_AGG),
+        "Alternate-SLA counter must not be created when system.disableSlaMetric=true");
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + topicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must not fire for opted-out streams");
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + topicName + "." + EventProducer.EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING),
+        "Latency observation should be redirected to eventsLatencyMsSlaIneligible for opted-out streams");
+  }
+
+  @Test
+  public void testDisableSlaMetricFalseLeavesSlaReportingActive() {
+    // Explicit false should behave identically to the flag being absent.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-opt-out-false")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    long threeHoursAgo = System.currentTimeMillis() - (3 * 60 * 60 * 1000L);
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+    datastream.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, Boolean.FALSE.toString());
+
+    String topicName = "optOutFalseTopic";
+    sendOneEventThroughProducer(datastream, new Properties(), topicName);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Counter withinAgg = (Counter) metrics.getMetric(SLA_WITHIN_AGG);
+    Assert.assertNotNull(withinAgg, "withinSla counter should be created when opt-out flag is false");
+    Assert.assertEquals(withinAgg.getCount(), 1L);
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + topicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must fire normally when opt-out flag is false");
+  }
+
+  @Test
+  public void testDisableSlaMetricIgnoredForDedupedTask() {
+    // Two datastreams sharing one EventProducer: one opted out, one not. The opt-out must be
+    // ignored so the non-opted-out stream's SLA reporting is preserved.
+    long threeHoursAgo = System.currentTimeMillis() - (3 * 60 * 60 * 1000L);
+
+    Datastream optedOut = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-dedup-optout")[0];
+    optedOut.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    optedOut.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+    optedOut.getMetadata().put(EventProducer.CFG_DISABLE_SLA_METRIC, Boolean.TRUE.toString());
+
+    Datastream regular = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-dedup-regular")[0];
+    regular.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    regular.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(threeHoursAgo));
+
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(optedOut, regular));
+    String topicName = "dedupOptOutTopic";
+    sendOneEventThroughTask(task, new Properties(), topicName);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Counter withinAgg = (Counter) metrics.getMetric(SLA_WITHIN_AGG);
+    Assert.assertNotNull(withinAgg,
+        "Deduped task must ignore opt-out — one stream's flag cannot suppress SLA for the whole group");
+    Assert.assertEquals(withinAgg.getCount(), 1L);
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + topicName + "." + EventProducer.EVENTS_LATENCY_MS_STRING),
+        "eventsLatencyMs must continue to fire for deduped tasks regardless of any member's opt-out flag");
+  }
+
   private void sendOneEventThroughProducer(Datastream datastream, Properties props) {
     sendOneEventThroughProducer(datastream, props, "someTopicName");
   }

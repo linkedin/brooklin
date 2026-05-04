@@ -478,7 +478,7 @@ public class EventProducer implements DatastreamEventProducer {
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
       // Report availability metrics. Streams that opt out via system.disableSlaMetric still emit
-      // a latency histogram, but under slaExcludedLatencyMs so they don't pollute the SLA metric.
+      // a latency histogram, but under eventsLatencyMsSlaIneligible so they don't pollute the SLA metric.
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       // Redirect the latency histogram to eventsLatencyMsSlaIneligible while SLA emission is suppressed
       // so lag alerts wired to eventsLatencyMs do not fire on the initial CDC catch-up. The
