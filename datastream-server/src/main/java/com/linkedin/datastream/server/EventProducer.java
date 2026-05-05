@@ -383,7 +383,7 @@ public class EventProducer implements DatastreamEventProducer {
    * sites do not need to know about every gating condition individually.
    */
   private boolean shouldEmitMetric() {
-    if(_disableSlaMetric){
+    if (_disableSlaMetric) {
       return false;
     }
     if (isWithinGracePeriod()) {
