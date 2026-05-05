@@ -52,6 +52,7 @@ public class EventProducer implements DatastreamEventProducer {
 
   public static final String CFG_SKIP_MSG_SERIALIZATION_ERRORS = "skipMessageOnSerializationErrors";
   public static final String DEFAULT_SKIP_MSG_SERIALIZATION_ERRORS = "false";
+  public static final String CFG_DISABLE_SLA_METRIC = "system.disableSlaMetric";
   public static final String CONFIG_FLUSH_INTERVAL_MS = "flushIntervalMs";
   public static final String CONFIG_ENABLE_PER_TOPIC_METRICS = "enablePerTopicMetrics";
   public static final String CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS = "enablePerTopicEventLatencyMetrics";
@@ -134,6 +135,7 @@ public class EventProducer implements DatastreamEventProducer {
   private final boolean _skipMessageOnSerializationErrors;
   private final boolean _enablePerTopicMetrics;
   private final boolean _enablePerTopicEventLatencyMetrics;
+  private final boolean _disableSlaMetric;
   private final boolean _enableThroughputMetrics;
   // Cached source database name parsed from the connection string at construction time (null for non-CDC sources)
   private final String _sourceDatabase;
@@ -219,6 +221,8 @@ public class EventProducer implements DatastreamEventProducer {
     _enablePerTopicEventLatencyMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_PER_TOPIC_EVENT_LATENCY_METRICS,
             Boolean.FALSE.toString()));
+
+    _disableSlaMetric = getDisableSlaMetric(task);
 
     _enableThroughputMetrics =
         Boolean.parseBoolean(config.getProperty(CONFIG_ENABLE_THROUGHPUT_METRICS, Boolean.FALSE.toString()));
@@ -379,6 +383,9 @@ public class EventProducer implements DatastreamEventProducer {
    * sites do not need to know about every gating condition individually.
    */
   private boolean shouldEmitMetric() {
+    if (_disableSlaMetric) {
+      return false;
+    }
     if (isWithinGracePeriod()) {
       return false;
     }
@@ -470,7 +477,8 @@ public class EventProducer implements DatastreamEventProducer {
     String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : datastreamName;
     // Treat all events within this record equally (assume same timestamp)
     if (eventsSourceTimestamp > 0) {
-      // Report availability metrics
+      // Report availability metrics. Streams that opt out via system.disableSlaMetric still emit
+      // a latency histogram, but under eventsLatencyMsSlaIneligible so they don't pollute the SLA metric.
       long sourceToDestinationLatencyMs = System.currentTimeMillis() - eventsSourceTimestamp;
       // Redirect the latency histogram to eventsLatencyMsSlaIneligible while SLA emission is suppressed
       // so lag alerts wired to eventsLatencyMs do not fire on the initial CDC catch-up. The
@@ -653,6 +661,26 @@ public class EventProducer implements DatastreamEventProducer {
         .map(Datastream::getMetadata)
         .map(metadata -> metadata.getOrDefault(CFG_SKIP_MSG_SERIALIZATION_ERRORS, skipMessageOnSerializationErrors))
         .orElse(skipMessageOnSerializationErrors));
+  }
+
+  /**
+   * Looks for config {@value CFG_DISABLE_SLA_METRIC} in the datastream metadata and returns its value.
+   * Default value is false.
+   *
+   * <p>Only honored for tasks owning a single datastream. Deduped tasks (multiple datastreams
+   * sharing one EventProducer) always return false, since one stream's opt-out would otherwise
+   * suppress {@code eventsLatencyMs} for every stream in the group.
+   */
+  private boolean getDisableSlaMetric(DatastreamTask task) {
+    if (task.getDatastreams().size() > 1) {
+      return false;
+    }
+    return Boolean.parseBoolean(task.getDatastreams()
+        .stream()
+        .findFirst()
+        .map(Datastream::getMetadata)
+        .map(metadata -> metadata.getOrDefault(CFG_DISABLE_SLA_METRIC, Boolean.FALSE.toString()))
+        .orElse(Boolean.FALSE.toString()));
   }
 
   @Override
