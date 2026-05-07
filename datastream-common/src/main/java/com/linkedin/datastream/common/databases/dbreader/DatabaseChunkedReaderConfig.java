@@ -61,9 +61,7 @@ public class DatabaseChunkedReaderConfig {
     _fetchSize = verifiableProperties.getInt(FETCH_SIZE, DEFAULT_FETCH_SIZE);
     Validate.inclusiveBetween(0, Integer.MAX_VALUE, _fetchSize);
     _rowCountLimit = verifiableProperties.getLong(ROW_COUNT_LIMIT, DEFAULT_ROW_COUNT_LIMIT);
-    Validate.inclusiveBetween(100, Long.MAX_VALUE, _fetchSize);
-    Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
-    Validate.inclusiveBetween(0, Long.MAX_VALUE, _fetchSize);
+    Validate.inclusiveBetween(0, Long.MAX_VALUE, _rowCountLimit);
     _shouldSkipBadMessage = verifiableProperties.getBoolean(SKIP_BAD_MESSAGE, DEFAULT_SKIP_BAD_MESSAGE);
     _statementExecutionDelay = verifiableProperties.getLong(STATEMENT_EXECUTION_DELAY, DEFAULT_STATEMENT_EXECUTION_DELAY);
 
