@@ -1395,6 +1395,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       long timeToReadyMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
       if (timeToReadyMs >= 0) {
         _metrics.updateTimeToReadyHistogram(timeToReadyMs);
+        _log.info("Datastream {} reached READY in {} ms", ds.getName(), timeToReadyMs);
       }
     } catch (NumberFormatException e) {
       _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
