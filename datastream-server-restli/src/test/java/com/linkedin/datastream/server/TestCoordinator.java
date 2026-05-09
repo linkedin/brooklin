@@ -2490,6 +2490,98 @@ public class TestCoordinator {
     setup._datastreamKafkaCluster.shutdown();
   }
 
+  /**
+   * Verifies that the Coordinator.timeToReadyMs histogram receives a sample when a datastream
+   * completes the INITIALIZING -> READY transition. The recorded value should be a non-negative
+   * duration roughly equal to (now - system.creation.ms).
+   */
+  @Test
+  public void testTimeToReadyHistogramOnCreate() throws Exception {
+    TestSetup setup = createTestCoordinator();
+
+    com.codahale.metrics.Histogram histogram =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+    long countBefore = histogram == null ? 0L : histogram.getCount();
+
+    String datastreamName = "TestTimeToReadyStream";
+    Datastream stream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, datastreamName)[0];
+    stream.getSource().setConnectionString(DummyConnector.VALID_DUMMY_SOURCE);
+    stream.getDestination()
+        .setConnectionString(new KafkaDestination(setup._datastreamKafkaCluster.getKafkaCluster().getZkConnection(),
+            "TestTimeToReadyTopic", false).getDestinationURI());
+    CreateResponse createResponse = setup._resource.create(stream);
+    Assert.assertNull(createResponse.getError());
+    Assert.assertEquals(createResponse.getStatus(), HttpStatus.S_201_CREATED);
+
+    // Wait for the stream to reach READY status, which is when the histogram sample is recorded.
+    Assert.assertTrue(PollUtils.poll(() -> {
+      Datastream queried = setup._resource.get(datastreamName);
+      return queried != null && DatastreamStatus.READY.equals(queried.getStatus());
+    }, 200, WAIT_TIMEOUT_MS));
+
+    com.codahale.metrics.Histogram readyHistogram =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+    Assert.assertNotNull(readyHistogram, "Coordinator.timeToReadyMs histogram should be registered after a stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> readyHistogram.getCount() > countBefore, 100, WAIT_TIMEOUT_MS),
+        "timeToReadyMs histogram count did not increase after stream transitioned to READY");
+
+    long maxValue = readyHistogram.getSnapshot().getMax();
+    Assert.assertTrue(maxValue >= 0, "timeToReadyMs sample should be non-negative, got: " + maxValue);
+
+    setup._datastreamKafkaCluster.shutdown();
+  }
+
+  /**
+   * Verifies that resuming a datastream (STOPPED -> READY transition driven directly via the
+   * datastream resource / store) does NOT increment the Coordinator.timeToReadyMs histogram.
+   * The metric is intended to capture only the initial creation flow.
+   */
+  @Test
+  public void testTimeToReadyHistogramNotEmittedOnResume() throws Exception {
+    String testCluster = "testTimeToReadyHistogramNotEmittedOnResume";
+    String connectorType = "testConnectorType";
+    String datastreamName = "TestResumeStream";
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    // Capture histogram count after the initial creation has settled.
+    com.codahale.metrics.Histogram histogram =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+    Assert.assertNotNull(histogram, "Histogram should exist after the initial create");
+    long countAfterCreate = histogram.getCount();
+
+    // Stop and then resume the datastream. The resume path bypasses the INITIALIZING -> READY
+    // transition in handleDatastreamAddOrDelete, so the histogram count must not change.
+    Datastream ds = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName);
+    ds.setStatus(DatastreamStatus.STOPPED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.STOPPED.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    ds.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    // Give the coordinator event loop time to process anything it might (incorrectly) do.
+    Thread.sleep(500);
+    Assert.assertEquals(histogram.getCount(), countAfterCreate,
+        "timeToReadyMs histogram count must not increase on resume from STOPPED");
+
+    coordinator.stop();
+    coordinator.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
   @Test
   public void testHeartbeat() throws Exception {
     // Use 1s heartbeat period for quicker execution

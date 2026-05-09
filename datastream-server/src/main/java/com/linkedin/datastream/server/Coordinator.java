@@ -65,6 +65,7 @@ import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.metrics.BrooklinCounterInfo;
 import com.linkedin.datastream.metrics.BrooklinGaugeInfo;
+import com.linkedin.datastream.metrics.BrooklinHistogramInfo;
 import com.linkedin.datastream.metrics.BrooklinMeterInfo;
 import com.linkedin.datastream.metrics.BrooklinMetricInfo;
 import com.linkedin.datastream.metrics.DynamicMetricsManager;
@@ -177,6 +178,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final int TOKEN_CLAIM_THREAD_POOL_SIZE = 16;
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
+
+  // Histogram capturing the duration (ms) between datastream creation (system.creation.ms) and
+  // the INITIALIZING -> READY transition. Aggregate-only; alert reads max over the sliding window.
+  private static final String TIME_TO_READY_MS = "timeToReadyMs";
+  private static final long TIME_TO_READY_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(15).toMillis();
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
@@ -1345,6 +1351,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             _log.warn("Failed to update datastream: {} after initializing. This datastream will not be scheduled for "
                 + "producing events ", ds.getName());
             shouldRetry = true;
+          } else {
+            recordTimeToReadyMs(ds);
           }
         } catch (Exception e) {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
@@ -1376,6 +1384,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
+  }
+
+  private void recordTimeToReadyMs(Datastream ds) {
+    String creationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATION_MS);
+    if (creationMsStr == null) {
+      return;
+    }
+    try {
+      long timeToReadyMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      if (timeToReadyMs >= 0) {
+        _metrics.updateTimeToReadyHistogram(timeToReadyMs);
+      }
+    } catch (NumberFormatException e) {
+      _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
+    }
   }
 
   private void hardDeleteDatastream(Datastream ds, List<Datastream> activeStreams) {
@@ -2451,6 +2474,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       registerKeyedMeterMetrics();
       registerGaugeMetrics();
       registerCounterMetrics();
+      registerHistogramMetrics();
     }
 
     public void addMetricInfos(MetricsAware metricsAware) {
@@ -2493,6 +2517,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     public void updateCounter(Counter metric, int value) {
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), value);
+    }
+
+    public void updateTimeToReadyHistogram(long valueMs) {
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, null, TIME_TO_READY_MS,
+          TIME_TO_READY_HISTOGRAM_WINDOW_MS, valueMs);
     }
 
     public static KeyedMeter getKeyedMeter(EventType eventType) {
@@ -2581,6 +2610,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private void registerCounterMetrics() {
       // These metrics are eagerly created
       Arrays.stream(Counter.values()).forEach(this::registerCounter);
+    }
+
+    private void registerHistogramMetrics() {
+      // The metric is created lazily on first update via createOrUpdateSlidingWindowHistogram.
+      // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
+      // to pick up the metric name (see PR #945 precedent).
+      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS)));
     }
 
     private void registerMeter(Meter metric) {
