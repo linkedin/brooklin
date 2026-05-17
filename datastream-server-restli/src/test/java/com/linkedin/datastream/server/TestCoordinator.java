@@ -2582,6 +2582,92 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  /**
+   * Verifies that the slowProvisioningCount counter increments when a datastream's
+   * INITIALIZING -> READY duration exceeds the configured threshold. A threshold of 0 ms
+   * guarantees the freshly-created datastream is classified as slow.
+   */
+  @Test
+  public void testSlowProvisioningCounterIncrementsWhenAboveThreshold() throws Exception {
+    String testCluster = "testSlowProvisioningCounterAboveThreshold";
+    String connectorType = "testConnectorType";
+    String datastreamName = "TestSlowStream";
+
+    Properties override = new Properties();
+    override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS, "0");
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
+    TestHookConnector connector = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    com.codahale.metrics.Counter counterBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
+    long countBefore = counterBefore == null ? 0L : counterBefore.getCount();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    com.codahale.metrics.Counter readyCounter =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
+    Assert.assertNotNull(readyCounter,
+        "Coordinator.slowProvisioningCount counter should be registered after a stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> readyCounter.getCount() > countBefore, 100, WAIT_TIMEOUT_MS),
+        "slowProvisioningCount should increment when duration exceeds threshold");
+
+    coordinator.stop();
+    coordinator.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
+  /**
+   * Verifies that the slowProvisioningCount counter does NOT increment when a datastream's
+   * INITIALIZING -> READY duration is below the configured threshold. Uses a 1 hour threshold
+   * so that the fast in-test provisioning never exceeds it.
+   */
+  @Test
+  public void testSlowProvisioningCounterDoesNotIncrementWhenBelowThreshold() throws Exception {
+    String testCluster = "testSlowProvisioningCounterBelowThreshold";
+    String connectorType = "testConnectorType";
+    String datastreamName = "TestFastStream";
+
+    Properties override = new Properties();
+    override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS,
+        String.valueOf(Duration.ofHours(1).toMillis()));
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
+    TestHookConnector connector = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    com.codahale.metrics.Counter counterBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
+    long countBefore = counterBefore == null ? 0L : counterBefore.getCount();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+
+    // Give the coordinator event loop time to do anything it might (incorrectly) do.
+    Thread.sleep(500);
+
+    com.codahale.metrics.Counter readyCounter =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
+    if (readyCounter != null) {
+      Assert.assertEquals(readyCounter.getCount(), countBefore,
+          "slowProvisioningCount must not increment when duration is below threshold");
+    }
+
+    coordinator.stop();
+    coordinator.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
   @Test
   public void testHeartbeat() throws Exception {
     // Use 1s heartbeat period for quicker execution

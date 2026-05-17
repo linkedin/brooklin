@@ -1395,6 +1395,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       long timeToReadyMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
       if (timeToReadyMs >= 0) {
         _metrics.updateTimeToReadyHistogram(timeToReadyMs);
+        if (timeToReadyMs > _config.getSlowProvisioningThresholdMs()) {
+          _metrics.updateCounter(CoordinatorMetrics.Counter.SLOW_PROVISIONING_COUNT, 1);
+        }
         _log.info("Datastream {} reached READY in {} ms", ds.getName(), timeToReadyMs);
       }
     } catch (NumberFormatException e) {
@@ -2723,7 +2726,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      * Coordinator metrics of type {@link com.codahale.metrics.Counter}
      */
     public enum Counter {
-      NUM_HEARTBEATS("numHeartbeats");
+      NUM_HEARTBEATS("numHeartbeats"),
+      SLOW_PROVISIONING_COUNT("slowProvisioningCount");
 
       private final String _name;
 
