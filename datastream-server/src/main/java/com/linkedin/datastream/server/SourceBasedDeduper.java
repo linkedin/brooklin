@@ -70,7 +70,8 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   public static final String CONFIG_CDC_BOOTSTRAP_REQUIRED_METADATA_KEY = "cdcBootstrapRequiredMetadataKey";
 
   /** Default value of the metadata key used to identify CDC+BST streams. */
-  public static final String DEFAULT_CDC_BOOTSTRAP_REQUIRED_METADATA_KEY = "system.cdcBootstrapRequired";
+  public static final String DEFAULT_CDC_BOOTSTRAP_REQUIRED_METADATA_KEY =
+      DatastreamMetadataConstants.CDC_BOOTSTRAP_REQUIRED_KEY;
 
   /**
    * Grace-period window in <em>milliseconds</em> applied to existing CDC+BST streams when a new
