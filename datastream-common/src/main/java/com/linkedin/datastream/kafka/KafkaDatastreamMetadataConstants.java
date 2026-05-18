@@ -22,4 +22,8 @@ public class KafkaDatastreamMetadataConstants {
 
   // Enable topic auto creation for this Kafka data stream
   public static final String ENABLE_TOPIC_AUTO_CREATION = "system.enableTopicAutoCreation";
+
+  // Kafka consumer start position values used when no checkpoint exists for a CDC datastream
+  public static final String CDC_START_POSITION_EARLIEST = "earliest";
+  public static final String CDC_START_POSITION_LATEST = "latest";
 }
