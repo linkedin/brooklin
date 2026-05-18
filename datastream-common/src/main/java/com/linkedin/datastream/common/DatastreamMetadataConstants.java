@@ -142,4 +142,14 @@ public class DatastreamMetadataConstants {
    * initialized to an earlier position to replay historical data before catching up to the live tail.
    */
   public static final String CDC_BOOTSTRAP_REQUIRED_KEY = "system.cdcBootstrapRequired";
+
+  /**
+   * Start position value indicating the consumer should begin from the earliest available offset.
+   */
+  public static final String CDC_START_POSITION_EARLIEST = "earliest";
+
+  /**
+   * Start position value indicating the consumer should begin from the latest offset.
+   */
+  public static final String CDC_START_POSITION_LATEST = "latest";
 }
