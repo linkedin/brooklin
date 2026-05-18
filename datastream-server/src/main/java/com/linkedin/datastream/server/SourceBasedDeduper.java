@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 
 
@@ -111,12 +112,12 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
    *              as produced by {@code VerifiableProperties.getDomainProperties("deduper")})
    */
   public SourceBasedDeduper(Properties props) {
+    VerifiableProperties vProps = new VerifiableProperties(props);
     _cdcBootstrapRequiredMetadataKey = props.getProperty(CONFIG_CDC_BOOTSTRAP_REQUIRED_METADATA_KEY,
         DEFAULT_CDC_BOOTSTRAP_REQUIRED_METADATA_KEY);
-    _newStreamGracePeriodMs = Long.parseLong(props.getProperty(CONFIG_NEW_STREAM_GRACE_PERIOD_MS,
-        String.valueOf(DEFAULT_NEW_STREAM_GRACE_PERIOD_MS)));
-    _snapshotWorstRefreshMs = Long.parseLong(props.getProperty(CONFIG_SNAPSHOT_WORST_REFRESH_DAYS,
-        String.valueOf(DEFAULT_SNAPSHOT_WORST_REFRESH_DAYS))) * MS_PER_DAY;
+    _newStreamGracePeriodMs = vProps.getLong(CONFIG_NEW_STREAM_GRACE_PERIOD_MS, DEFAULT_NEW_STREAM_GRACE_PERIOD_MS);
+    _snapshotWorstRefreshMs = Math.multiplyExact(
+        vProps.getLong(CONFIG_SNAPSHOT_WORST_REFRESH_DAYS, DEFAULT_SNAPSHOT_WORST_REFRESH_DAYS), MS_PER_DAY);
   }
 
   /**
@@ -126,8 +127,7 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   @Override
   public Optional<Datastream> dedupeStreams(Datastream stream, List<Datastream> candidates)
       throws DatastreamValidationException {
-    if (!stream.hasMetadata() || stream.getMetadata() == null
-        || !stream.getMetadata().containsKey(_cdcBootstrapRequiredMetadataKey)) {
+    if (!stream.hasMetadata() || !stream.getMetadata().containsKey(_cdcBootstrapRequiredMetadataKey)) {
       return findDedupCandidateBySource(stream, candidates);
     }
     return findDedupCandidateCdcBootstrapAware(stream, candidates);
@@ -300,7 +300,7 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
    * @return {@code true} if the stream is a CDC+BST stream, {@code false} otherwise
    */
   private boolean isCdcBootstrapRequiredStream(Datastream stream) {
-    if (!stream.hasMetadata() || stream.getMetadata() == null) {
+    if (!stream.hasMetadata()) {
       return false;
     }
     return Boolean.parseBoolean(stream.getMetadata().getOrDefault(_cdcBootstrapRequiredMetadataKey, "false"));
@@ -308,21 +308,24 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
 
   /**
    * Returns {@code true} when the given stream's time window has expired, i.e.
-   * {@code creationTime + windowMs < currentTime}.
+   * {@code System.currentTimeMillis() >= creationTime + windowMs}.
    *
-   * <p>When {@code windowMs} is {@code 0} (the default), the condition
-   * {@code creationTime + 0 < currentTime} is always {@code true} for any existing stream,
-   * so the window is treated as immediately expired and dedup is always permitted.
+   * <p>When {@code windowMs} is {@code 0}, returns {@code true} unconditionally — the window
+   * is treated as immediately expired regardless of whether {@code system.creation.ms} metadata
+   * is present. This handles legacy streams that pre-date the metadata field.
    *
-   * <p>Returns {@code false} when {@code system.creation.ms} metadata is absent (cannot
-   * determine age; conservatively treat as not expired).
+   * <p>Returns {@code false} when {@code windowMs > 0} and {@code system.creation.ms} metadata
+   * is absent (cannot determine age; conservatively treat as not expired).
    *
    * @param stream   the existing candidate stream
    * @param windowMs the window duration in milliseconds
    * @return {@code true} if the window has expired, {@code false} otherwise
    */
   private static boolean hasWindowExpired(Datastream stream, long windowMs) {
-    if (!stream.hasMetadata() || stream.getMetadata() == null
+    if (windowMs == 0) {
+      return true;
+    }
+    if (!stream.hasMetadata()
         || !stream.getMetadata().containsKey(DatastreamMetadataConstants.CREATION_MS)) {
       return false;
     }
