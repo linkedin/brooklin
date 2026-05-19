@@ -179,8 +179,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
-  // Histogram capturing the duration (ms) between datastream creation (system.creation.ms) and
-  // the INITIALIZING -> READY transition. Aggregate-only; alert reads max over the sliding window.
+  // Histogram capturing the duration between datastream creation and the INITIALIZING -> READY transition.
   private static final String TIME_TO_READY_MS = "timeToReadyMs";
   private static final long TIME_TO_READY_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(15).toMillis();
 
@@ -2619,7 +2618,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private void registerHistogramMetrics() {
       // The metric is created lazily on first update via createOrUpdateSlidingWindowHistogram.
       // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
-      // to pick up the metric name (see PR #945 precedent).
+      // to pick up the metric name
       _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS)));
     }
 
