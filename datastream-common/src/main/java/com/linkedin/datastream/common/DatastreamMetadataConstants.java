@@ -136,4 +136,11 @@ public class DatastreamMetadataConstants {
    * which at least one partition violates the brooklin's permissible throughput bounds.
    */
   public static final String THROUGHPUT_VIOLATING_TOPICS = "throughputViolatingTopics";
+
+  /**
+   * Indicates whether the datastream requires CDC bootstrap, i.e. the consumer offset is
+   * initialized to an earlier position to replay historical data before catching up to the live tail.
+   */
+  public static final String CDC_BOOTSTRAP_REQUIRED_KEY = "system.cdcBootstrapRequired";
+
 }
