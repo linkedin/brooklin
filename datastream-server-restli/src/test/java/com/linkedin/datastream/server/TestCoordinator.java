@@ -2541,11 +2541,6 @@ public class TestCoordinator {
     zkClient.close();
   }
 
-  /**
-   * Verifies that the slowProvisioningCount counter does NOT increment when a datastream's
-   * INITIALIZING -> READY duration is below the configured threshold. Uses a 1 hour threshold
-   * so that the fast in-test provisioning never exceeds it.
-   */
   @Test
   public void testSlowProvisioningCounterDoesNotIncrementWhenBelowThreshold() throws Exception {
     String testCluster = "testSlowProvisioningCounterBelowThreshold";
