@@ -2492,13 +2492,6 @@ public class TestCoordinator {
     setup._datastreamKafkaCluster.shutdown();
   }
 
-  /**
-   * Verifies that the INITIALIZING -> READY transition for a newly created datastream:
-   *   1. Increments the Coordinator.timeToReadyMs histogram with a non-negative sample.
-   *   2. Increments the Coordinator.slowProvisioningCount counter when the configured
-   *      threshold is exceeded. A threshold of 0 ms guarantees any positive duration
-   *      is classified as slow.
-   */
   @Test
   public void testTimeToReadyMetricsOnCreate() throws Exception {
     String testCluster = "testTimeToReadyMetricsOnCreate";
@@ -2525,13 +2518,13 @@ public class TestCoordinator {
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
     Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
-        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
 
     Histogram histogram =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
     Assert.assertNotNull(histogram,
         "Coordinator.timeToReadyMs histogram should be registered after a stream goes READY");
-    Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, WAIT_TIMEOUT_MS),
+    Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, 30000),
         "timeToReadyMs histogram count did not increase after stream transitioned to READY");
     long maxValue = histogram.getSnapshot().getMax();
     Assert.assertTrue(maxValue >= 0, "timeToReadyMs sample should be non-negative, got: " + maxValue);
@@ -2540,7 +2533,7 @@ public class TestCoordinator {
         DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
     Assert.assertNotNull(counter,
         "Coordinator.slowProvisioningCount counter should be registered after a stream goes READY");
-    Assert.assertTrue(PollUtils.poll(() -> counter.getCount() > counterCountBefore, 100, WAIT_TIMEOUT_MS),
+    Assert.assertTrue(PollUtils.poll(() -> counter.getCount() > counterCountBefore, 100, 30000),
         "slowProvisioningCount should increment when duration exceeds threshold");
 
     coordinator.stop();
@@ -2573,13 +2566,22 @@ public class TestCoordinator {
         DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
     long countBefore = counterBefore == null ? 0L : counterBefore.getCount();
 
+    Histogram histogramBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+    long histogramCountBefore = histogramBefore == null ? 0L : histogramBefore.getCount();
+
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
     Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
-        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, WAIT_TIMEOUT_MS));
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
 
-    // Give the coordinator event loop time to do anything it might (incorrectly) do.
-    Thread.sleep(500);
+    // Wait for the histogram to increment - this proves recordTimeToReadyMs has finished
+    // running, which means any counter increment (or non-increment) decision has been made.
+    Histogram histogram =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+    Assert.assertNotNull(histogram, "Histogram should exist after stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, 30000),
+        "Histogram count did not increment - recordTimeToReadyMs may not have run yet");
 
     Counter readyCounter =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
