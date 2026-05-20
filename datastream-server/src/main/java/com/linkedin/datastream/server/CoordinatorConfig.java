@@ -6,7 +6,11 @@
 package com.linkedin.datastream.server;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 
 import com.linkedin.datastream.common.VerifiableProperties;
 import com.linkedin.datastream.common.zk.ZkClient;
@@ -48,8 +52,13 @@ public final class CoordinatorConfig {
 
   public static final String CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING = PREFIX + "enableThroughputViolatingTopicsHandling";
   public static final String CONFIG_LOG_SIZE_LIMIT_IN_BYTES = PREFIX + "logSizeLimitInBytes";
+  // how often the leader checks whether all tasks for a bootstrap datastream have completed EOB
+  public static final String CONFIG_EOB_CHECK_PERIOD_MS = PREFIX + "eobCheckPeriodMs";
+  // comma-separated connector names for which EOB completion should be checked; empty means all connectors
+  public static final String CONFIG_EOB_CHECK_CONNECTOR_NAMES = PREFIX + "eobCheckConnectorNames";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
+  public static final long DEFAULT_EOB_CHECK_PERIOD_MS = Duration.ofMinutes(1).toMillis();
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
   public static final long DEFAULT_TASK_STOP_CHECK_TIMEOUT_MS = 60 * 1000;
   public static final long DEFAULT_TASK_STOP_CHECK_RETRY_PERIOD_MS = 10 * 1000;
@@ -82,6 +91,8 @@ public final class CoordinatorConfig {
   private final long _markDatastreamsStoppedRetryPeriodMs;
   private final boolean _enableThroughputViolatingTopicsHandling;
   private final double _logSizeLimitInBytes;
+  private final long _eobCheckPeriodMs;
+  private final Set<String> _eobCheckConnectorNames;
 
 
   /**
@@ -121,6 +132,10 @@ public final class CoordinatorConfig {
     _enableThroughputViolatingTopicsHandling = _properties.getBoolean(
         CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, false);
     _logSizeLimitInBytes = _properties.getDouble(CONFIG_LOG_SIZE_LIMIT_IN_BYTES, DEFAULT_LOG_SIZE_LIMIT_IN_BYTES);
+    _eobCheckPeriodMs = _properties.getLong(CONFIG_EOB_CHECK_PERIOD_MS, DEFAULT_EOB_CHECK_PERIOD_MS);
+    String connectorNamesRaw = _properties.getString(CONFIG_EOB_CHECK_CONNECTOR_NAMES, "").trim();
+    _eobCheckConnectorNames = connectorNamesRaw.isEmpty() ? Collections.emptySet()
+        : new HashSet<>(Arrays.asList(connectorNamesRaw.split("\\s*,\\s*")));
   }
 
   public Properties getConfigProperties() {
@@ -219,5 +234,17 @@ public final class CoordinatorConfig {
 
   public double getLogSizeLimitInBytes() {
     return _logSizeLimitInBytes;
+  }
+
+  public long getEobCheckPeriodMs() {
+    return _eobCheckPeriodMs;
+  }
+
+  /**
+   * Returns the set of connector names for which EOB completion should be checked.
+   * An empty set means all connectors are eligible.
+   */
+  public Set<String> getEobCheckConnectorNames() {
+    return _eobCheckConnectorNames;
   }
 }

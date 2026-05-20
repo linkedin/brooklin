@@ -143,4 +143,11 @@ public class DatastreamMetadataConstants {
    */
   public static final String CDC_BOOTSTRAP_REQUIRED_KEY = "system.cdcBootstrapRequired";
 
+  /**
+   * Set to "true" by the Coordinator when all tasks for a bootstrap datastream have reached
+   * {@link com.linkedin.datastream.server.DatastreamTaskStatus.Code#COMPLETE} status, indicating
+   * that End-of-Bootstrap (EOB) events have been successfully produced to all destination partitions.
+   */
+  public static final String IS_EOB_COMPLETE = "system.isEOBComplete";
+
 }

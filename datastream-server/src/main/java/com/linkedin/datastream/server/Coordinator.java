@@ -85,6 +85,7 @@ import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.IS_EOB_COMPLETE;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
@@ -207,6 +208,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // where no events can be handled if coordinator locks up. This can happen because
   // handleEvent is synchronized and downstream code can misbehave.
   private final Duration _heartbeatPeriod;
+  private final Duration _eobCheckPeriod;
+  private final Set<String> _eobCheckConnectorNames;
 
   private final Logger _log = LoggerFactory.getLogger(Coordinator.class.getName());
 
@@ -259,6 +262,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _config = config;
     _clusterName = _config.getCluster();
     _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
+    _eobCheckPeriod = Duration.ofMillis(config.getEobCheckPeriodMs());
+    _eobCheckConnectorNames = config.getEobCheckConnectorNames();
 
     _adapter = createZkAdapter();
     _eventQueue = new CoordinatorEventBlockingQueue(Coordinator.class.getSimpleName());
@@ -324,6 +329,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Queue up one heartbeat per period with a initial delay of 3 periods
     _scheduledExecutor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
+
+    // Periodically check whether all tasks for any bootstrap datastream have completed EOB and
+    // stamp system.isEOBComplete=true if so. Runs only on the leader — non-leaders skip cheaply.
+    _scheduledExecutor.scheduleAtFixedRate(this::periodicEobCheck,
+        _eobCheckPeriod.toMillis(), _eobCheckPeriod.toMillis(), TimeUnit.MILLISECONDS);
   }
 
   protected synchronized void createEventThread() {
@@ -1498,6 +1508,94 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Periodic background check scheduled on all instances. Only the leader does real work — all
+   * others return immediately. Reads the full task assignment from ZooKeeper and delegates to
+   * {@link #maybeMarkEOBCompleteForBootstrapDatastreams}.
+   */
+  @VisibleForTesting
+  void periodicEobCheck() {
+    if (!_adapter.isLeader()) {
+      return;
+    }
+    try {
+      Map<String, Set<DatastreamTask>> assignment = _adapter.getAllAssignedDatastreamTasks();
+      List<DatastreamGroup> datastreamGroups = fetchDatastreamGroups();
+      maybeMarkEOBCompleteForBootstrapDatastreams(assignment, datastreamGroups);
+    } catch (Exception e) {
+      _log.warn("periodicEobCheck: unexpected error, will retry on next cycle.", e);
+    }
+  }
+
+  /**
+   * For each bootstrap {@link DatastreamGroup}, check whether all currently-assigned tasks across
+   * all instances have reached {@link DatastreamTaskStatus.Code#COMPLETE}. If so, and the
+   * {@link DatastreamMetadataConstants#IS_EOB_COMPLETE} flag is not yet set, persist it on every
+   * datastream in the group (covering deduped streams that share the same task prefix).
+   *
+   * <p>A datastream group is considered a bootstrap group when its name contains {@code "bst-"}.
+   * This check runs on the leader only, inside {@link #handleLeaderDoAssignment}, so it has a
+   * consistent view of the full cluster assignment.
+   */
+  @VisibleForTesting
+  void maybeMarkEOBCompleteForBootstrapDatastreams(Map<String, Set<DatastreamTask>> assignmentByInstance,
+      List<DatastreamGroup> datastreamGroups) {
+
+    // Flatten all tasks across all instances, grouped by task prefix.
+    Map<String, List<DatastreamTask>> tasksByPrefix = assignmentByInstance.values()
+        .stream()
+        .flatMap(Set::stream)
+        .collect(Collectors.groupingBy(DatastreamTask::getTaskPrefix));
+
+    for (DatastreamGroup group : datastreamGroups) {
+      Datastream representative = group.getDatastreams().get(0);
+
+      // Bootstrap datastreams are identified by the "bst-" prefix in their name.
+      if (!representative.getName().contains("bst-")) {
+        continue;
+      }
+
+      // If a connector allowlist is configured, skip connectors not in the list.
+      if (!_eobCheckConnectorNames.isEmpty()
+          && !_eobCheckConnectorNames.contains(representative.getConnectorName())) {
+        continue;
+      }
+
+      // Skip if already marked complete.
+      if ("true".equals(representative.getMetadata().get(IS_EOB_COMPLETE))) {
+        continue;
+      }
+
+      String taskPrefix = DatastreamUtils.getTaskPrefix(representative);
+      List<DatastreamTask> tasks = tasksByPrefix.get(taskPrefix);
+
+      // No tasks assigned yet — bootstrap hasn't started.
+      if (tasks == null || tasks.isEmpty()) {
+        continue;
+      }
+
+      boolean allComplete = tasks.stream()
+          .allMatch(t -> t.getStatus() != null
+              && DatastreamTaskStatus.Code.COMPLETE.equals(t.getStatus().getCode()));
+
+      if (!allComplete) {
+        continue;
+      }
+
+      _log.info("All {} task(s) for bootstrap datastream group {} are COMPLETE. Marking {} = true.",
+          tasks.size(), group.getTaskPrefix(), IS_EOB_COMPLETE);
+
+      // Update every datastream in the group (covers deduped streams sharing the same task prefix).
+      for (Datastream ds : group.getDatastreams()) {
+        ds.getMetadata().put(IS_EOB_COMPLETE, "true");
+        if (!_adapter.updateDatastream(ds)) {
+          _log.warn("Failed to persist {} = true for datastream {}. Will retry on next assignment cycle.",
+              IS_EOB_COMPLETE, ds.getName());
+        }
+      }
+    }
+  }
+
   /*
    * If isNewlyElectedLeader is set to true, it cleans up the orphan connector tasks not assigned to
    * any instance after old unused tasks are cleaned up.
@@ -1527,6 +1625,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // Map between instance to tasks assigned to the instance.
       previousAssignmentByInstance = _adapter.getAllAssignedDatastreamTasks();
+
+      // Mark EOB complete on bootstrap datastreams where all tasks have finished.
+      maybeMarkEOBCompleteForBootstrapDatastreams(previousAssignmentByInstance, datastreamGroups);
 
       // Map between Instance and the tasks
       newAssignmentsByInstance = performAssignment(liveInstances, previousAssignmentByInstance, datastreamGroups);
