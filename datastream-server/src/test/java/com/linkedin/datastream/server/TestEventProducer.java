@@ -286,7 +286,9 @@ public class TestEventProducer {
     datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
         String.valueOf(System.currentTimeMillis()));
-    sendOneEventThroughProducer(datastream, new Properties());
+    Properties props = new Properties();
+    props.put("newStreamGracePeriodMs", "7200000"); // explicit 2h grace period
+    sendOneEventThroughProducer(datastream, props);
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),
@@ -365,8 +367,10 @@ public class TestEventProducer {
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
         String.valueOf(System.currentTimeMillis()));
 
+    Properties props = new Properties();
+    props.put("newStreamGracePeriodMs", "7200000"); // explicit 2h grace period
     String someTopicName = "graceLatencyTopic";
-    sendOneEventThroughProducer(datastream, new Properties(), someTopicName);
+    sendOneEventThroughProducer(datastream, props, someTopicName);
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(
@@ -455,8 +459,10 @@ public class TestEventProducer {
     newDsB.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     newDsB.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(now - 60_000L));
 
+    Properties props = new Properties();
+    props.put("newStreamGracePeriodMs", "7200000"); // explicit 2h grace period
     DatastreamTaskImpl task = new DatastreamTaskImpl(Arrays.asList(newDsA, newDsB));
-    sendOneEventThroughTask(task, new Properties(), "someTopicName");
+    sendOneEventThroughTask(task, props, "someTopicName");
 
     DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
     Assert.assertNull(metrics.getMetric(SLA_WITHIN_AGG),

@@ -94,7 +94,7 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_ENABLED = "numEventsOutsideAltSlaLogEnabled";
   private static final String NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_FREQUENCY_MS = "numEventsOutsideAltSlaFrequencyMs";
   private static final String NEW_STREAM_GRACE_PERIOD_MS = "newStreamGracePeriodMs";
-  private static final String DEFAULT_NEW_STREAM_GRACE_PERIOD_MS = "7200000"; // 2 hours
+  private static final String DEFAULT_NEW_STREAM_GRACE_PERIOD_MS = "0";
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
   private static final String DROPPED_SENT_FROM_SERIALIZATION_ERROR = "droppedSentFromSerializationError";
