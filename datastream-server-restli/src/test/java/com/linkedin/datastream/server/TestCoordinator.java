@@ -6,6 +6,7 @@
 package com.linkedin.datastream.server;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Duration;
@@ -4643,5 +4644,402 @@ public class TestCoordinator {
     } finally {
       setAssignmentTimeout(originalTimeout);
     }
+  }
+
+  // ---- maybeMarkEOBCompleteForBootstrapDatastreams tests ----
+
+  /**
+   * In-memory ZkAdapter stub used by EOB unit tests. Avoids real ZK connections and
+   * works around Mockito cglib incompatibility with newer JDKs. Tracks updateDatastream
+   * calls and task state in memory.
+   */
+  private static class EobTestZkAdapter extends ZkAdapter {
+    private boolean _leader;
+    final List<Datastream> updatedDatastreams = new ArrayList<>();
+    // per-task in-memory state store (keyed by taskId + "." + stateKey)
+    private final Map<String, String> _taskState = new HashMap<>();
+
+    EobTestZkAdapter(boolean leader) {
+      super("localhost:2181", "testEOBCluster", "", ZkClient.DEFAULT_SESSION_TIMEOUT,
+          ZkClient.DEFAULT_CONNECTION_TIMEOUT, 1000, 1024 * 1024, null);
+      _leader = leader;
+    }
+
+    @Override
+    public synchronized boolean isLeader() {
+      return _leader;
+    }
+
+    @Override
+    public boolean updateDatastream(Datastream datastream) {
+      updatedDatastreams.add(datastream);
+      return true;
+    }
+
+    @Override
+    public Map<String, Set<DatastreamTask>> getAllAssignedDatastreamTasks() {
+      return Collections.emptyMap();
+    }
+
+    @Override
+    public String getDatastreamTaskStateForKey(DatastreamTask task, String key) {
+      return _taskState.get(task.getDatastreamTaskName() + "." + key);
+    }
+
+    @Override
+    public void setDatastreamTaskStateForKey(DatastreamTask task, String key, String value) {
+      _taskState.put(task.getDatastreamTaskName() + "." + key, value);
+    }
+  }
+
+  /** Creates a DatastreamTaskImpl with in-memory state (no real ZK). Each call gets a unique task id. */
+  private static DatastreamTaskImpl makeTask(String taskPrefix, List<Datastream> datastreams,
+      EobTestZkAdapter zkAdapter) {
+    DatastreamTaskImpl task = new DatastreamTaskImpl();
+    task.setTaskPrefix(taskPrefix);
+    task.setId(UUID.randomUUID().toString());
+    task.setDatastreams(datastreams);
+    task.setZkAdapter(zkAdapter);
+    return task;
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_nonBootstrapStreamSkipped() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "live-stream";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "live-stream", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+    Assert.assertNull(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE));
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_tasksNotComplete_noUpdate() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "mydb-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "mydb-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task1 = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task1.setStatus(DatastreamTaskStatus.ok());
+    DatastreamTaskImpl task2 = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task2.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
+    assignment.put("i001", new HashSet<>(Arrays.asList(task1, task2)));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+    Assert.assertNull(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE));
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_allTasksComplete_setsFlag() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "mydb-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "mydb-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task1 = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task1.setStatus(DatastreamTaskStatus.complete());
+    DatastreamTaskImpl task2 = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task2.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
+    assignment.put("i001", new HashSet<>(Arrays.asList(task1, task2)));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertEquals(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertEquals(stubAdapter.updatedDatastreams.size(), 1);
+    Assert.assertEquals(stubAdapter.updatedDatastreams.get(0), ds);
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_alreadyMarked_skipped() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "mydb-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "mydb-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    ds.getMetadata().put(DatastreamMetadataConstants.IS_EOB_COMPLETE, "true");
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_tasksAcrossInstances_allComplete() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl taskOnInstance1 = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    taskOnInstance1.setStatus(DatastreamTaskStatus.complete());
+    DatastreamTaskImpl taskOnInstance2 = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    taskOnInstance2.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
+    assignment.put("i001", Collections.singleton(taskOnInstance1));
+    assignment.put("i002", Collections.singleton(taskOnInstance2));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertEquals(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertEquals(stubAdapter.updatedDatastreams.size(), 1);
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_dedupedStreams_flagSetOnAll() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds1 = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds1.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    Datastream ds2 = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101-deduped", "source");
+    ds2.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Arrays.asList(ds1, ds2));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task = makeTask(taskPrefix, Arrays.asList(ds1, ds2), stubAdapter);
+    task.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertEquals(ds1.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertEquals(ds2.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertEquals(stubAdapter.updatedDatastreams.size(), 2);
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_connectorNotInAllowlist_skipped() throws Exception {
+    String connectorType = "filteredConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter,
+        "EspressoBootstrapConnector,TiDBBootstrapConnector");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+    Assert.assertNull(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE));
+  }
+
+  @Test
+  public void testMaybeMarkEOBComplete_connectorInAllowlist_setsFlag() throws Exception {
+    String connectorType = "EspressoBootstrapConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    task.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter,
+        "EspressoBootstrapConnector,TiDBBootstrapConnector");
+
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertEquals(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertEquals(stubAdapter.updatedDatastreams.size(), 1);
+  }
+
+  @Test
+  public void testPeriodicEobCheck_nonLeader_noWork() throws Exception {
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(false);
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+
+    coordinator.periodicEobCheck();
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+  }
+
+  // ---- no tasks assigned yet → bootstrap hasn't started, skip ----
+  @Test
+  public void testMaybeMarkEOBComplete_noTasksAssigned_skipped() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    // No tasks assigned — empty assignment map
+    Map<String, Set<DatastreamTask>> assignment = Collections.emptyMap();
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+    Assert.assertNull(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE));
+  }
+
+  // ---- task with null status → not considered COMPLETE → no flag set ----
+  @Test
+  public void testMaybeMarkEOBComplete_taskWithNullStatus_noUpdate() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+    DatastreamTaskImpl task = makeTask(taskPrefix, Collections.singletonList(ds), stubAdapter);
+    // deliberately leave status as null (not set)
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    Assert.assertTrue(stubAdapter.updatedDatastreams.isEmpty());
+    Assert.assertNull(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE));
+  }
+
+  // ---- updateDatastream returns false → warning logged, no crash, flag not persisted ----
+  @Test
+  public void testMaybeMarkEOBComplete_updateFails_noException() throws Exception {
+    String connectorType = "testConnector";
+    String taskPrefix = "entity-bst-20240101";
+    Datastream ds = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-20240101", "source");
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    DatastreamGroup group = new DatastreamGroup(Collections.singletonList(ds));
+
+    // Stub that always returns false from updateDatastream
+    EobTestZkAdapter failingAdapter = new EobTestZkAdapter(true) {
+      @Override
+      public boolean updateDatastream(Datastream datastream) {
+        return false;
+      }
+    };
+
+    DatastreamTaskImpl task = makeTask(taskPrefix, Collections.singletonList(ds), failingAdapter);
+    task.setStatus(DatastreamTaskStatus.complete());
+
+    Map<String, Set<DatastreamTask>> assignment = Collections.singletonMap("i001",
+        Collections.singleton(task));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(failingAdapter, "");
+    // Should not throw even though updateDatastream returns false
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment, Collections.singletonList(group));
+
+    // Metadata is updated in-memory but ZK persist failed — no exception thrown
+    Assert.assertEquals(ds.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertTrue(failingAdapter.updatedDatastreams.isEmpty());
+  }
+
+  // ---- multiple bootstrap groups: only the complete one gets flagged ----
+  @Test
+  public void testMaybeMarkEOBComplete_multipleGroups_onlyCompleteOneMarked() throws Exception {
+    String connectorType = "testConnector";
+
+    String prefixComplete = "entity-bst-complete";
+    Datastream dsComplete = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-complete", "source1");
+    dsComplete.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, prefixComplete);
+    DatastreamGroup completeGroup = new DatastreamGroup(Collections.singletonList(dsComplete));
+
+    String prefixRunning = "entity-bst-running";
+    Datastream dsRunning = DatastreamTestUtils.createDatastream(connectorType, "entity-bst-running", "source2");
+    dsRunning.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, prefixRunning);
+    DatastreamGroup runningGroup = new DatastreamGroup(Collections.singletonList(dsRunning));
+
+    EobTestZkAdapter stubAdapter = new EobTestZkAdapter(true);
+
+    DatastreamTaskImpl completeTask = makeTask(prefixComplete, Collections.singletonList(dsComplete), stubAdapter);
+    completeTask.setStatus(DatastreamTaskStatus.complete());
+
+    DatastreamTaskImpl runningTask = makeTask(prefixRunning, Collections.singletonList(dsRunning), stubAdapter);
+    runningTask.setStatus(DatastreamTaskStatus.ok());
+
+    Map<String, Set<DatastreamTask>> assignment = new HashMap<>();
+    assignment.put("i001", new HashSet<>(Arrays.asList(completeTask, runningTask)));
+
+    Coordinator coordinator = buildCoordinatorWithStubAdapter(stubAdapter, "");
+    coordinator.maybeMarkEOBCompleteForBootstrapDatastreams(assignment,
+        Arrays.asList(completeGroup, runningGroup));
+
+    Assert.assertEquals(dsComplete.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE), "true");
+    Assert.assertNull(dsRunning.getMetadata().get(DatastreamMetadataConstants.IS_EOB_COMPLETE));
+    Assert.assertEquals(stubAdapter.updatedDatastreams.size(), 1);
+    Assert.assertEquals(stubAdapter.updatedDatastreams.get(0), dsComplete);
+  }
+
+  private static Coordinator buildCoordinatorWithStubAdapter(EobTestZkAdapter stubAdapter,
+      String connectorNamesFilter) throws Exception {
+    Properties props = new Properties();
+    props.put(CoordinatorConfig.CONFIG_CLUSTER, "testEOBCluster");
+    props.put(CoordinatorConfig.CONFIG_ZK_ADDRESS, "localhost:2181");
+    props.put(CoordinatorConfig.CONFIG_ZK_SESSION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_SESSION_TIMEOUT));
+    props.put(CoordinatorConfig.CONFIG_ZK_CONNECTION_TIMEOUT, String.valueOf(ZkClient.DEFAULT_CONNECTION_TIMEOUT));
+    if (!connectorNamesFilter.isEmpty()) {
+      props.put(CoordinatorConfig.CONFIG_EOB_CHECK_CONNECTOR_NAMES, connectorNamesFilter);
+    }
+
+    Constructor<Coordinator> ctor = Coordinator.class.getDeclaredConstructor(CachedDatastreamReader.class,
+        Properties.class);
+    ctor.setAccessible(true);
+    // Pass null for CachedDatastreamReader — not used by maybeMarkEOBCompleteForBootstrapDatastreams.
+    Coordinator coordinator = ctor.newInstance(null, props);
+    Field adapterField = Coordinator.class.getDeclaredField("_adapter");
+    adapterField.setAccessible(true);
+    adapterField.set(coordinator, stubAdapter);
+    return coordinator;
   }
 }
