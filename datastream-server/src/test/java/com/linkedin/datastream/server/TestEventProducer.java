@@ -277,6 +277,110 @@ public class TestEventProducer {
 
   private static final String SLA_WITHIN_AGG = "EventProducer.aggregate.eventsProducedWithinSla";
   private static final String SLA_WITHIN_ALT_AGG = "EventProducer.aggregate.eventsProducedWithinAlternateSla";
+  private static final String COMMIT_WITHIN_AGG = "EventProducer.aggregate.eventsCommitWithinSla";
+  private static final String COMMIT_OUTSIDE_AGG = "EventProducer.aggregate.eventsCommitOutsideSla";
+
+  // For commit-to-ack metric assertions, use a non-CDC source (kafka://) so the grace gate is not
+  // engaged — the new metric should fire whenever the connector supplies a commit timestamp,
+  // regardless of CDC catch-up logic.
+  private static String setupOldNonCdcStream(Datastream datastream) {
+    datastream.getSource().setConnectionString("kafka://broker:9092/topic");
+    long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000L);
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS, String.valueOf(oneHourAgo));
+    return datastream.getName();
+  }
+
+  @Test
+  public void testCommitToAckMetricNotEmittedWhenCommitTimestampAbsent() {
+    // No commit timestamp on the record → new metric path is a no-op; existing metrics are unaffected.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-no-commit-ts")[0];
+    setupOldNonCdcStream(datastream);
+
+    String topic = "noCommitTsTopic";
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    sendOneEventThroughTask(task, new Properties(), topic, null);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + topic + "." + EventProducer.EVENTS_COMMIT_TO_ACK_LATENCY_MS_STRING),
+        "commit-to-ack histogram must not fire when the record has no commit timestamp");
+    Assert.assertNull(metrics.getMetric(COMMIT_WITHIN_AGG),
+        "commit-to-ack within-SLA counter must not be created when no commit timestamp is supplied");
+    Assert.assertNull(metrics.getMetric(COMMIT_OUTSIDE_AGG),
+        "commit-to-ack outside-SLA counter must not be created when no commit timestamp is supplied");
+    Assert.assertNotNull(metrics.getMetric(SLA_WITHIN_AGG),
+        "existing eventsLatencyMs SLA path must still fire — no regression");
+  }
+
+  @Test
+  public void testCommitToAckMetricFiresWithinSlaWhenCommitTimestampRecent() {
+    // Recent commit timestamp → within default 5-min SLA → withinSla counter increments, histogram emits.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-commit-within")[0];
+    setupOldNonCdcStream(datastream);
+
+    String topic = "commitWithinSlaTopic";
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    sendOneEventThroughTask(task, new Properties(), topic, System.currentTimeMillis());
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNotNull(
+        metrics.getMetric("EventProducer." + topic + "." + EventProducer.EVENTS_COMMIT_TO_ACK_LATENCY_MS_STRING),
+        "commit-to-ack histogram must fire when commit timestamp is present");
+    Counter withinAgg = (Counter) metrics.getMetric(COMMIT_WITHIN_AGG);
+    Assert.assertNotNull(withinAgg, "withinSla aggregate counter must be created when commit timestamp is present");
+    Assert.assertEquals(withinAgg.getCount(), 1L, "recent commit timestamp should fall inside the default 5-min SLA");
+  }
+
+  @Test
+  public void testCommitToAckMetricFiresOutsideSlaWhenThresholdTight() {
+    // Force OUTSIDE_SLA by setting a 1ms threshold; any latency by the time the callback runs blows past it.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-commit-outside")[0];
+    setupOldNonCdcStream(datastream);
+
+    Properties props = new Properties();
+    props.put("commitToAckThresholdSlaMs", "1");
+
+    String topic = "commitOutsideSlaTopic";
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    sendOneEventThroughTask(task, props, topic, System.currentTimeMillis() - 100);
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Counter outsideAgg = (Counter) metrics.getMetric(COMMIT_OUTSIDE_AGG);
+    Assert.assertNotNull(outsideAgg, "outsideSla counter must be created when commit-to-ack latency exceeds threshold");
+    Assert.assertEquals(outsideAgg.getCount(), 1L,
+        "100ms commit-to-ack latency vs 1ms threshold should count as outside-SLA");
+  }
+
+  @Test
+  public void testCommitToAckMetricRedirectedToSlaIneligibleDuringGracePeriod() {
+    // CDC source + freshly created stream → grace gate engaged. Commit-to-ack histogram should redirect
+    // to the SLA-ineligible variant and both within/outside counters should remain suppressed —
+    // same suppression semantics as the existing eventsLatencyMs path.
+    Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-commit-grace")[0];
+    datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
+    datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
+        String.valueOf(System.currentTimeMillis()));
+
+    Properties props = new Properties();
+    props.put("newStreamGracePeriodMs", "7200000");
+
+    String topic = "commitGraceTopic";
+    DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
+    sendOneEventThroughTask(task, props, topic, System.currentTimeMillis());
+
+    DynamicMetricsManager metrics = DynamicMetricsManager.getInstance();
+    Assert.assertNull(
+        metrics.getMetric("EventProducer." + topic + "." + EventProducer.EVENTS_COMMIT_TO_ACK_LATENCY_MS_STRING),
+        "commit-to-ack histogram must NOT fire during grace period");
+    Assert.assertNotNull(
+        metrics.getMetric(
+            "EventProducer." + topic + "." + EventProducer.EVENTS_COMMIT_TO_ACK_LATENCY_MS_SLA_INELIGIBLE_STRING),
+        "commit-to-ack latency should be redirected to the SLA-ineligible histogram during grace");
+    Assert.assertNull(metrics.getMetric(COMMIT_WITHIN_AGG),
+        "commit-to-ack withinSla counter must remain suppressed during grace");
+    Assert.assertNull(metrics.getMetric(COMMIT_OUTSIDE_AGG),
+        "commit-to-ack outsideSla counter must remain suppressed during grace");
+  }
 
   @Test
   public void testSlaGraceActiveForNewCdcStream() {
@@ -568,6 +672,11 @@ public class TestEventProducer {
   }
 
   private void sendOneEventThroughTask(DatastreamTaskImpl task, Properties props, String topicName) {
+    sendOneEventThroughTask(task, props, topicName, null);
+  }
+
+  private void sendOneEventThroughTask(DatastreamTaskImpl task, Properties props, String topicName,
+      Long commitTimestamp) {
     TransportProvider transport = new NoOpTransportProviderAdminFactory.NoOpTransportProvider() {
       @Override
       public void send(String destination, DatastreamProducerRecord record, SendCallback onComplete) {
@@ -577,11 +686,23 @@ public class TestEventProducer {
       }
     };
     EventProducer eventProducer = new EventProducer(task, transport, new NoOpCheckpointProvider(), props, false);
-    eventProducer.send(createDatastreamProducerRecord(), (m, e) -> { });
+    eventProducer.send(createDatastreamProducerRecord(commitTimestamp), (m, e) -> { });
   }
 
   private DatastreamProducerRecord createDatastreamProducerRecord() {
     return createDatastreamProducerRecord(0, "0", 1);
+  }
+
+  private DatastreamProducerRecord createDatastreamProducerRecord(Long commitTimestamp) {
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.setPartition(0);
+    builder.setSourceCheckpoint("0");
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    if (commitTimestamp != null) {
+      builder.setEventsCommitTimestamp(commitTimestamp);
+    }
+    builder.addEvent(new BrooklinEnvelope(new byte[0], new byte[0], null, new HashMap<>()));
+    return builder.build();
   }
 
   private DatastreamProducerRecord createDatastreamProducerRecord(int partition, String checkpoint, int eventCount) {
