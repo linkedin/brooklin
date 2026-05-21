@@ -842,6 +842,12 @@ public class EventProducer implements DatastreamEventProducer {
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_95,
             BrooklinHistogramInfo.PERCENTILE_99, BrooklinHistogramInfo.PERCENTILE_999))));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_COMMIT_TO_ACK_LATENCY_MS_STRING, Optional.of(
+        Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_95,
+            BrooklinHistogramInfo.PERCENTILE_99, BrooklinHistogramInfo.PERCENTILE_999))));
+    metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_COMMIT_TO_ACK_LATENCY_MS_SLA_INELIGIBLE_STRING, Optional.of(
+        Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_95,
+            BrooklinHistogramInfo.PERCENTILE_99, BrooklinHistogramInfo.PERCENTILE_999))));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + EVENTS_SEND_LATENCY_MS_STRING));
     metrics.add(new BrooklinHistogramInfo(METRICS_PREFIX + THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING, Optional.of(
         Arrays.asList(BrooklinHistogramInfo.PERCENTILE_50, BrooklinHistogramInfo.PERCENTILE_95,
