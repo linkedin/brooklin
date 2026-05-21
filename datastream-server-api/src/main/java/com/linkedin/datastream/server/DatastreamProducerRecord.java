@@ -35,6 +35,11 @@ public class DatastreamProducerRecord {
   // timestamp for the events obtained from kafka header
   private Optional<Long> _eventsKafkaHeaderTimestamp = Optional.empty();
 
+  // Epoch-millis of the source DB commit for this event, when the connector can supply one (CDC connectors only).
+  // Distinct from _eventsSourceTimestamp, which on some connectors reflects the time Brooklin read the event from an
+  // intermediate hop rather than the original DB commit.
+  private Optional<Long> _eventsCommitTimestamp = Optional.empty();
+
   DatastreamProducerRecord(List<BrooklinEnvelope> events, Optional<Integer> partition, Optional<String> partitionKey,
       String checkpoint, long eventsSourceTimestamp) {
     this(events, partition, partitionKey, Optional.empty(), checkpoint, eventsSourceTimestamp, false);
@@ -115,6 +120,21 @@ public class DatastreamProducerRecord {
    */
   public void setEventsKafkaHeaderTimestamp(long timestamp) {
     _eventsKafkaHeaderTimestamp = Optional.of(timestamp);
+  }
+
+  /**
+   * Get the source DB commit timestamp (Epoch-millis) if the connector supplied one. Present for CDC connectors
+   * that surface a true commit time; absent otherwise.
+   */
+  public Optional<Long> getEventsCommitTimestamp() {
+    return _eventsCommitTimestamp;
+  }
+
+  /**
+   * Set the source DB commit timestamp (Epoch-millis).
+   */
+  public void setEventsCommitTimestamp(long timestamp) {
+    _eventsCommitTimestamp = Optional.of(timestamp);
   }
 
   /**

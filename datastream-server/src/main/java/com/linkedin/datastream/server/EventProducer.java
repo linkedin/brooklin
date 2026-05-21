@@ -76,6 +76,10 @@ public class EventProducer implements DatastreamEventProducer {
   static final String EVENTS_LATENCY_MS_STRING = "eventsLatencyMs";
   static final String EVENTS_LATENCY_MS_SLA_INELIGIBLE_STRING = "eventsLatencyMsSlaIneligible";
   static final String EVENTS_SEND_LATENCY_MS_STRING = "eventsSendLatencyMs";
+  // Source DB commit timestamp -> destination ack latency. Distinct from eventsLatencyMs, which on Espresso/TiDB
+  // measures from the intermediate Kafka append time rather than the original DB commit.
+  static final String EVENTS_COMMIT_TO_ACK_LATENCY_MS_STRING = "eventsCommitToAckLatencyMs";
+  static final String EVENTS_COMMIT_TO_ACK_LATENCY_MS_SLA_INELIGIBLE_STRING = "eventsCommitToAckLatencyMsSlaIneligible";
   static final String THROUGHPUT_VIOLATING_EVENTS_LATENCY_MS_STRING = "throughputViolatingEventsLatencyMs";
   static final String THROUGHPUT_VIOLATING_EVENTS_SEND_LATENCY_MS_STRING = "throughputViolatingEventsSendLatencyMs";
 
@@ -97,12 +101,22 @@ public class EventProducer implements DatastreamEventProducer {
   private static final String DEFAULT_NEW_STREAM_GRACE_PERIOD_MS = "0";
   private static final String EVENTS_PRODUCED_OUTSIDE_SLA = "eventsProducedOutsideSla";
   private static final String EVENTS_PRODUCED_OUTSIDE_ALTERNATE_SLA = "eventsProducedOutsideAlternateSla";
+  private static final String EVENTS_COMMIT_WITHIN_SLA = "eventsCommitWithinSla";
+  private static final String EVENTS_COMMIT_OUTSIDE_SLA = "eventsCommitOutsideSla";
+  private static final String EVENTS_COMMIT_WITHIN_ALTERNATE_SLA = "eventsCommitWithinAlternateSla";
+  private static final String EVENTS_COMMIT_OUTSIDE_ALTERNATE_SLA = "eventsCommitOutsideAlternateSla";
+  private static final String COMMIT_TO_ACK_THRESHOLD_SLA_MS = "commitToAckThresholdSlaMs";
+  private static final String COMMIT_TO_ACK_THRESHOLD_ALTERNATE_SLA_MS = "commitToAckThresholdAlternateSlaMs";
   private static final String DROPPED_SENT_FROM_SERIALIZATION_ERROR = "droppedSentFromSerializationError";
   static final String BYTES_PRODUCED_RATE = "bytesProducedRate";
   private static final String AGGREGATE = "aggregate";
 
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_SLA_MS = "60000"; // 1 minute
   private static final String DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS = "180000"; // 3 minutes
+  // Commit-to-ack covers upstream CDC pipeline lag in addition to Brooklin-side transport, so defaults are wider
+  // than the source-to-ack thresholds above.
+  private static final String DEFAULT_COMMIT_TO_ACK_THRESHOLD_SLA_MS = "300000"; // 5 minutes
+  private static final String DEFAULT_COMMIT_TO_ACK_THRESHOLD_ALTERNATE_SLA_MS = "900000"; // 15 minutes
   private static final String DEFAULT_WARN_LOG_LATENCY_ENABLED = "false";
   private static final String DEFAULT_WARN_LOG_LATENCY_THRESHOLD_MS = "1500000000"; // 25000 minutes, ~17 days
   private static final String DEFAULT_NUM_EVENTS_OUTSIDE_ALT_SLA_LOG_ENABLED = "false";
@@ -119,6 +133,10 @@ public class EventProducer implements DatastreamEventProducer {
   private final int _availabilityThresholdSlaMs;
   // Alternate SLA for comparison with the main SLA
   private final int _availabilityThresholdAlternateSlaMs;
+  // Commit-to-ack (DB commit time -> destination ack) SLA thresholds. Used only when the connector supplies a
+  // commit timestamp on the producer record (CDC connectors).
+  private final int _commitToAckThresholdSlaMs;
+  private final int _commitToAckThresholdAlternateSlaMs;
   // Grace period for newly created streams. While a stream is inside this window, primary/alternate
   // SLA counters are suppressed and the latency histogram is redirected to eventsLatencyMsSlaIneligible.
   private final long _newStreamGracePeriodMs;
@@ -195,6 +213,11 @@ public class EventProducer implements DatastreamEventProducer {
 
     _availabilityThresholdAlternateSlaMs = Integer.parseInt(
         config.getProperty(AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS, DEFAULT_AVAILABILITY_THRESHOLD_ALTERNATE_SLA_MS));
+
+    _commitToAckThresholdSlaMs = Integer.parseInt(
+        config.getProperty(COMMIT_TO_ACK_THRESHOLD_SLA_MS, DEFAULT_COMMIT_TO_ACK_THRESHOLD_SLA_MS));
+    _commitToAckThresholdAlternateSlaMs = Integer.parseInt(
+        config.getProperty(COMMIT_TO_ACK_THRESHOLD_ALTERNATE_SLA_MS, DEFAULT_COMMIT_TO_ACK_THRESHOLD_ALTERNATE_SLA_MS));
 
     _newStreamGracePeriodMs = Long.parseLong(
         config.getProperty(NEW_STREAM_GRACE_PERIOD_MS, DEFAULT_NEW_STREAM_GRACE_PERIOD_MS));
@@ -323,6 +346,8 @@ public class EventProducer implements DatastreamEventProducer {
       record.setEventsSendTimestamp(System.currentTimeMillis());
       long recordEventsSourceTimestamp = record.getEventsSourceTimestamp();
       long recordEventsSendTimestamp = record.getEventsSendTimestamp().orElse(0L);
+      // Absent for non-CDC connectors and for CDC bootstrap/heartbeat paths; commit-to-ack metric is skipped when absent.
+      Optional<Long> recordEventsCommitTimestamp = record.getEventsCommitTimestamp();
       final long numSerializedBytes = record.getEvents().stream()
           .mapToLong(e -> {
             long keySize = e.key().filter(k -> k instanceof byte[]).map(k -> (long) ((byte[]) k).length).orElse(0L);
@@ -333,7 +358,7 @@ public class EventProducer implements DatastreamEventProducer {
       if (isBroadcast) {
         broadcastMetadata = _transportProvider.broadcast(destination, record,
             (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
-                recordEventsSendTimestamp, numSerializedBytes));
+                recordEventsSendTimestamp, numSerializedBytes, recordEventsCommitTimestamp));
         _logger.debug("Broadcast completed with {}", broadcastMetadata);
         if (broadcastMetadata.isMessageSerializationError()) {
           _logger.warn("Broadcast of record {} to destination {} failed because of serialization error.",
@@ -342,7 +367,7 @@ public class EventProducer implements DatastreamEventProducer {
       } else {
         _transportProvider.send(destination, record,
             (metadata, exception) -> onSendCallback(metadata, exception, sendEventCallback, recordEventsSourceTimestamp,
-                recordEventsSendTimestamp, numSerializedBytes));
+                recordEventsSendTimestamp, numSerializedBytes, recordEventsCommitTimestamp));
       }
     } catch (Exception e) {
       String errorMessage = String.format("Failed to send the event %s exception %s", record, e);
@@ -470,7 +495,8 @@ public class EventProducer implements DatastreamEventProducer {
    * to avoid overcounting.
    */
   private void reportMetrics(DatastreamRecordMetadata metadata, long eventsSourceTimestamp, long eventsSendTimestamp,
-      long numBytes) {
+      long numBytes, Optional<Long> eventsCommitTimestamp) {
+    reportCommitToAckMetrics(metadata, eventsCommitTimestamp);
     // If per-topic metrics are enabled, use topic as key for metrics; else, use datastream name as the key
     String datastreamName = getDatastreamName();
 
@@ -528,6 +554,35 @@ public class EventProducer implements DatastreamEventProducer {
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, AGGREGATE, EVENT_PRODUCE_RATE, 1);
     _dynamicMetricsManager.createOrUpdateMeter(MODULE, _datastreamTask.getConnectorType(), EVENT_PRODUCE_RATE, 1);
     reportThroughputAttributionMetrics(numBytes);
+  }
+
+  /**
+   * Emit commit-to-ack (DB commit -> destination ack) latency histogram and SLA counters. No-op when the connector
+   * did not supply a commit timestamp (non-CDC sources, or CDC bootstrap/heartbeat paths). Gated by the same
+   * shouldEmitMetric() suppression as the existing source-to-ack SLA so the new metric inherits grace-period and
+   * per-datastream opt-out behavior.
+   */
+  private void reportCommitToAckMetrics(DatastreamRecordMetadata metadata, Optional<Long> eventsCommitTimestamp) {
+    if (!eventsCommitTimestamp.isPresent()) {
+      return;
+    }
+    long commitTs = eventsCommitTimestamp.get();
+    if (commitTs <= 0) {
+      return;
+    }
+    long commitToAckLatencyMs = System.currentTimeMillis() - commitTs;
+    String topicOrDatastreamName = _enablePerTopicMetrics ? metadata.getTopic() : getDatastreamName();
+    String latencyMetricName = shouldEmitMetric()
+        ? EVENTS_COMMIT_TO_ACK_LATENCY_MS_STRING
+        : EVENTS_COMMIT_TO_ACK_LATENCY_MS_SLA_INELIGIBLE_STRING;
+    reportEventLatencyMetrics(topicOrDatastreamName, metadata, commitToAckLatencyMs, latencyMetricName);
+
+    if (shouldEmitMetric()) {
+      reportSLAMetrics(topicOrDatastreamName, commitToAckLatencyMs <= _commitToAckThresholdSlaMs,
+          EVENTS_COMMIT_WITHIN_SLA, EVENTS_COMMIT_OUTSIDE_SLA);
+      reportSLAMetrics(topicOrDatastreamName, commitToAckLatencyMs <= _commitToAckThresholdAlternateSlaMs,
+          EVENTS_COMMIT_WITHIN_ALTERNATE_SLA, EVENTS_COMMIT_OUTSIDE_ALTERNATE_SLA);
+    }
   }
 
   /**
@@ -608,7 +663,7 @@ public class EventProducer implements DatastreamEventProducer {
   }
 
   private void onSendCallback(DatastreamRecordMetadata metadata, Exception exception, SendCallback sendCallback,
-      long eventSourceTimestamp, long eventSendTimestamp, long numBytes) {
+      long eventSourceTimestamp, long eventSendTimestamp, long numBytes, Optional<Long> eventCommitTimestamp) {
 
     SendFailedException sendFailedException = null;
 
@@ -623,7 +678,7 @@ public class EventProducer implements DatastreamEventProducer {
         if (_throughputViolatingTopicsProvider.apply(_datastreamTask).contains(metadata.getUndecoratedTopic())) {
           reportMetricsForThroughputViolatingTopics(metadata, eventSourceTimestamp, eventSendTimestamp, numBytes);
         } else {
-          reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp, numBytes);
+          reportMetrics(metadata, eventSourceTimestamp, eventSendTimestamp, numBytes, eventCommitTimestamp);
         }
       }
     } catch (Exception e) {

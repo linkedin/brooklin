@@ -76,6 +76,47 @@ public class TestDatastreamProducerRecordBuilder {
   }
 
   @Test
+  public void testCommitTimestampAbsentByDefault() {
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.addEvent(createDatastreamEvent());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    Assert.assertFalse(builder.build().getEventsCommitTimestamp().isPresent());
+  }
+
+  @Test
+  public void testCommitTimestampRoundTripsThroughBuilder() {
+    long commitTs = 1700000000000L;
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.addEvent(createDatastreamEvent());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    builder.setEventsCommitTimestamp(commitTs);
+    DatastreamProducerRecord record = builder.build();
+    Assert.assertTrue(record.getEventsCommitTimestamp().isPresent());
+    Assert.assertEquals(record.getEventsCommitTimestamp().get().longValue(), commitTs);
+  }
+
+  @Test
+  public void testCopyProducerRecordPropagatesCommitTimestamp() {
+    long commitTs = 1700000000000L;
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.addEvent(createDatastreamEvent());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    builder.setEventsCommitTimestamp(commitTs);
+    DatastreamProducerRecord original = builder.build();
+    DatastreamProducerRecord copy = DatastreamProducerRecordBuilder.copyProducerRecord(original, 0);
+    Assert.assertEquals(copy.getEventsCommitTimestamp().orElse(-1L).longValue(), commitTs);
+  }
+
+  @Test
+  public void testCopyProducerRecordWhenCommitTimestampAbsent() {
+    DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
+    builder.addEvent(createDatastreamEvent());
+    builder.setEventsSourceTimestamp(System.currentTimeMillis());
+    DatastreamProducerRecord copy = DatastreamProducerRecordBuilder.copyProducerRecord(builder.build(), 0);
+    Assert.assertFalse(copy.getEventsCommitTimestamp().isPresent());
+  }
+
+  @Test
   public void testBuilderWithAddSerializedKeyValueEventAndValidateFields() {
     DatastreamProducerRecordBuilder builder = new DatastreamProducerRecordBuilder();
     byte[] key = "key".getBytes();

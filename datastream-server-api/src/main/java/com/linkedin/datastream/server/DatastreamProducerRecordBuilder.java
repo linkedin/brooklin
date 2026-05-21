@@ -31,6 +31,7 @@ public class DatastreamProducerRecordBuilder {
   private Optional<String> _partitionKey = Optional.empty();
   private Optional<String> _destination = Optional.empty();
   private boolean _isBroadcastRecord = false;
+  private Optional<Long> _eventsCommitTimestamp = Optional.empty();
 
   /**
    * Partition to which this DatastreamProducerRecord should be produced. If the partition is not set, TransportProvider
@@ -90,13 +91,23 @@ public class DatastreamProducerRecordBuilder {
   }
 
   /**
+   * Set the source DB commit timestamp (Epoch-millis). CDC connectors that can supply a true commit time
+   * should call this; non-CDC connectors should leave it absent.
+   */
+  public void setEventsCommitTimestamp(long eventsCommitTimestamp) {
+    _eventsCommitTimestamp = Optional.of(eventsCommitTimestamp);
+  }
+
+  /**
    * Build the DatastreamProducerRecord.
    * @return
    *   DatastreamProducerRecord that is created.
    */
   public DatastreamProducerRecord build() {
-    return new DatastreamProducerRecord(_events, _partition, _partitionKey, _destination, _sourceCheckpoint,
-        _eventsSourceTimestamp, _isBroadcastRecord);
+    DatastreamProducerRecord record = new DatastreamProducerRecord(_events, _partition, _partitionKey, _destination,
+        _sourceCheckpoint, _eventsSourceTimestamp, _isBroadcastRecord);
+    _eventsCommitTimestamp.ifPresent(record::setEventsCommitTimestamp);
+    return record;
   }
 
   /**
@@ -119,6 +130,7 @@ public class DatastreamProducerRecordBuilder {
     builder.setSourceCheckpoint(record.getCheckpoint());
     builder.setEventsSourceTimestamp(record.getEventsSourceTimestamp());
     builder.setIsBroadcastRecord(record.isBroadcastRecord());
+    record.getEventsCommitTimestamp().ifPresent(builder::setEventsCommitTimestamp);
     return builder.build();
   }
 }
