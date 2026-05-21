@@ -359,17 +359,28 @@ public class EventProducer implements DatastreamEventProducer {
     return broadcastMetadata;
   }
 
-  private boolean isCdcSource() {
-    return _sourceDatabase != null;
+  /**
+   * Returns true only when the source is a CDC+BST database source: the URI uses a single-slash
+   * scheme (so {@code _sourceDatabase} is non-null) AND at least one datastream on the task has
+   * {@code system.cdcBootstrapRequired=true}. Pure CDC-only streams (bootstrap flag absent or
+   * false) return false here so SLA suppression is limited to CDC+BST catch-up streams only.
+   */
+  private boolean isCdcBstSource() {
+    if (_sourceDatabase == null) {
+      return false;
+    }
+    return _datastreamTask.getDatastreams().stream()
+        .anyMatch(ds -> ds.hasMetadata()
+            && Boolean.parseBoolean(ds.getMetadata().get(DatastreamMetadataConstants.CDC_BOOTSTRAP_REQUIRED_KEY)));
   }
 
   /**
-   * Returns true while a CDC stream is still within its cdc-catch-up grace window. Non-CDC
-   * sources (BMM kafka://, Inlogs, etc.) always return false here so neither SLA suppression
-   * nor the latency-histogram redirect applies to them.
+   * Returns true while a CDC+BST stream is still within its catch-up grace window. Non-CDC sources
+   * (BMM kafka://, Inlogs, etc.) and pure CDC-only streams always return false here so neither SLA
+   * suppression nor the latency-histogram redirect applies to them.
    */
   private boolean isWithinGracePeriod() {
-    if (!isCdcSource()) {
+    if (!isCdcBstSource()) {
       return false;
     }
     return (System.currentTimeMillis() - _streamCreationTimeMs) < _newStreamGracePeriodMs;

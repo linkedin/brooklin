@@ -143,4 +143,9 @@ public class DatastreamMetadataConstants {
    */
   public static final String CDC_BOOTSTRAP_REQUIRED_KEY = "system.cdcBootstrapRequired";
 
+  /**
+   * Datastream metadata key set to {@code "true"} when all bootstrap tasks for a datastream group
+   * have completed sending their End-of-Bootstrap (EOB) events.
+   */
+  public static final String IS_BOOTSTRAP_COMPLETE = "system.isBootstrapComplete";
 }
