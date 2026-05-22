@@ -353,13 +353,14 @@ public class TestEventProducer {
 
   @Test
   public void testCommitToAckMetricRedirectedToSlaIneligibleDuringGracePeriod() {
-    // CDC source + freshly created stream → grace gate engaged. Commit-to-ack histogram should redirect
+    // CDC+BST source + freshly created stream → grace gate engaged. Commit-to-ack histogram should redirect
     // to the SLA-ineligible variant and both within/outside counters should remain suppressed —
     // same suppression semantics as the existing eventsLatencyMs path.
     Datastream datastream = DatastreamTestUtils.createDatastreams(DummyConnector.CONNECTOR_TYPE, "ds-cdc-commit-grace")[0];
     datastream.getSource().setConnectionString("mysql:/myhost/testDatabase/myTable");
     datastream.getMetadata().put(DatastreamMetadataConstants.CREATION_MS,
         String.valueOf(System.currentTimeMillis()));
+    datastream.getMetadata().put(DatastreamMetadataConstants.CDC_BOOTSTRAP_REQUIRED_KEY, "true");
 
     Properties props = new Properties();
     props.put("newStreamGracePeriodMs", "7200000");
