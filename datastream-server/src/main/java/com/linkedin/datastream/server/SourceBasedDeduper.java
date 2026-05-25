@@ -62,8 +62,17 @@ import com.linkedin.datastream.server.api.connector.DatastreamValidationExceptio
  *       a new independent destination must be created. Once this window has expired, the CDC-only
  *       stream is old enough that deduping the new CDC+BST stream against it is safe.</li>
  * </ul>
+ *
+ * <h3>Early catch-up detection (subclass hook)</h3>
+ * <p>Subclasses may override {@link #isCdcBstStreamCaughtUp(Datastream)} to allow a CDC-only
+ * stream to dedup against a CDC+BST stream <em>before</em> the
+ * {@link #CONFIG_NEW_STREAM_GRACE_PERIOD_MS} window expires, when the CDC+BST stream's consumer
+ * group lag has already dropped to an acceptable level. The base implementation returns
+ * {@code false} (time-window only). Subclasses with access to a Kafka client should override
+ * this method to query consumer group lag using {@code group.id} from the stream's metadata and
+ * the broker addresses from the stream's source connection string.
  */
-public class SourceBasedDeduper extends AbstractDatastreamDeduper {
+  public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   private static final Logger LOG = LoggerFactory.getLogger(SourceBasedDeduper.class);
 
   /** Config key for the metadata flag that marks a stream as requiring CDC bootstrap. */
@@ -247,10 +256,11 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
    * effective offset positions are compatible.
    *
    * <ol>
-   *   <li><b>Existing CDC+BST candidate whose grace window has expired</b>
-   *       ({@code creationTime + newStreamGracePeriodMs < now}) — dedup against it.
+   *   <li><b>Existing CDC+BST candidate whose grace window has expired OR that has caught up</b>
+   *       ({@code creationTime + newStreamGracePeriodMs < now}, or
+   *       {@link #isCdcBstStreamCaughtUp(Datastream)} returns {@code true}) — dedup against it.
    *       The CDC+BST stream started from an earlier offset to catch up on historical lag, but
-   *       its grace window expiring means it has finished catching up and its consumer position
+   *       once its grace window expires or its lag drops to the threshold, its consumer position
    *       has reached the live tail. At that point the two streams' effective offsets converge
    *       and sharing a destination is safe.</li>
    *   <li><b>Existing CDC-only candidate</b> — dedup immediately, no timing check needed.
@@ -269,12 +279,12 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
   private Optional<Datastream> findDedupCandidateForNewCdcOnlyStream(Datastream newStream,
       List<Datastream> cdcOnlyCandidates, List<Datastream> cdcBstCandidates) {
 
-    // Step 1: prefer a CDC+BST stream whose grace window has expired (bootstrap phase is done).
+    // Step 1: prefer a CDC+BST stream whose grace window has expired, or that has already caught up.
     Optional<Datastream> eligibleCdcBstStream = cdcBstCandidates.stream()
-        .filter(d -> hasWindowExpired(d, _newStreamGracePeriodMs))
+        .filter(d -> hasWindowExpired(d, _newStreamGracePeriodMs) || isCdcBstStreamCaughtUp(d))
         .findFirst();
     if (eligibleCdcBstStream.isPresent()) {
-      LOG.info("Deduping new CDC stream {} against CDC+BST stream {} whose grace window has expired",
+      LOG.info("Deduping new CDC stream {} against CDC+BST stream {} (grace window expired or lag within threshold)",
           newStream.getName(), eligibleCdcBstStream.get().getName());
       return eligibleCdcBstStream;
     }
@@ -305,6 +315,26 @@ public class SourceBasedDeduper extends AbstractDatastreamDeduper {
       return false;
     }
     return Boolean.parseBoolean(stream.getMetadata().getOrDefault(_cdcBootstrapRequiredMetadataKey, "false"));
+  }
+
+  /**
+   * Returns {@code true} if the existing CDC+BST stream has caught up to the live tail, allowing
+   * a new CDC-only stream to dedup against it before the {@link #CONFIG_NEW_STREAM_GRACE_PERIOD_MS}
+   * window expires.
+   *
+   * <p>The base implementation always returns {@code false} (time-window only). Subclasses with
+   * access to a Kafka client should override this to query consumer group lag in real time using
+   * {@code DatastreamMetadataConstants.GROUP_ID} from the stream's metadata and the broker
+   * addresses from the stream's source connection string.
+   *
+   * <p>Implementations must be defensive: return {@code false} on any error so that dedup is
+   * not incorrectly granted.
+   *
+   * @param cdcBstStream existing CDC+BST stream to check
+   * @return {@code true} if the stream has caught up to the live tail
+   */
+  protected boolean isCdcBstStreamCaughtUp(Datastream cdcBstStream) {
+    return false;
   }
 
   /**
