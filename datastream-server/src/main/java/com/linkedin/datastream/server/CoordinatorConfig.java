@@ -48,6 +48,8 @@ public final class CoordinatorConfig {
 
   public static final String CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING = PREFIX + "enableThroughputViolatingTopicsHandling";
   public static final String CONFIG_LOG_SIZE_LIMIT_IN_BYTES = PREFIX + "logSizeLimitInBytes";
+  // threshold above which a datastream's INITIALIZING -> READY duration is counted as a slow provisioning event
+  public static final String CONFIG_SLOW_PROVISIONING_THRESHOLD_MS = PREFIX + "slowProvisioningThresholdMs";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
@@ -56,6 +58,7 @@ public final class CoordinatorConfig {
   public static final int DEFAULT_MARK_DATASTREMS_STOPPED_TIMEOUT_MS = 60 * 1000;
   public static final int DEFAULT_MARK_DATASTREMS_STOPPED_RETRY_PERIOD_MS = 10 * 1000;
   public static final int DEFAULT_LOG_SIZE_LIMIT_IN_BYTES = 1024 * 1024;
+  public static final long DEFAULT_SLOW_PROVISIONING_THRESHOLD_MS = Duration.ofMinutes(8).toMillis();
 
   private final String _cluster;
   private final String _zkAddress;
@@ -82,6 +85,7 @@ public final class CoordinatorConfig {
   private final long _markDatastreamsStoppedRetryPeriodMs;
   private final boolean _enableThroughputViolatingTopicsHandling;
   private final double _logSizeLimitInBytes;
+  private final long _slowProvisioningThresholdMs;
 
 
   /**
@@ -121,6 +125,8 @@ public final class CoordinatorConfig {
     _enableThroughputViolatingTopicsHandling = _properties.getBoolean(
         CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, false);
     _logSizeLimitInBytes = _properties.getDouble(CONFIG_LOG_SIZE_LIMIT_IN_BYTES, DEFAULT_LOG_SIZE_LIMIT_IN_BYTES);
+    _slowProvisioningThresholdMs = _properties.getLong(CONFIG_SLOW_PROVISIONING_THRESHOLD_MS,
+        DEFAULT_SLOW_PROVISIONING_THRESHOLD_MS);
   }
 
   public Properties getConfigProperties() {
@@ -219,5 +225,9 @@ public final class CoordinatorConfig {
 
   public double getLogSizeLimitInBytes() {
     return _logSizeLimitInBytes;
+  }
+
+  public long getSlowProvisioningThresholdMs() {
+    return _slowProvisioningThresholdMs;
   }
 }
