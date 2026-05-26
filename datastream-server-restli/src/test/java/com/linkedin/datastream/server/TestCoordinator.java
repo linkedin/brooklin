@@ -52,7 +52,6 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
@@ -2511,9 +2510,9 @@ public class TestCoordinator {
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
     long histogramCountBefore = histogramBefore == null ? 0L : histogramBefore.getCount();
 
-    Counter counterBefore =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
-    long counterCountBefore = counterBefore == null ? 0L : counterBefore.getCount();
+    Meter meterBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
+    long meterCountBefore = meterBefore == null ? 0L : meterBefore.getCount();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
@@ -2529,12 +2528,12 @@ public class TestCoordinator {
     long maxValue = histogram.getSnapshot().getMax();
     Assert.assertTrue(maxValue >= 0, "timeToReadyMs sample should be non-negative, got: " + maxValue);
 
-    Counter counter =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
-    Assert.assertNotNull(counter,
-        "Coordinator.slowProvisioningCount counter should be registered after a stream goes READY");
-    Assert.assertTrue(PollUtils.poll(() -> counter.getCount() > counterCountBefore, 100, 30000),
-        "slowProvisioningCount should increment when duration exceeds threshold");
+    Meter meter =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
+    Assert.assertNotNull(meter,
+        "Coordinator.slowProvisioningRate meter should be registered after a stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> meter.getCount() > meterCountBefore, 100, 30000),
+        "slowProvisioningRate should increment when duration exceeds threshold");
 
     coordinator.stop();
     coordinator.getDatastreamCache().getZkclient().close();
@@ -2542,8 +2541,8 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testSlowProvisioningCounterDoesNotIncrementWhenBelowThreshold() throws Exception {
-    String testCluster = "testSlowProvisioningCounterBelowThreshold";
+  public void testSlowProvisioningRateDoesNotIncrementWhenBelowThreshold() throws Exception {
+    String testCluster = "testSlowProvisioningRateBelowThreshold";
     String connectorType = "testConnectorType";
     String datastreamName = "TestFastStream";
 
@@ -2557,9 +2556,9 @@ public class TestCoordinator {
         new SourceBasedDeduper(), null);
     coordinator.start();
 
-    Counter counterBefore =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
-    long countBefore = counterBefore == null ? 0L : counterBefore.getCount();
+    Meter meterBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
+    long meterCountBefore = meterBefore == null ? 0L : meterBefore.getCount();
 
     Histogram histogramBefore =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
@@ -2571,19 +2570,81 @@ public class TestCoordinator {
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
 
     // Wait for the histogram to increment - this proves recordTimeToReadyMs has finished
-    // running, which means any counter increment (or non-increment) decision has been made.
+    // running, which means any meter increment (or non-increment) decision has been made.
     Histogram histogram =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
     Assert.assertNotNull(histogram, "Histogram should exist after stream goes READY");
     Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, 30000),
         "Histogram count did not increment - recordTimeToReadyMs may not have run yet");
 
-    Counter readyCounter =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningCount");
-    if (readyCounter != null) {
-      Assert.assertEquals(readyCounter.getCount(), countBefore,
-          "slowProvisioningCount must not increment when duration is below threshold");
+    Meter readyMeter =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
+    if (readyMeter != null) {
+      Assert.assertEquals(readyMeter.getCount(), meterCountBefore,
+          "slowProvisioningRate must not increment when duration is below threshold");
     }
+
+    coordinator.stop();
+    coordinator.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
+  /**
+   * Resuming a datastream STOPPED -> READY must NOT update either the timeToReadyMs histogram or the
+   * slowProvisioningRate meter. Both metrics are intended to capture only the initial creation
+   * flow's INITIALIZING -> READY transition.
+   */
+  @Test
+  public void testTimeToReadyMetricsNotEmittedOnResume() throws Exception {
+    String testCluster = "testTimeToReadyMetricsNotEmittedOnResume";
+    String connectorType = "testConnectorType";
+    String datastreamName = "TestResumeStream";
+
+    // Threshold of 0 ensures any positive duration would trigger the meter — so the assertion
+    // that the meter does NOT increase on resume is meaningful (it's not just below-threshold).
+    Properties override = new Properties();
+    override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS, "0");
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
+    TestHookConnector connector = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
+
+    // Capture counts after the initial creation has settled.
+    Histogram histogram =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+    Assert.assertNotNull(histogram, "Histogram should exist after the initial create");
+    Meter meter =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
+    Assert.assertNotNull(meter, "Meter should exist after the initial create");
+    long histogramCountAfterCreate = histogram.getCount();
+    long meterCountAfterCreate = meter.getCount();
+
+    // Stop and then resume the datastream. The resume path bypasses the INITIALIZING -> READY
+    // transition in handleDatastreamAddOrDelete, so neither metric should change.
+    Datastream ds = DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName);
+    ds.setStatus(DatastreamStatus.STOPPED);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.STOPPED.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
+
+    ds.setStatus(DatastreamStatus.READY);
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
+
+    // Give the coordinator event loop time to process anything it might (incorrectly) do.
+    Thread.sleep(500);
+    Assert.assertEquals(histogram.getCount(), histogramCountAfterCreate,
+        "timeToReadyMs histogram count must not increase on resume from STOPPED");
+    Assert.assertEquals(meter.getCount(), meterCountAfterCreate,
+        "slowProvisioningRate meter count must not increase on resume from STOPPED");
 
     coordinator.stop();
     coordinator.getDatastreamCache().getZkclient().close();

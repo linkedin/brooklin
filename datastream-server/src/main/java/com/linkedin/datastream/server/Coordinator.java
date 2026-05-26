@@ -180,8 +180,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private static final Duration ASSIGNMENT_TIMEOUT = Duration.ofSeconds(90);
 
   // Histogram capturing the duration between datastream creation and the INITIALIZING -> READY transition.
+  // With a 5-min sliding window and sparse provisioning events (typically minutes-to-hours apart),
+  // each event lands as an isolated ~5-min plateau in the exported .99thPercentile time series —
+  // effectively a per-event scatter view.
   private static final String TIME_TO_READY_MS = "timeToReadyMs";
-  private static final long TIME_TO_READY_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(15).toMillis();
+  private static final long TIME_TO_READY_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(5).toMillis();
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
@@ -1385,6 +1388,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
   }
 
+  /**
+   * Records the time from {@code system.creation.ms} to the {@code INITIALIZING -> READY}
+   * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and,
+   * when the duration exceeds {@link CoordinatorConfig#getSlowProvisioningThresholdMs()},
+   * increments the {@code slowProvisioningRate} meter.
+   *
+   * <p> {@code system.creation.ms} is written in the request by Nuage before calling the create datastream API. As a
+   * fallback, it is written by the coordinator if the property is not already present via {@code putIfAbsent}
+   *
+   * <p>The {@link NumberFormatException} catch defends against externally-supplied or
+   * operator-edited values: because {@code CREATION_MS} is set via {@code putIfAbsent}, any
+   * earlier writer (for example, a buggy REST caller or a manual ZK edit) wins.
+   */
   private void recordTimeToReadyMs(Datastream ds) {
     String creationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATION_MS);
     if (creationMsStr == null) {
@@ -1392,12 +1408,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     try {
       long timeToReadyMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), timeToReadyMs);
       if (timeToReadyMs >= 0) {
         _metrics.updateTimeToReadyHistogram(timeToReadyMs);
         if (timeToReadyMs > _config.getSlowProvisioningThresholdMs()) {
-          _metrics.updateCounter(CoordinatorMetrics.Counter.SLOW_PROVISIONING_COUNT, 1);
+          _metrics.updateMeter(CoordinatorMetrics.Meter.SLOW_PROVISIONING_RATE, 1);
         }
-        _log.info("Datastream {} reached READY in {} ms", ds.getName(), timeToReadyMs);
       }
     } catch (NumberFormatException e) {
       _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
@@ -2656,7 +2672,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
       NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks"),
-      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks");
+      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks"),
+      SLOW_PROVISIONING_RATE("slowProvisioningRate");
 
       private final String _name;
 
@@ -2725,8 +2742,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      * Coordinator metrics of type {@link com.codahale.metrics.Counter}
      */
     public enum Counter {
-      NUM_HEARTBEATS("numHeartbeats"),
-      SLOW_PROVISIONING_COUNT("slowProvisioningCount");
+      NUM_HEARTBEATS("numHeartbeats");
 
       private final String _name;
 
