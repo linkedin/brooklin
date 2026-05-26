@@ -58,7 +58,7 @@ public final class CoordinatorConfig {
   public static final int DEFAULT_MARK_DATASTREMS_STOPPED_TIMEOUT_MS = 60 * 1000;
   public static final int DEFAULT_MARK_DATASTREMS_STOPPED_RETRY_PERIOD_MS = 10 * 1000;
   public static final int DEFAULT_LOG_SIZE_LIMIT_IN_BYTES = 1024 * 1024;
-  public static final long DEFAULT_SLOW_PROVISIONING_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
+  public static final long DEFAULT_SLOW_PROVISIONING_THRESHOLD_MS = Duration.ofMinutes(8).toMillis();
 
   private final String _cluster;
   private final String _zkAddress;
