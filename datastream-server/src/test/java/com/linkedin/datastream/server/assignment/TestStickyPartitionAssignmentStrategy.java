@@ -52,7 +52,7 @@ import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyF
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.CLASS_NAME;
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT;
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.NUM_TASKS;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

@@ -60,7 +60,7 @@ import static com.linkedin.datastream.server.DatastreamServerConfigurationConsta
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_PREFIX;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_FACTORY_CLASS_NAME;
-import static org.mockito.Mockito.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -182,14 +182,14 @@ public class TestDatastreamServer {
     _datastreamCluster.startup();
 
     Authorizer authz = mock(Authorizer.class);
-    when(authz.authorize(anyObject(), anyObject(), anyObject())).thenReturn(true);
+    when(authz.authorize(any(), any(), any())).thenReturn(true);
     _datastreamCluster.getPrimaryDatastreamServer().getCoordinator().addAuthorizer(authzName, authz);
 
     Datastream stream = DatastreamTestUtils.createDatastream(DUMMY_CONNECTOR, "A", DummyConnector.VALID_DUMMY_SOURCE);
     DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
     restClient.createDatastream(stream);
 
-    verify(authz, times(1)).authorize(anyObject(), anyObject(), anyObject());
+    verify(authz, times(1)).authorize(any(), any(), any());
   }
 
   @Test
