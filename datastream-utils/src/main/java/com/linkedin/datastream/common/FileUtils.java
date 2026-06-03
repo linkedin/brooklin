@@ -7,7 +7,8 @@ package com.linkedin.datastream.common;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.Random;
+import java.io.IOException;
+import java.nio.file.Files;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,8 +18,6 @@ import org.slf4j.LoggerFactory;
  * Class that contains the helper utility methods for File system operations.
  */
 public class FileUtils {
-
-  private static final Random RANDOM = new Random();
 
   private static final Logger LOG = LoggerFactory.getLogger(FileUtils.class.getName());
 
@@ -31,14 +30,19 @@ public class FileUtils {
    *   Object referencing the directory that is created.
    */
   public static File constructRandomDirectoryInTempDir(String dirPrefix) {
-    File file = new File(System.getProperty("java.io.tmpdir"), dirPrefix + RANDOM.nextInt(10000000));
-    if (!file.mkdirs()) {
-      String errorMessage = "could not create temp directory: " + file.getAbsolutePath();
-      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, null);
+    try {
+      // Files.createTempDirectory atomically creates the directory with owner-only permissions
+      // (0700 on POSIX), avoiding the local information-disclosure risk (CWE-379) of a predictably
+      // named, world-readable directory under the shared system temp dir. The prefix may not
+      // contain path separators, so flatten them.
+      File file = Files.createTempDirectory(dirPrefix.replace('/', '-') + '-').toFile();
+      file.deleteOnExit();
+      return file;
+    } catch (IOException e) {
+      String errorMessage = "could not create temp directory with prefix: " + dirPrefix;
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, errorMessage, e);
+      throw new IllegalStateException(errorMessage, e); // unreachable: logAndThrow always throws
     }
-
-    file.deleteOnExit();
-    return file;
   }
 
   /**
