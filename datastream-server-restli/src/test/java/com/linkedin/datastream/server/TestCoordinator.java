@@ -4220,7 +4220,15 @@ public class TestCoordinator {
               protected synchronized void handleEvent(CoordinatorEvent event) {
                 CoordinatorEvent previousHead = peekCoordinatorEventBlockingQueue();
                 super.handleEvent(event);
-                PollUtils.poll(() -> peekCoordinatorEventBlockingQueue() != null, 50, 1000);
+                // On failure the LEADER_DO_ASSIGNMENT retry is re-queued asynchronously by
+                // scheduleLeaderDoAssignmentRetry() on a separate executor thread, so it may not be
+                // at the front of the queue the instant handleEvent() returns. Wait for the retry
+                // event to actually reach the front rather than merely waiting for the queue to be
+                // non-empty -- otherwise nextHead races with the async putFirst() and can observe an
+                // unrelated event (e.g. HANDLE_ASSIGNMENT_CHANGE), making this test flaky.
+                PollUtils.poll(
+                    () -> leaderDoAssignmentForNewlyElectedLeader.equals(peekCoordinatorEventBlockingQueue()),
+                    50, 1000);
                 CoordinatorEvent nextHead = peekCoordinatorEventBlockingQueue();
 
                 // recording previous and new heads of the CoordinatorEventBlockingQueue
