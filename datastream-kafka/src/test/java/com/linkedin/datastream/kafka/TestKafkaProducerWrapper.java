@@ -33,9 +33,8 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
@@ -266,7 +265,7 @@ public class TestKafkaProducerWrapper {
       Producer<K, V> producer = (Producer<K, V>) mock(Producer.class);
       // Calling flush() on the first producer created will throw an exception of type _exceptionClass.
       if (!_createKafkaProducerCalled) {
-        doThrow(_exceptionClass).when(producer).flush(anyInt(), any(TimeUnit.class));
+        doThrow(_exceptionClass).when(producer).flush(anyLong(), any(TimeUnit.class));
       }
 
       _mockProducer = producer;
@@ -290,7 +289,7 @@ public class TestKafkaProducerWrapper {
     }
 
     void verifyFlush(int numExpected) {
-      verify(_mockProducer, times(numExpected)).flush(anyInt(), any(TimeUnit.class));
+      verify(_mockProducer, times(numExpected)).flush(anyLong(), any(TimeUnit.class));
     }
 
     void verifyClose(int numExpectedClose, int numExpectedShutdownProducerCalls, int numFastShutdownProducerCalls) throws NoSuchMethodException {

@@ -17,7 +17,6 @@ allprojects {
   apply plugin: 'idea'
   apply plugin: 'project-report'
   apply plugin: 'checkstyle'
-  apply plugin: 'findbugs'
 
   repositories {
     mavenCentral()
@@ -33,44 +32,66 @@ allprojects {
 
 idea {
   project {
-    languageLevel = 1.8
+    languageLevel = 17
   }
 }
 
 subprojects {
-  apply plugin: 'java'
+  apply plugin: 'java-library'
   apply plugin: 'pegasus'
+  apply plugin: 'com.github.spotbugs'
 
-  testReportDirName = "${project.rootDir}/out/${project.name}/"
+  // Aggregated test report directory (replaces removed testReportDirName convention property)
+  test {
+    reports.html.outputLocation = file("${project.rootDir}/out/${project.name}/")
+  }
 
   // Avoid failure in internal LinkedIn build validation
   if (!ext.has('spec')) {
     ext.spec = [:]
   }
 
-  sourceCompatibility = '1.8'
-  targetCompatibility = '1.8'
+  sourceCompatibility = JavaVersion.VERSION_17
+  targetCompatibility = JavaVersion.VERSION_17
 
   checkstyle {
     configFile = file("${project.rootDir}/checkstyle/checkstyle.xml")
+    configDirectory = file("${project.rootDir}/checkstyle")
     sourceSets = [ getProject().sourceSets.main, getProject().sourceSets.test ]
-    toolVersion = "6.11.2"
+    toolVersion = "$checkstyleVersion"
     ignoreFailures = false
   }
 
-  findbugs {
-    toolVersion = "$findbugsVersion"
-    sourceSets = [sourceSets.main] // Test code is not included
-    reportsDir = file("$project.buildDir/findbugsReports")
-    reportLevel = "medium"
-    effort = "default"
-    excludeFilter = file("$rootProject.projectDir/findbugs/excludeFilter.xml")
+  // Checkstyle 10's transitive dependencies pull both guava and the legacy
+  // com.google.collections:google-collections jar, which declare the same capability and make
+  // Gradle's variant-aware resolution fail. Resolve in favour of guava.
+  configurations.checkstyle {
+    resolutionStrategy.capabilitiesResolution.withCapability('com.google.collections:google-collections') {
+      selectHighestVersion()
+    }
   }
 
-  tasks.withType(FindBugs) {
+  spotbugs {
+    toolVersion = "$spotbugsVersion"
+    effort = com.github.spotbugs.snom.Effort.DEFAULT
+    reportLevel = com.github.spotbugs.snom.Confidence.MEDIUM
+    excludeFilter = file("$rootProject.projectDir/findbugs/excludeFilter.xml")
+    ignoreFailures = false
+  }
+
+  // Legacy FindBugs only analyzed the main source set. The SpotBugs plugin creates a task per
+  // source set (including pegasus-generated ones), so disable everything except spotbugsMain.
+  tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
     reports {
-      xml.enabled false
-      html.enabled true
+      xml.required = false
+      html.required = true
+    }
+  }
+  afterEvaluate {
+    tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach { spotbugsTask ->
+      if (spotbugsTask.name != 'spotbugsMain') {
+        spotbugsTask.enabled = false
+      }
     }
   }
 
@@ -92,6 +113,18 @@ subprojects {
         restClientCompile spec.product.pegasus.restliCommon
       }
     }
+
+    // Expose datastream-common's generated data templates (Datastream, DatastreamSource, etc.)
+    // to every other module. The data templates live in a separate 'data-template' jar published
+    // through the pegasus 'dataTemplate' configuration. Under variant-aware dependency resolution
+    // (Gradle 7+), a plain `project(':datastream-common')` dependency no longer pulls that jar
+    // transitively, so it must be wired explicitly (mirrors how datastream-client consumes
+    // 'restClient'). On Gradle 4 the legacy `compile` project dependency pulled it implicitly.
+    if (project.name != 'datastream-common') {
+      dependencies {
+        api project(path: ':datastream-common', configuration: 'dataTemplate')
+      }
+    }
   }
 
   def results = [:].withDefault { [] }
@@ -99,6 +132,22 @@ subprojects {
     useTestNG()
     maxParallelForks = 1
     maxHeapSize = "2048m"
+    // JDK 17 enforces strong encapsulation (JEP 396/403). Reflection-heavy dependencies
+    // (Kafka, ZooKeeper, Avro, Mockito/ByteBuddy) require these modules to be opened.
+    jvmArgs += [
+      '--add-opens=java.base/java.lang=ALL-UNNAMED',
+      '--add-opens=java.base/java.io=ALL-UNNAMED',
+      '--add-opens=java.base/java.nio=ALL-UNNAMED',
+      '--add-opens=java.base/java.nio.file=ALL-UNNAMED',
+      '--add-opens=java.base/java.util=ALL-UNNAMED',
+      '--add-opens=java.base/java.util.concurrent=ALL-UNNAMED',
+      '--add-opens=java.base/java.util.regex=ALL-UNNAMED',
+      '--add-opens=java.base/java.util.stream=ALL-UNNAMED',
+      '--add-opens=java.base/java.text=ALL-UNNAMED',
+      '--add-opens=java.base/java.time=ALL-UNNAMED',
+      '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED',
+      '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+    ]
     testLogging {
       exceptionFormat = 'full'
       events "started", "passed", "skipped", "failed"
@@ -116,13 +165,19 @@ subprojects {
   }
 
   dependencies {
-    compile "log4j:log4j:$log4jVersion"
-    compile "org.slf4j:slf4j-api:$slf4jVersion"
-    compile "org.slf4j:slf4j-log4j12:$slf4jVersion"
-    compile "org.apache.commons:commons-lang3:$commonslang3Version"
-    compile "io.dropwizard.metrics:metrics-core:$metricsCoreVersion"
-    compile "io.dropwizard.metrics:metrics-jmx:$metricsCoreVersion"
-    testCompile "org.testng:testng:$testngVersion"
+    api "log4j:log4j:$log4jVersion"
+    api "org.slf4j:slf4j-api:$slf4jVersion"
+    api "org.slf4j:slf4j-log4j12:$slf4jVersion"
+    api "org.apache.commons:commons-lang3:$commonslang3Version"
+    api "io.dropwizard.metrics:metrics-core:$metricsCoreVersion"
+    api "io.dropwizard.metrics:metrics-jmx:$metricsCoreVersion"
+    // SpotBugs annotations (edu.umd.cs.findbugs.annotations.*). Some third-party classes on the
+    // compile classpath (e.g. ZooKeeper) carry @SuppressFBWarnings; without the annotation type
+    // javac emits a "cannot find annotation method" warning, which -Werror turns into an error.
+    // Previously the full com.google.code.findbugs:findbugs jar supplied these annotations.
+    compileOnly "com.github.spotbugs:spotbugs-annotations:$spotbugsVersion"
+    testCompileOnly "com.github.spotbugs:spotbugs-annotations:$spotbugsVersion"
+    testImplementation "org.testng:testng:$testngVersion"
   }
 
   configurations.all {
@@ -150,72 +205,73 @@ subprojects {
 
 project(':datastream-common') {
   dependencies {
-    compile "org.apache.avro:avro:$avroVersion"
-    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-    compile "com.intellij:annotations:$intellijAnnotationsVersion"
-    compile "com.google.guava:guava:$guavaVersion"
-    compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    api "org.apache.avro:avro:$avroVersion"
+    api "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    api "com.intellij:annotations:$intellijAnnotationsVersion"
+    api "com.google.guava:guava:$guavaVersion"
+    api "com.google.code.findbugs:jsr305:$jsr305Version"
+    api "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
 project(':datastream-server-api') {
   dependencies {
-    compile project(':datastream-common')
-    compile project(':datastream-utils')
+    api project(':datastream-common')
+    api project(':datastream-utils')
   }
 }
 
 project(':datastream-utils') {
   dependencies {
-    compile project(':datastream-common')
-    compile "com.linkedin.kafka:kafka-clients:$kafkaVersion"
-    compile "org.apache.helix:zookeeper-api:$helixZkclientVersion"
-    compile "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
-    compile "com.google.guava:guava:$guavaVersion"
-    testCompile project(":datastream-kafka")
-    testCompile project(":datastream-testcommon")
+    api project(':datastream-common')
+    api "com.linkedin.kafka:kafka-clients:$kafkaVersion"
+    api "org.apache.helix:zookeeper-api:$helixZkclientVersion"
+    api "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
+    api "com.google.guava:guava:$guavaVersion"
+    testImplementation project(":datastream-kafka")
+    testImplementation project(":datastream-testcommon")
   }
 }
 
 project(':datastream-file-connector') {
   dependencies {
-    compile project(':datastream-server-api')
-    compile project(':datastream-common')
-    compile project(':datastream-utils')
-    testCompile project(':datastream-server')
-    testCompile project(":datastream-testcommon")
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    api project(':datastream-server-api')
+    api project(':datastream-common')
+    api project(':datastream-utils')
+    testImplementation project(':datastream-server')
+    testImplementation project(":datastream-testcommon")
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
 project(':datastream-directory') {
   dependencies {
-    compile project(':datastream-server-api')
-    compile project(':datastream-common')
-    compile "org.slf4j:slf4j-api:$slf4jVersion"
-    compile "org.apache.commons:commons-lang3:$commonslang3Version"
-    compile "commons-io:commons-io:$commonsIOVersion"
-    compile "com.google.guava:guava:$guavaVersion"
+    api project(':datastream-server-api')
+    api project(':datastream-common')
+    api "org.slf4j:slf4j-api:$slf4jVersion"
+    api "org.apache.commons:commons-lang3:$commonslang3Version"
+    api "commons-io:commons-io:$commonsIOVersion"
+    api "com.google.guava:guava:$guavaVersion"
   }
 }
 
 project(":datastream-kafka") {
   dependencies {
-    compile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
-    compile "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
+    api "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
+    api "commons-httpclient:commons-httpclient:$commonsHttpClientVersion"
 
-    compile project(':datastream-server')
-    compile project(':datastream-server-api')
-    compile project(':datastream-utils')
+    api project(':datastream-server')
+    api project(':datastream-server-api')
+    api project(':datastream-utils')
 
-    testCompile project(":datastream-testcommon")
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation project(":datastream-testcommon")
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
 
     tasks.create(name: "copyDependentLibs", type: Copy) {
-      from (configurations.runtime) {
+      from (configurations.runtimeClasspath) {
       }
       into "$buildDir/dependent-libs"
     }
@@ -228,85 +284,85 @@ project(":datastream-kafka") {
 
 project(':datastream-kafka-factory-impl') {
   dependencies {
-    compile project(':datastream-kafka-connector')
+    api project(':datastream-kafka-connector')
 
-    testCompile project(":datastream-kafka")
+    testImplementation project(":datastream-kafka")
   }
 }
 
 project(':datastream-kafka-connector') {
   dependencies {
-    compile project(':datastream-server-api')
-    compile project(':datastream-common')
-    compile project(":datastream-kafka")
-    compile "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
-    compile "commons-validator:commons-validator:$commonsValidatorVersion"
-    compile "org.apache.commons:commons-lang3:$commonslang3Version"
-    compile "javax.xml.bind:jaxb-api:2.3.1"
+    api project(':datastream-server-api')
+    api project(':datastream-common')
+    api project(":datastream-kafka")
+    api "org.apache.httpcomponents:httpclient:$apacheHttpClientVersion"
+    api "commons-validator:commons-validator:$commonsValidatorVersion"
+    api "org.apache.commons:commons-lang3:$commonslang3Version"
+    api "javax.xml.bind:jaxb-api:2.3.1"
 
-    testCompile project(":datastream-kafka")
-    testCompile project(":datastream-testcommon")
-    testCompile project(':datastream-kafka-factory-impl')
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation project(":datastream-kafka")
+    testImplementation project(":datastream-testcommon")
+    testImplementation project(':datastream-kafka-factory-impl')
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
 project(":datastream-testcommon") {
   dependencies {
-    compile project(':datastream-server-api')
-    compile project(":datastream-kafka")
-    compile project(':datastream-common')
-    compile project(':datastream-utils')
-    compile project(':datastream-server')
-    compile project(':datastream-server-restli')
-    compile project(':datastream-client')
-    compile "com.intellij:annotations:$intellijAnnotationsVersion"
-    compile "commons-cli:commons-cli:$commonsCliVersion"
-    compile "org.apache.avro:avro:$avroVersion"
-    compile "com.google.code.findbugs:findbugs:$findbugsVersion"
-    compile "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
-    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-    compile "org.testng:testng:$testngVersion"
-    compile "com.google.guava:guava:$guavaVersion"
+    api project(':datastream-server-api')
+    api project(":datastream-kafka")
+    api project(':datastream-common')
+    api project(':datastream-utils')
+    api project(':datastream-server')
+    api project(':datastream-server-restli')
+    api project(':datastream-client')
+    api "com.intellij:annotations:$intellijAnnotationsVersion"
+    api "commons-cli:commons-cli:$commonsCliVersion"
+    api "org.apache.avro:avro:$avroVersion"
+    api "com.google.code.findbugs:jsr305:$jsr305Version"
+    api "com.linkedin.zookeeper:zookeeper:$zookeeperVersion"
+    api "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    api "org.testng:testng:$testngVersion"
+    api "com.google.guava:guava:$guavaVersion"
   }
 }
 
 project(':datastream-tools') {
   dependencies {
-    compile project(':datastream-common')
-    compile project(':datastream-client')
-    compile project(':datastream-server')
-    compile project(":datastream-testcommon")
-    compile "commons-cli:commons-cli:$commonsCliVersion"
+    api project(':datastream-common')
+    api project(':datastream-client')
+    api project(':datastream-server')
+    api project(":datastream-testcommon")
+    api "commons-cli:commons-cli:$commonsCliVersion"
   }
 
-  tasks.create(name: "releaseTarGz", dependsOn: configurations.archives.artifacts, type: Tar) {
+  tasks.create(name: "releaseTarGz", dependsOn: jar, type: Tar) {
     description = "Create Brooklin release tarball"
-    baseName = "${rootProject.name}"
-    into { "${property('baseName')}-$rootProject.version" }
+    archiveBaseName = "${rootProject.name}"
+    into { "${rootProject.name}-$rootProject.version" }
     compression = Compression.GZIP
     from(rootProject.file("NOTICE"))
     from(rootProject.file("LICENSE"))
     from(rootProject.file("scripts")) { exclude "git" into "bin/" }
     from(rootProject.file("config")) { into "config/" }
-    from(configurations.runtime) { into("libs/") }
-    from(configurations.archives.artifacts.files) { into("libs/") }
+    from(configurations.runtimeClasspath) { into("libs/") }
+    from(jar) { into("libs/") }
     from(project(':datastream-tools').jar) { into("libs/") }
-    from(project(':datastream-tools').configurations.runtime) { into("libs/") }
+    from(project(':datastream-tools').configurations.runtimeClasspath) { into("libs/") }
     from(project(':datastream-server').jar) { into("libs/") }
-    from(project(':datastream-server').configurations.runtime) { into("libs/") }
+    from(project(':datastream-server').configurations.runtimeClasspath) { into("libs/") }
     from(project(':datastream-file-connector').jar) { into("libs/") }
-    from(project(':datastream-file-connector').configurations.runtime) { into("libs/") }
+    from(project(':datastream-file-connector').configurations.runtimeClasspath) { into("libs/") }
     from(project(':datastream-directory').jar) { into("libs/") }
-    from(project(':datastream-directory').configurations.runtime) { into("libs/") }
+    from(project(':datastream-directory').configurations.runtimeClasspath) { into("libs/") }
     from(project(":datastream-testcommon").jar) { into("libs/") }
-    from(project(":datastream-testcommon").configurations.runtime) { into("libs/") }
+    from(project(":datastream-testcommon").configurations.runtimeClasspath) { into("libs/") }
     from(project(':datastream-common').jar) { into("libs/") }
-    from(project(':datastream-common').configurations.runtime) { into("libs/") }
+    from(project(':datastream-common').configurations.runtimeClasspath) { into("libs/") }
     from(project(":datastream-kafka").jar) { into("libs/") }
-    from(project(":datastream-kafka").configurations.runtime) { into("libs/") }
+    from(project(":datastream-kafka").configurations.runtimeClasspath) { into("libs/") }
     from(project(':datastream-kafka-connector').jar) { into("libs/") }
-    from(project(':datastream-kafka-connector').configurations.runtime) { into("libs/") }
+    from(project(':datastream-kafka-connector').configurations.runtimeClasspath) { into("libs/") }
     duplicatesStrategy 'exclude'
   }
 }
@@ -314,43 +370,43 @@ project(':datastream-tools') {
 project(':datastream-client') {
 
   dependencies {
-    compile project(path: ':datastream-common', configuration: 'restClient')
+    api project(path: ':datastream-common', configuration: 'restClient')
 
-    compile "com.linkedin.pegasus:restli-client:$pegasusVersion"
-    compile "com.linkedin.pegasus:r2-netty:$pegasusVersion"
-    compile "org.apache.avro:avro:$avroVersion"
+    api "com.linkedin.pegasus:restli-client:$pegasusVersion"
+    api "com.linkedin.pegasus:r2-netty:$pegasusVersion"
+    api "org.apache.avro:avro:$avroVersion"
 
-    compile project(':datastream-common')
-    compile project(':datastream-utils')
+    api project(':datastream-common')
+    api project(':datastream-utils')
 
-    testCompile project(":datastream-testcommon")
-    testCompile project(":datastream-kafka")
-    testCompile project(':datastream-server')
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation project(":datastream-testcommon")
+    testImplementation project(":datastream-kafka")
+    testImplementation project(':datastream-server')
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
   }
 }
 
 project(':datastream-server') {
 
   dependencies {
-    compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
 
-    compile project(':datastream-server-api')
-    compile project(':datastream-common')
-    compile project(':datastream-utils')
-    compile project(':datastream-client')
+    api project(':datastream-server-api')
+    api project(':datastream-common')
+    api project(':datastream-utils')
+    api project(':datastream-client')
 
-    testCompile project(":datastream-kafka")
-    testCompile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
-    testCompile project(':datastream-client')
-    testCompile project(":datastream-testcommon")
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation project(":datastream-kafka")
+    testImplementation "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
+    testImplementation project(':datastream-client')
+    testImplementation project(":datastream-testcommon")
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
   }
 
   tasks.create(name: "copyDependentLibs", type: Copy) {
-    from (configurations.runtime) {
+    from (configurations.runtimeClasspath) {
     }
     into "$buildDir/dependent-libs"
   }
@@ -365,28 +421,28 @@ project(':datastream-server-restli') {
   pegasus.main.idlOptions.addIdlItem(['com.linkedin.datastream.server.dms', 'com.linkedin.datastream.server.diagnostics'])
 
   dependencies {
-    compile "com.linkedin.pegasus:restli-server:$pegasusVersion"
-    compile "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
-    compile "com.linkedin.pegasus:r2-jetty:$pegasusVersion"
-    compile "com.linkedin.parseq:parseq:$parseqVersion"
-    compile "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
-    compile "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
-    compile "org.apache.commons:commons-lang3:$commonslang3Version"
+    api "com.linkedin.pegasus:restli-server:$pegasusVersion"
+    api "com.linkedin.pegasus:restli-netty-standalone:$pegasusVersion"
+    api "com.linkedin.pegasus:r2-jetty:$pegasusVersion"
+    api "com.linkedin.parseq:parseq:$parseqVersion"
+    api "com.fasterxml.jackson.core:jackson-annotations:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-core:$jacksonVersion"
+    api "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
+    api "org.apache.commons:commons-lang3:$commonslang3Version"
 
-    compile project(':datastream-server')
-    compile project(':datastream-common')
+    api project(':datastream-server')
+    api project(':datastream-common')
 
-    testCompile project(":datastream-kafka")
-    testCompile "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
-    testCompile project(':datastream-client')
-    testCompile project(':datastream-file-connector')
-    testCompile project(":datastream-testcommon")
-    testCompile "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation project(":datastream-kafka")
+    testImplementation "com.linkedin.kafka:kafka_$scalaSuffix:$kafkaVersion"
+    testImplementation project(':datastream-client')
+    testImplementation project(':datastream-file-connector')
+    testImplementation project(":datastream-testcommon")
+    testImplementation "org.mockito:mockito-core:$mockitoVersion"
   }
 
   tasks.create(name: "copyDependentLibs", type: Copy) {
-    from (configurations.runtime) {
+    from (configurations.runtimeClasspath) {
     }
     into "$buildDir/dependent-libs"
   }
@@ -397,7 +453,7 @@ project(':datastream-server-restli') {
 
   // For test or experiment purpose
   task startStandaloneRestServer(type: JavaExec) {
-    main = 'com.linkedin.restli.server.NettyStandaloneLauncher'
+    mainClass = 'com.linkedin.restli.server.NettyStandaloneLauncher'
     args = ['-port', '8080', '-packages', 'com.linkedin.datastream.server.dms']
     classpath = sourceSets.main.runtimeClasspath
     standardInput = System.in

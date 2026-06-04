@@ -38,9 +38,9 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
 import com.linkedin.datastream.testutil.MetricsTestUtils;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anyObject;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -303,9 +303,13 @@ public class TestAbstractKafkaConnector {
       _createTaskCalled++;
       AbstractKafkaBasedConnectorTask connectorTask = mock(AbstractKafkaBasedConnectorTask.class);
       try {
-        when(connectorTask.awaitStop(anyLong(), anyObject())).thenReturn(true);
+        when(connectorTask.awaitStop(anyLong(), any())).thenReturn(true);
         if (_failStopTaskOnce) {
-          doThrow(InterruptedException.class).doNothing().when(connectorTask).stop();
+          // Mockito 2+ rejects doThrow of a checked exception not declared by the method (stop() is
+          // void with no throws clause). An Answer may throw any Throwable, so use doAnswer instead.
+          doAnswer(invocation -> {
+            throw new InterruptedException();
+          }).doNothing().when(connectorTask).stop();
         }
       } catch (InterruptedException e) {
         e.printStackTrace();

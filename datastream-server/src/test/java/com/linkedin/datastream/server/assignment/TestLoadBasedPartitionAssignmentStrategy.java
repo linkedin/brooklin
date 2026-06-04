@@ -45,7 +45,6 @@ import com.linkedin.datastream.testutil.MetricsTestUtils;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -184,7 +183,7 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Map<String, Set<DatastreamTask>> newAssignment = strategy.assignPartitions(currentAssignment, metadata);
 
     Mockito.verify(mockProvider, atLeastOnce()).getThroughputInfo(any(DatastreamGroup.class));
-    Mockito.verify(strategy, never()).doAssignment(anyObject(), anyObject(), anyObject(), anyObject());
+    Mockito.verify(strategy, never()).doAssignment(any(), any(), any(), any());
     Assert.assertNotNull(newAssignment);
 
     // Verify that metrics in both StickyPartitionAssignmentStrategy and LoadBasedPartitionAssignmentStrategy are

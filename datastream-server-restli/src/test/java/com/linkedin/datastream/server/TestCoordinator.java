@@ -104,11 +104,10 @@ import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATIO
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.TTL_MS;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
-import static org.mockito.Matchers.argThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
@@ -2670,7 +2669,7 @@ public class TestCoordinator {
         counter.incrementAndGet();
       }
       return null;
-    }).when(dynMM).createOrUpdateCounter(anyString(), anyObject(), anyLong());
+    }).when(dynMM).createOrUpdateCounter(anyString(), any(), anyLong());
 
     Object metrics = ReflectionUtils.getField(coordinator, "_metrics");
     ReflectionUtils.setField(metrics, "_dynamicMetricsManager", dynMM);
@@ -2711,7 +2710,7 @@ public class TestCoordinator {
   public void testDatastreamAuthorizationHappyPath() throws Exception {
     createTestCoordinator();
     Authorizer authz = mock(Authorizer.class);
-    when(authz.authorize(anyObject(), anyObject(), anyObject())).thenReturn(true);
+    when(authz.authorize(any(), any(), any())).thenReturn(true);
 
     // Check default retention when no topicConfig is specified
     String datastreamName = "testDatastreamAuthorization";
@@ -4470,7 +4469,7 @@ public class TestCoordinator {
     zkClient.deleteRecursive(path);
   }
 
-  static class CollectionContainsMatcher<T> extends ArgumentMatcher<List<T>> {
+  static class CollectionContainsMatcher<T> implements ArgumentMatcher<List<T>> {
     private final T _element;
 
     public CollectionContainsMatcher(T element) {
@@ -4478,14 +4477,12 @@ public class TestCoordinator {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public boolean matches(Object argument) {
-      if (!(argument instanceof List)) {
+    public boolean matches(List<T> argument) {
+      if (argument == null) {
         return false;
       }
 
-      List<T> argumentAsList = (List<T>) argument;
-      return argumentAsList.contains(_element);
+      return argument.contains(_element);
     }
   }
 
@@ -4684,14 +4681,16 @@ public class TestCoordinator {
   private Duration setAssignmentTimeout(Duration newTimeout) throws Exception {
     Field field = Coordinator.class.getDeclaredField("ASSIGNMENT_TIMEOUT");
     field.setAccessible(true);
-
-    // Remove the 'final' modifier so we can write to the field
-    Field modifiersField = Field.class.getDeclaredField("modifiers");
-    modifiersField.setAccessible(true);
-    modifiersField.setInt(field, field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
-
     Duration original = (Duration) field.get(null);
-    field.set(null, newTimeout);
+
+    // JDK 12+ blocks the legacy "strip the final modifier via Field.modifiers" reflection hack (the
+    // modifiers field is hidden by the core reflection filter), so write the static final field
+    // through sun.misc.Unsafe instead. Fully qualified to avoid the checkstyle sun.* import ban.
+    Field theUnsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+    theUnsafeField.setAccessible(true);
+    sun.misc.Unsafe unsafe = (sun.misc.Unsafe) theUnsafeField.get(null);
+    unsafe.putObject(unsafe.staticFieldBase(field), unsafe.staticFieldOffset(field), newTimeout);
+
     return original;
   }
 

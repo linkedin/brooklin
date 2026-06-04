@@ -60,7 +60,7 @@ public class TestFlushlessEventProducerHandler {
     eventProducer.flush();
     Assert.assertEquals(handler.getAckCheckpoint(BIG_CHECKPOINT, Comparator.naturalOrder()).get(), BIG_CHECKPOINT);
     Assert.assertEquals(handler.getInFlightCount(TOPIC, 1), 0);
-    Assert.assertEquals(handler.getAckCheckpoint(TOPIC, 1).get(), new Long(checkpoint));
+    Assert.assertEquals(handler.getAckCheckpoint(TOPIC, 1).get(), Long.valueOf(checkpoint));
     Assert.assertEquals(handler.getAckMessagesPastCheckpointCount(TOPIC, 1), 0);
   }
 

@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import com.linkedin.datastream.common.DatastreamRuntimeException;

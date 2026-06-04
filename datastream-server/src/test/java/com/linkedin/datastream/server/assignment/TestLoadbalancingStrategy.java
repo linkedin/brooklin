@@ -28,8 +28,8 @@ import com.linkedin.datastream.server.DatastreamTaskImpl;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.DatastreamTestUtils;
 
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -50,7 +50,7 @@ public class TestLoadbalancingStrategy {
       }
       stateMap.get(task).put(key, val);
       return null;
-    }).when(adapter).setDatastreamTaskStateForKey(anyObject(), anyString(), anyString());
+    }).when(adapter).setDatastreamTaskStateForKey(any(), anyString(), anyString());
     doAnswer((invocation) -> {
       DatastreamTask task = (DatastreamTask) invocation.getArguments()[0];
       String key = (String) invocation.getArguments()[1];
@@ -58,7 +58,7 @@ public class TestLoadbalancingStrategy {
         return null;
       }
       return stateMap.get(task).get(key);
-    }).when(adapter).getDatastreamTaskStateForKey(anyObject(), anyString());
+    }).when(adapter).getDatastreamTaskStateForKey(any(), anyString());
     return adapter;
   }
 

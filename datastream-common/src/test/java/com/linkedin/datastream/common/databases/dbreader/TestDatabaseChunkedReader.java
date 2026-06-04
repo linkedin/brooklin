@@ -43,8 +43,8 @@ import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedR
 import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.QUERY_TIMEOUT_SECS;
 import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.ROW_COUNT_LIMIT;
 import static com.linkedin.datastream.common.databases.dbreader.DatabaseChunkedReaderConfig.SKIP_BAD_MESSAGE;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 
 
 /**

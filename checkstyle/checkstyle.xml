@@ -10,7 +10,6 @@ LinkedIn Java style.
   <property name="severity" value="${checkstyle.severity}" default="error"/>
 
   <module name="TreeWalker">
-    <module name="FileContentsHolder"/>
 
     <!-- ANNOTATIONS -->
 
@@ -121,15 +120,13 @@ LinkedIn Java style.
     </module>
 
     <module name="JavadocMethod">
-      <property name="scope" value="public"/>
-      <property name="allowUndeclaredRTE" value="true"/>
+      <property name="accessModifiers" value="public"/>
       <property name="allowMissingParamTags" value="true"/>
-      <property name="validateThrows" value="true" />
-      <property name="allowThrowsTagsForSubclasses" value="true" />
-      <property name="allowMissingThrowsTags" value="true" />
-      <property name="allowMissingReturnTag" value="true" />
-      <property name="allowMissingPropertyJavadoc" value="true" />
-      <property name="allowedAnnotations" value="Override, AfterMethod, AfterTest, BeforeMethod, BeforeTest, Test" />
+      <property name="allowMissingReturnTag" value="true"/>
+      <!-- validateThrows left at its default (false): the legacy config set allowMissingThrowsTags=true
+           (a property removed in Checkstyle 8), so missing @throws tags must remain permitted. -->
+      <property name="validateThrows" value="false"/>
+      <property name="allowedAnnotations" value="Override, AfterMethod, AfterTest, BeforeMethod, BeforeTest, Test"/>
     </module>
 
     <!-- NAMING CONVENTIONS -->
@@ -168,14 +165,6 @@ LinkedIn Java style.
     <!-- Type names must be camel case starting with an uppercase letter -->
     <module name="TypeName"/>
 
-    <!-- LENGTHS -->
-
-    <!-- Desired line length is 120 but allow some overrun beyond that -->
-    <module name="LineLength">
-      <property name="max" value="160"/>
-      <message key="maxLineLen" value="Line is longer than {0,number,integer} characters (found {1,number,integer}). Try to keep lines under 120 characters."/>
-    </module>
-
     <!-- WHITESPACE -->
 
     <module name="GenericWhitespace"/>
@@ -202,6 +191,20 @@ LinkedIn Java style.
       <property name="format" value="[\s]+arg[\d]+[,\)]"/>
       <property name="message" value="Replace argN with a meaningful parameter name"/>
     </module>
+
+    <!-- Allow Checkstyle warnings to be suppressed using trailing comments -->
+    <module name="SuppressWithNearbyCommentFilter"/>
+    <!-- Allow Checkstyle warnings to be suppressed using block comments -->
+    <module name="SuppressionCommentFilter"/>
+  </module>
+
+  <!-- LENGTHS -->
+
+  <!-- Desired line length is 120 but allow some overrun beyond that. LineLength moved from
+       TreeWalker to Checker level (required since Checkstyle 8.24). -->
+  <module name="LineLength">
+    <property name="max" value="160"/>
+    <message key="maxLineLen" value="Line is longer than {0,number,integer} characters (found {1,number,integer}). Try to keep lines under 120 characters."/>
   </module>
 
   <!-- Do not allow tab characters in source files -->
@@ -225,10 +228,10 @@ LinkedIn Java style.
 
   <!-- Read checker suppressions from a file -->
   <module name="SuppressionFilter">
-    <property name="file" value="checkstyle/suppressions.xml"/>
+    <property name="file" value="${config_loc}/suppressions.xml"/>
   </module>
-  <!-- Allow Checkstyle warnings to be suppressed using trailing comments -->
-  <module name="SuppressWithNearbyCommentFilter"/>
-  <!-- Allow Checkstyle warnings to be suppressed using block comments -->
-  <module name="SuppressionCommentFilter"/>
+  <!-- Allow file-level (Checker) checks such as LineLength to be suppressed via // CHECKSTYLE:OFF/ON
+       comments. SuppressionCommentFilter (a TreeWalker filter) cannot suppress Checker-level checks,
+       and LineLength must live at Checker level since Checkstyle 8.24. -->
+  <module name="SuppressWithPlainTextCommentFilter"/>
 </module>

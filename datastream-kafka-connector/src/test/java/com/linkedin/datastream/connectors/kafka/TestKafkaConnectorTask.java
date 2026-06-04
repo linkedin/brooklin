@@ -56,9 +56,9 @@ import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.BaseKafkaZkTest;
 import com.linkedin.datastream.testutil.DatastreamEmbeddedZookeeperKafkaCluster;
 
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anySetOf;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -359,7 +359,7 @@ public class TestKafkaConnectorTask extends BaseKafkaZkTest {
     ConsumerRecords<?, ?> consumerRecords = new ConsumerRecords<>(records);
 
     doReturn(consumerRecords).when(connectorTask).pollRecords(anyLong());
-    doAnswer(a -> null).when(connectorTask).seekToLastCheckpoint(anySetOf(TopicPartition.class));
+    doAnswer(a -> null).when(connectorTask).seekToLastCheckpoint(anySet());
     Thread t = new Thread(connectorTask, "connector thread");
     t.setDaemon(true);
     t.setUncaughtExceptionHandler((t1, e) -> Assert.fail("connector thread died", e));

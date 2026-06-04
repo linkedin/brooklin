@@ -76,9 +76,9 @@ import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMe
 import static com.linkedin.datastream.connectors.kafka.KafkaBasedConnectorTaskMetrics.NUM_CONFIG_PAUSED_PARTITIONS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_PERIOD_MS;
 import static com.linkedin.datastream.connectors.kafka.mirrormaker.KafkaMirrorMakerConnectorTestUtils.POLL_TIMEOUT_MS;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyCollectionOf;
-import static org.mockito.Mockito.anyMapOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -372,7 +372,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         doAnswer(invocation -> {
           remainingCommitSyncCalls.countDown();
           return null;
-        }).when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
+        }).when(result).commitSync(anyMap(), any(Duration.class));
         doThrow(new KafkaException("Throwing close exception"))
             .when(result).close();
         return result;
@@ -574,7 +574,11 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
     Datastream datastream = KafkaMirrorMakerConnectorTestUtils.createDatastream("pizzaStream", _broker, "\\w+Pizza");
     DatastreamTaskImpl task = new DatastreamTaskImpl(Collections.singletonList(datastream));
     DatastreamEventProducer mockDatastreamEventProducer = mock(DatastreamEventProducer.class);
-    doThrow(InterruptedException.class).when(mockDatastreamEventProducer).flush();
+    // Mockito 2+ rejects doThrow of a checked exception not declared by the method (flush() is void
+    // with no throws clause). An Answer may throw any Throwable, so use doAnswer instead.
+    doAnswer(invocation -> {
+      throw new InterruptedException();
+    }).when(mockDatastreamEventProducer).flush();
     task.setEventProducer(mockDatastreamEventProducer);
 
     KafkaBasedConnectorConfig connectorConfig = new KafkaBasedConnectorConfigBuilder()
@@ -612,7 +616,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
         doAnswer(invocation -> {
           remainingCommitSyncCalls.countDown();
           return null;
-        }).when(result).commitSync(anyMapOf(TopicPartition.class, OffsetAndMetadata.class), any(Duration.class));
+        }).when(result).commitSync(anyMap(), any(Duration.class));
         return result;
       }
     };
@@ -1116,7 +1120,7 @@ public class TestKafkaMirrorMakerConnectorTask extends BaseKafkaZkTest {
       invocation.callRealMethod();
       partitionsAssigned.countDown();
       return null;
-    }).when(connectorTask).onPartitionsAssigned(anyCollectionOf(TopicPartition.class));
+    }).when(connectorTask).onPartitionsAssigned(anyCollection());
 
     KafkaMirrorMakerConnectorTestUtils.runKafkaMirrorMakerConnectorTask(connectorTask);
 
