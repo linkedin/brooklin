@@ -165,9 +165,13 @@ subprojects {
   }
 
   dependencies {
-    api "log4j:log4j:$log4jVersion"
     api "org.slf4j:slf4j-api:$slf4jVersion"
-    api "org.slf4j:slf4j-log4j12:$slf4jVersion"
+    // log4j2 is the runtime SLF4J backend only; all source logs via slf4j-api.
+    // Keeping log4j-core off the compile classpath also avoids activating its
+    // bundled annotation processor (PluginProcessor) under -Werror.
+    runtimeOnly "org.apache.logging.log4j:log4j-api:$log4j2Version"
+    runtimeOnly "org.apache.logging.log4j:log4j-core:$log4j2Version"
+    runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:$log4j2Version"
     api "org.apache.commons:commons-lang3:$commonslang3Version"
     api "io.dropwizard.metrics:metrics-core:$metricsCoreVersion"
     api "io.dropwizard.metrics:metrics-jmx:$metricsCoreVersion"
@@ -188,6 +192,12 @@ subprojects {
     //
     // Excluding this just from "datastream-testcommon" is not sufficient
     exclude group: "org.apache.zookeeper", module: "zookeeper"
+
+    // log4j 1.x is EOL and vulnerable; Brooklin logs via SLF4J and is bound to
+    // log4j2 (log4j-slf4j-impl). Keep any transitively-pulled log4j 1.x binding
+    // out of the classpath so there is a single, modern SLF4J backend.
+    exclude group: "log4j", module: "log4j"
+    exclude group: "org.slf4j", module: "slf4j-log4j12"
   }
 
   jar {

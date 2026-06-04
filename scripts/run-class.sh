@@ -52,7 +52,7 @@ fi
 # Log4j settings
 if [ -z "$LOG4J_OPTS" ]; then
   # Log to console. This is a tool.
-  LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/config/tools-log4j.properties"
+  LOG4J_OPTS="-Dlog4j.configurationFile=file:$base_dir/config/tools-log4j2.properties"
 else
   # create logs directory
   if [ ! -d "$LOG_DIR" ]; then

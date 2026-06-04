@@ -3,7 +3,7 @@
 base_dir=$(dirname $0)
 
 if [ "x$LOG4J_OPTS" = "x" ]; then
-    export LOG4J_OPTS="-Dlog4j.configuration=file:$base_dir/../config/log4j.properties"
+    export LOG4J_OPTS="-Dlog4j.configurationFile=file:$base_dir/../config/log4j2.properties"
 fi
 
 if [ "x$HEAP_OPTS" = "x" ]; then
