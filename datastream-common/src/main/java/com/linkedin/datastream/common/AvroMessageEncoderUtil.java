@@ -97,6 +97,11 @@ public class AvroMessageEncoderUtil {
 
   private static byte[] md5(byte[] bytes) {
     try {
+      // MD5 here is a non-cryptographic fingerprint embedded in the encoded message envelope (the
+      // schema-id hash prepended to the payload), not a security signature. Changing the algorithm
+      // would alter the on-wire format and break decoding of previously encoded data, so it must
+      // remain MD5 for wire compatibility. The Semgrep use-of-md5 finding is not applicable here.
+      // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
       MessageDigest digest = MessageDigest.getInstance("md5");
       return digest.digest(bytes);
     } catch (NoSuchAlgorithmException e) {

@@ -19,6 +19,11 @@ public class NetworkUtils {
    */
   public synchronized static int getAvailablePort() {
     try {
+      // This ServerSocket is bound to an ephemeral port (port 0) solely to discover a free port
+      // number and is closed immediately via try-with-resources; no data is ever transmitted over
+      // it, so transport encryption does not apply. The Semgrep unencrypted-socket rule is a false
+      // positive for this port-discovery idiom.
+      // nosemgrep: java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
       try (ServerSocket socket = new ServerSocket(0)) {
         socket.setReuseAddress(true);
         return socket.getLocalPort();

@@ -130,6 +130,12 @@ public interface GroupIdConstructor {
    */
   default String hashGroupId(String groupId) {
     try {
+      // MD5 here is a non-cryptographic identity hash used to derive a stable, compact Kafka
+      // consumer group.id (clusterName + "." + hashGroupId(taskPrefix)), not a security signature.
+      // Changing the algorithm would change every existing consumer group's id and reset committed
+      // offsets, so it must remain MD5 for offset compatibility. The Semgrep use-of-md5 finding is
+      // not applicable to this non-cryptographic use.
+      // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
       MessageDigest digest = MessageDigest.getInstance("MD5");
       byte[] hashedBytes = digest.digest(groupId.getBytes(StandardCharsets.UTF_8));
       return DatatypeConverter.printHexBinary(hashedBytes).toLowerCase();
