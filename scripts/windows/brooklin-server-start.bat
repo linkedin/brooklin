@@ -7,7 +7,7 @@ IF [%1] EQU [] (
 
 SetLocal
 IF ["%LOG4J_OPTS%"] EQU [""] (
-    set LOG4J_OPTS=-Dlog4j.configuration=file:%~dp0../../config/log4j.properties
+    set LOG4J_OPTS=-Dlog4j.configurationFile=file:%~dp0../../config/log4j2.properties
 )
 IF ["%HEAP_OPTS%"] EQU [""] (
     set HEAP_OPTS=-Xmx1G -Xms1G

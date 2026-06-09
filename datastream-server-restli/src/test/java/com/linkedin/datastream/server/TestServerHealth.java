@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.log4j.Level;
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
@@ -41,7 +40,6 @@ public class TestServerHealth {
 
   @BeforeTest
   public void setUp() throws Exception {
-    org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
     _datastreamCluster = initializeTestDatastreamServer(null);
     _datastreamCluster.startup();
   }

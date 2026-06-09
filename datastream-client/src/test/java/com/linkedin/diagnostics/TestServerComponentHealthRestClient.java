@@ -5,7 +5,6 @@
  */
 package com.linkedin.diagnostics;
 
-import org.apache.log4j.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -27,8 +26,6 @@ public class TestServerComponentHealthRestClient extends TestRestliClientBase {
 
   @BeforeTest
   public void setUp() throws Exception {
-    org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
-
     // Create a cluster with maximum 2 DMS instances
     setupDatastreamCluster(2);
   }
