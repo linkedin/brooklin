@@ -1393,7 +1393,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and the
    * provisioning SLO counters: {@code numStreamsProvisioned} (total) plus exactly one of
    * {@code numStreamsProvisionedWithinSla} / {@code numStreamsProvisionedOutsideSla} depending on
-   * whether the duration exceeds {@link CoordinatorConfig#getSlowProvisioningThresholdMs()}. The SLO
+   * whether the duration exceeds {@link CoordinatorConfig#getProvisioningSlaThresholdMs()}. The SLO
    * is {@code numStreamsProvisionedWithinSla / numStreamsProvisioned}. Emitting the total here, at the
    * same site and instant as the within/outside counter, keeps the numerator and denominator over an
    * identical population so the ratio is free of create-vs-ready timing skew. Note that datastreams
@@ -1420,7 +1420,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         _metrics.updateTimeToReadyHistogram(timeToReadyMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
         _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, 1);
-        if (timeToReadyMs > _config.getSlowProvisioningThresholdMs()) {
+        if (timeToReadyMs > _config.getProvisioningSlaThresholdMs()) {
           _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA, 1);
         } else {
           _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA, 1);

@@ -2498,7 +2498,7 @@ public class TestCoordinator {
     String datastreamName = "TestTimeToReadyStream";
 
     Properties override = new Properties();
-    override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS, "0");
+    override.put(CoordinatorConfig.CONFIG_PROVISIONING_SLA_THRESHOLD_MS, "0");
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
     TestHookConnector connector = new TestHookConnector("connector1", connectorType);
@@ -2561,7 +2561,7 @@ public class TestCoordinator {
     String datastreamName = "TestFastStream";
 
     Properties override = new Properties();
-    override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS,
+    override.put(CoordinatorConfig.CONFIG_PROVISIONING_SLA_THRESHOLD_MS,
         String.valueOf(Duration.ofHours(1).toMillis()));
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
@@ -2629,7 +2629,7 @@ public class TestCoordinator {
     // Threshold of 0 ensures any positive duration would be classified as outside SLA — so the
     // assertion that the counters do NOT increase on resume is meaningful (it's not just below-threshold).
     Properties override = new Properties();
-    override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS, "0");
+    override.put(CoordinatorConfig.CONFIG_PROVISIONING_SLA_THRESHOLD_MS, "0");
 
     Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
     TestHookConnector connector = new TestHookConnector("connector1", connectorType);
