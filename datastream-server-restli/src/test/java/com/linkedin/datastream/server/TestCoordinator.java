@@ -52,6 +52,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
@@ -2509,9 +2510,13 @@ public class TestCoordinator {
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
     long histogramCountBefore = histogramBefore == null ? 0L : histogramBefore.getCount();
 
-    Meter meterBefore =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
-    long meterCountBefore = meterBefore == null ? 0L : meterBefore.getCount();
+    Counter totalBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisioned");
+    long totalCountBefore = totalBefore == null ? 0L : totalBefore.getCount();
+
+    Counter outsideSlaBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedOutsideSla");
+    long outsideSlaCountBefore = outsideSlaBefore == null ? 0L : outsideSlaBefore.getCount();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
     DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
@@ -2527,12 +2532,21 @@ public class TestCoordinator {
     long maxValue = histogram.getSnapshot().getMax();
     Assert.assertTrue(maxValue >= 0, "timeToReadyMs sample should be non-negative, got: " + maxValue);
 
-    Meter meter =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
-    Assert.assertNotNull(meter,
-        "Coordinator.slowProvisioningRate meter should be registered after a stream goes READY");
-    Assert.assertTrue(PollUtils.poll(() -> meter.getCount() > meterCountBefore, 100, 30000),
-        "slowProvisioningRate should increment when duration exceeds threshold");
+    // The total provisioned counter must increment for every stream that reaches READY.
+    Counter total =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisioned");
+    Assert.assertNotNull(total,
+        "Coordinator.numStreamsProvisioned counter should be registered after a stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> total.getCount() > totalCountBefore, 100, 30000),
+        "numStreamsProvisioned should increment when a stream goes READY");
+
+    // With a threshold of 0, any positive provisioning duration is classified as outside SLA.
+    Counter outsideSla =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedOutsideSla");
+    Assert.assertNotNull(outsideSla,
+        "Coordinator.numStreamsProvisionedOutsideSla counter should be registered after a stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> outsideSla.getCount() > outsideSlaCountBefore, 100, 30000),
+        "numStreamsProvisionedOutsideSla should increment when duration exceeds threshold");
 
     coordinator.stop();
     coordinator.getDatastreamCache().getZkclient().close();
@@ -2541,8 +2555,8 @@ public class TestCoordinator {
 
 
   @Test
-  public void testSlowProvisioningRateDoesNotIncrementWhenBelowThreshold() throws Exception {
-    String testCluster = "testSlowProvisioningRateBelowThreshold";
+  public void testProvisioningSloCountsWithinSlaWhenBelowThreshold() throws Exception {
+    String testCluster = "testProvisioningSloWithinSla";
     String connectorType = "testConnectorType";
     String datastreamName = "TestFastStream";
 
@@ -2556,9 +2570,13 @@ public class TestCoordinator {
         new SourceBasedDeduper(), null);
     coordinator.start();
 
-    Meter meterBefore =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
-    long meterCountBefore = meterBefore == null ? 0L : meterBefore.getCount();
+    Counter withinSlaBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedWithinSla");
+    long withinSlaCountBefore = withinSlaBefore == null ? 0L : withinSlaBefore.getCount();
+
+    Counter outsideSlaBefore =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedOutsideSla");
+    long outsideSlaCountBefore = outsideSlaBefore == null ? 0L : outsideSlaBefore.getCount();
 
     Histogram histogramBefore =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
@@ -2570,18 +2588,26 @@ public class TestCoordinator {
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
 
     // Wait for the histogram to increment - this proves recordTimeToReadyMs has finished
-    // running, which means any meter increment (or non-increment) decision has been made.
+    // running, which means the within/outside SLA classification has been made.
     Histogram histogram =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
     Assert.assertNotNull(histogram, "Histogram should exist after stream goes READY");
     Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, 30000),
         "Histogram count did not increment - recordTimeToReadyMs may not have run yet");
 
-    Meter readyMeter =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
-    if (readyMeter != null) {
-      Assert.assertEquals(readyMeter.getCount(), meterCountBefore,
-          "slowProvisioningRate must not increment when duration is below threshold");
+    // With a 1-hour threshold the provisioning duration is below SLA, so the within-SLA counter
+    // increments and the outside-SLA counter must not.
+    Counter withinSla =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedWithinSla");
+    Assert.assertNotNull(withinSla, "numStreamsProvisionedWithinSla counter should exist after stream goes READY");
+    Assert.assertTrue(PollUtils.poll(() -> withinSla.getCount() > withinSlaCountBefore, 100, 30000),
+        "numStreamsProvisionedWithinSla should increment when duration is below threshold");
+
+    Counter outsideSla =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedOutsideSla");
+    if (outsideSla != null) {
+      Assert.assertEquals(outsideSla.getCount(), outsideSlaCountBefore,
+          "numStreamsProvisionedOutsideSla must not increment when duration is below threshold");
     }
 
     coordinator.stop();
@@ -2590,8 +2616,8 @@ public class TestCoordinator {
   }
 
   /**
-   * Resuming a datastream STOPPED -> READY must NOT update either the timeToReadyMs histogram or the
-   * slowProvisioningRate meter. Both metrics are intended to capture only the initial creation
+   * Resuming a datastream STOPPED -> READY must NOT update the timeToReadyMs histogram or any of the
+   * provisioning SLO counters. These metrics are intended to capture only the initial creation
    * flow's INITIALIZING -> READY transition.
    */
   @Test
@@ -2600,8 +2626,8 @@ public class TestCoordinator {
     String connectorType = "testConnectorType";
     String datastreamName = "TestResumeStream";
 
-    // Threshold of 0 ensures any positive duration would trigger the meter — so the assertion
-    // that the meter does NOT increase on resume is meaningful (it's not just below-threshold).
+    // Threshold of 0 ensures any positive duration would be classified as outside SLA — so the
+    // assertion that the counters do NOT increase on resume is meaningful (it's not just below-threshold).
     Properties override = new Properties();
     override.put(CoordinatorConfig.CONFIG_SLOW_PROVISIONING_THRESHOLD_MS, "0");
 
@@ -2620,11 +2646,15 @@ public class TestCoordinator {
     Histogram histogram =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
     Assert.assertNotNull(histogram, "Histogram should exist after the initial create");
-    Meter meter =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.slowProvisioningRate");
-    Assert.assertNotNull(meter, "Meter should exist after the initial create");
+    Counter total =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisioned");
+    Assert.assertNotNull(total, "numStreamsProvisioned counter should exist after the initial create");
+    Counter outsideSla =
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisionedOutsideSla");
+    Assert.assertNotNull(outsideSla, "numStreamsProvisionedOutsideSla counter should exist after the initial create");
     long histogramCountAfterCreate = histogram.getCount();
-    long meterCountAfterCreate = meter.getCount();
+    long totalCountAfterCreate = total.getCount();
+    long outsideSlaCountAfterCreate = outsideSla.getCount();
 
     // Stop and then resume the datastream. The resume path bypasses the INITIALIZING -> READY
     // transition in handleDatastreamAddOrDelete, so neither metric should change.
@@ -2643,8 +2673,10 @@ public class TestCoordinator {
     Thread.sleep(500);
     Assert.assertEquals(histogram.getCount(), histogramCountAfterCreate,
         "timeToReadyMs histogram count must not increase on resume from STOPPED");
-    Assert.assertEquals(meter.getCount(), meterCountAfterCreate,
-        "slowProvisioningRate meter count must not increase on resume from STOPPED");
+    Assert.assertEquals(total.getCount(), totalCountAfterCreate,
+        "numStreamsProvisioned counter must not increase on resume from STOPPED");
+    Assert.assertEquals(outsideSla.getCount(), outsideSlaCountAfterCreate,
+        "numStreamsProvisionedOutsideSla counter must not increase on resume from STOPPED");
 
     coordinator.stop();
     coordinator.getDatastreamCache().getZkclient().close();

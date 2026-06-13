@@ -1390,9 +1390,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   /**
    * Records the time from {@code system.creation.ms} to the {@code INITIALIZING -> READY}
-   * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and,
-   * when the duration exceeds {@link CoordinatorConfig#getSlowProvisioningThresholdMs()},
-   * increments the {@code slowProvisioningRate} meter.
+   * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and the
+   * provisioning SLO counters: {@code numStreamsProvisioned} (total) plus exactly one of
+   * {@code numStreamsProvisionedWithinSla} / {@code numStreamsProvisionedOutsideSla} depending on
+   * whether the duration exceeds {@link CoordinatorConfig#getSlowProvisioningThresholdMs()}. The SLO
+   * is {@code numStreamsProvisionedWithinSla / numStreamsProvisioned}. Emitting the total here, at the
+   * same site and instant as the within/outside counter, keeps the numerator and denominator over an
+   * identical population so the ratio is free of create-vs-ready timing skew. Note that datastreams
+   * which never reach READY (stuck provisioning) are not counted here; those are covered separately by
+   * the non-ready datastream alerting, and are folded into the SLO as outside-SLA if/when they
+   * eventually become READY.
    *
    * <p> {@code system.creation.ms} is written in the request by Nuage before calling the create datastream API. As a
    * fallback, it is written by the coordinator if the property is not already present via {@code putIfAbsent}
@@ -1411,8 +1418,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), timeToReadyMs);
       if (timeToReadyMs >= 0) {
         _metrics.updateTimeToReadyHistogram(timeToReadyMs);
+        // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
+        _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, 1);
         if (timeToReadyMs > _config.getSlowProvisioningThresholdMs()) {
-          _metrics.updateMeter(CoordinatorMetrics.Meter.SLOW_PROVISIONING_RATE, 1);
+          _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA, 1);
+        } else {
+          _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA, 1);
         }
       }
     } catch (NumberFormatException e) {
@@ -2634,8 +2645,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private void registerHistogramMetrics() {
       // The metric is created lazily on first update via createOrUpdateSlidingWindowHistogram.
       // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
-      // to pick up the metric name
-      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS)));
+      // to pick up the metric name.
+      //
+      // Advertise every attribute the histogram framework supports (all percentiles plus Count, Min,
+      // Max, Mean, StdDev) so the external bridge can export the full distribution rather than the
+      // default p50/p99 only. This is declaration-only and fail-safe: BrooklinHistogramInfo.SUPPORTED_ATTRIBUTES
+      // is the exact set the framework understands, so no unsupported attribute can be requested, and
+      // any attribute the bridge chooses not to export is simply ignored — nothing breaks and the
+      // underlying histogram values are unaffected.
+      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS),
+          Optional.of(new ArrayList<>(BrooklinHistogramInfo.SUPPORTED_ATTRIBUTES))));
     }
 
     private void registerMeter(Meter metric) {
@@ -2672,8 +2691,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
       NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks"),
-      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks"),
-      SLOW_PROVISIONING_RATE("slowProvisioningRate");
+      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks");
 
       private final String _name;
 
@@ -2742,7 +2760,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      * Coordinator metrics of type {@link com.codahale.metrics.Counter}
      */
     public enum Counter {
-      NUM_HEARTBEATS("numHeartbeats");
+      NUM_HEARTBEATS("numHeartbeats"),
+      // Provisioning SLO counters. All three are emitted together for every provisioned (READY)
+      // datastream in recordTimeToReadyMs: the total plus exactly one of within/outside SLA.
+      // The provisioning SLO is computed as numStreamsProvisionedWithinSla / numStreamsProvisioned.
+      NUM_STREAMS_PROVISIONED("numStreamsProvisioned"),
+      NUM_STREAMS_PROVISIONED_WITHIN_SLA("numStreamsProvisionedWithinSla"),
+      NUM_STREAMS_PROVISIONED_OUTSIDE_SLA("numStreamsProvisionedOutsideSla");
 
       private final String _name;
 
