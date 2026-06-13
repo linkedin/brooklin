@@ -1419,12 +1419,14 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (timeToReadyMs >= 0) {
         _metrics.updateTimeToReadyHistogram(timeToReadyMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
-        _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, 1);
-        if (timeToReadyMs > _config.getProvisioningSlaThresholdMs()) {
-          _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA, 1);
-        } else {
-          _metrics.updateCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA, 1);
-        }
+        // Each is emitted both as an aggregate and keyed by connector name, so the SLO and its misses can
+        // be broken down per connector type (for example Espresso vs TiDB).
+        String connectorName = ds.getConnectorName();
+        _metrics.updateProvisioningSloCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, connectorName);
+        CoordinatorMetrics.Counter slaCounter = timeToReadyMs > _config.getProvisioningSlaThresholdMs()
+            ? CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA
+            : CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA;
+        _metrics.updateProvisioningSloCounter(slaCounter, connectorName);
       }
     } catch (NumberFormatException e) {
       _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
@@ -2504,6 +2506,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       registerKeyedMeterMetrics();
       registerGaugeMetrics();
       registerCounterMetrics();
+      registerKeyedCounterMetrics();
       registerHistogramMetrics();
     }
 
@@ -2547,6 +2550,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     public void updateCounter(Counter metric, int value) {
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), value);
+    }
+
+    // Increments a provisioning SLO counter both as an aggregate (across all connectors) and, when the
+    // connector name is known, keyed by connector. The keyed series enables a per-connector SLO and
+    // per-connector miss breakdown; the aggregate remains the headline SLO.
+    public void updateProvisioningSloCounter(Counter metric, String connectorName) {
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), 1);
+      if (connectorName != null && !connectorName.isEmpty()) {
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, connectorName, metric.getName(), 1);
+      }
     }
 
     public void updateTimeToReadyHistogram(long valueMs) {
@@ -2640,6 +2653,17 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private void registerCounterMetrics() {
       // These metrics are eagerly created
       Arrays.stream(Counter.values()).forEach(this::registerCounter);
+    }
+
+    private void registerKeyedCounterMetrics() {
+      // The per-connector provisioning SLO counters are created lazily on first update via the keyed
+      // createOrUpdateCounter (key = connector name). Register regex-based BrooklinCounterInfo objects so
+      // the external metrics bridge picks up the Coordinator.<connectorName>.<counter> series for each
+      // connector. The aggregate (unkeyed) counters are covered separately by registerCounter.
+      String prefix = _coordinator.getDynamicMetricPrefixRegex();
+      _metricInfos.add(new BrooklinCounterInfo(prefix + Counter.NUM_STREAMS_PROVISIONED.getName()));
+      _metricInfos.add(new BrooklinCounterInfo(prefix + Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA.getName()));
+      _metricInfos.add(new BrooklinCounterInfo(prefix + Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA.getName()));
     }
 
     private void registerHistogramMetrics() {

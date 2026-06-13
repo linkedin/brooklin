@@ -2683,6 +2683,54 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  /**
+   * The provisioning SLO counters are emitted both as an aggregate and keyed by connector name, so the
+   * SLO and its misses can be broken down per connector type. This asserts the per-connector keyed series
+   * (Coordinator.&lt;connectorName&gt;.numStreams...) increments alongside the aggregate.
+   */
+  @Test
+  public void testProvisioningSloCountersAreKeyedByConnector() throws Exception {
+    String testCluster = "testProvisioningSloKeyedByConnector";
+    String connectorType = "testConnectorType";
+    String datastreamName = "TestKeyedStream";
+
+    // Threshold of 0 classifies any positive duration as outside SLA.
+    Properties override = new Properties();
+    override.put(CoordinatorConfig.CONFIG_PROVISIONING_SLA_THRESHOLD_MS, "0");
+
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, override);
+    TestHookConnector connector = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    String keyedTotalName = "Coordinator." + connectorType + ".numStreamsProvisioned";
+    String keyedOutsideSlaName = "Coordinator." + connectorType + ".numStreamsProvisionedOutsideSla";
+    Counter keyedTotalBefore = DynamicMetricsManager.getInstance().getMetric(keyedTotalName);
+    long keyedTotalCountBefore = keyedTotalBefore == null ? 0L : keyedTotalBefore.getCount();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, connectorType, datastreamName);
+    Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
+        DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
+
+    // The per-connector total must increment for the stream that reached READY.
+    Assert.assertTrue(PollUtils.poll(() -> {
+      Counter c = DynamicMetricsManager.getInstance().getMetric(keyedTotalName);
+      return c != null && c.getCount() > keyedTotalCountBefore;
+    }, 100, 30000), keyedTotalName + " should increment when a stream from this connector goes READY");
+
+    // With threshold 0 the per-connector outside-SLA series must also be present and incremented.
+    Counter keyedOutsideSla = DynamicMetricsManager.getInstance().getMetric(keyedOutsideSlaName);
+    Assert.assertNotNull(keyedOutsideSla, keyedOutsideSlaName + " should be registered after the stream goes READY");
+    Assert.assertTrue(keyedOutsideSla.getCount() > 0,
+        keyedOutsideSlaName + " should increment when duration exceeds threshold");
+
+    coordinator.stop();
+    coordinator.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
   @Test
   public void testHeartbeat() throws Exception {
     // Use 1s heartbeat period for quicker execution
