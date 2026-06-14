@@ -1393,20 +1393,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and the
    * provisioning SLO counters: {@code numStreamsProvisioned} (total) plus exactly one of
    * {@code numStreamsProvisionedWithinSla} / {@code numStreamsProvisionedOutsideSla} depending on
-   * whether the duration exceeds {@link CoordinatorConfig#getProvisioningSlaThresholdMs()}. The SLO
-   * is {@code numStreamsProvisionedWithinSla / numStreamsProvisioned}. Emitting the total here, at the
-   * same site and instant as the within/outside counter, keeps the numerator and denominator over an
-   * identical population so the ratio is free of create-vs-ready timing skew. Note that datastreams
-   * which never reach READY (stuck provisioning) are not counted here; those are covered separately by
-   * the non-ready datastream alerting, and are folded into the SLO as outside-SLA if/when they
-   * eventually become READY.
-   *
-   * <p> {@code system.creation.ms} is written in the request by Nuage before calling the create datastream API. As a
-   * fallback, it is written by the coordinator if the property is not already present via {@code putIfAbsent}
-   *
-   * <p>The {@link NumberFormatException} catch defends against externally-supplied or
-   * operator-edited values: because {@code CREATION_MS} is set via {@code putIfAbsent}, any
-   * earlier writer (for example, a buggy REST caller or a manual ZK edit) wins.
+   * whether the duration exceeds {@link CoordinatorConfig#getProvisioningSlaThresholdMs()}.
    */
   private void recordTimeToReadyMs(Datastream ds) {
     String creationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATION_MS);
@@ -2671,14 +2658,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
       // to pick up the metric name.
       //
-      // Advertise every attribute the histogram framework supports (all percentiles plus Count, Min,
-      // Max, Mean, StdDev) so the external bridge can export the full distribution rather than the
-      // default p50/p99 only. This is declaration-only and fail-safe: BrooklinHistogramInfo.SUPPORTED_ATTRIBUTES
-      // is the exact set the framework understands, so no unsupported attribute can be requested, and
-      // any attribute the bridge chooses not to export is simply ignored — nothing breaks and the
-      // underlying histogram values are unaffected.
+      // Advertise the subset of attributes we want exported (Count, Max, Mean and the p50/p95/p99
+      // percentiles) instead of the default p50/p99 only. This is declaration-only and fail-safe: every
+      // attribute below is a valid BrooklinHistogramInfo constant, so no unsupported attribute can be
+      // requested, and any attribute the bridge chooses not to export is simply ignored. Nothing breaks
+      // and the underlying histogram values are unaffected.
       _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS),
-          Optional.of(new ArrayList<>(BrooklinHistogramInfo.SUPPORTED_ATTRIBUTES))));
+          Optional.of(Arrays.asList(
+              BrooklinHistogramInfo.COUNT,
+              BrooklinHistogramInfo.MAX,
+              BrooklinHistogramInfo.MEAN,
+              BrooklinHistogramInfo.PERCENTILE_50,
+              BrooklinHistogramInfo.PERCENTILE_95,
+              BrooklinHistogramInfo.PERCENTILE_99))));
     }
 
     private void registerMeter(Meter metric) {
