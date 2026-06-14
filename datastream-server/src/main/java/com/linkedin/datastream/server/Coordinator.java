@@ -183,8 +183,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // With a 5-min sliding window and sparse provisioning events (typically minutes-to-hours apart),
   // each event lands as an isolated ~5-min plateau in the exported .99thPercentile time series —
   // effectively a per-event scatter view.
-  private static final String TIME_TO_READY_MS = "timeToReadyMs";
-  private static final long TIME_TO_READY_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(5).toMillis();
+  private static final String STREAM_PROVISIONING_TIME_MS = "streamProvisioningTimeMs";
+  private static final long STREAM_PROVISIONING_TIME_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(5).toMillis();
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
@@ -1354,7 +1354,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
                 + "producing events ", ds.getName());
             shouldRetry = true;
           } else {
-            recordTimeToReadyMs(ds);
+            recordStreamProvisioningTime(ds);
           }
         } catch (Exception e) {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
@@ -1390,27 +1390,27 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   /**
    * Records the time from {@code system.creation.ms} to the {@code INITIALIZING -> READY}
-   * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and the
+   * transition for a newly created datastream. Updates the {@code streamProvisioningTimeMs} histogram and the
    * provisioning SLO counters: {@code numStreamsProvisioned} (total) plus exactly one of
    * {@code numStreamsProvisionedWithinSla} / {@code numStreamsProvisionedOutsideSla} depending on
    * whether the duration exceeds {@link CoordinatorConfig#getProvisioningSlaThresholdMs()}.
    */
-  private void recordTimeToReadyMs(Datastream ds) {
+  private void recordStreamProvisioningTime(Datastream ds) {
     String creationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATION_MS);
     if (creationMsStr == null) {
       return;
     }
     try {
-      long timeToReadyMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
-      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), timeToReadyMs);
-      if (timeToReadyMs >= 0) {
-        _metrics.updateTimeToReadyHistogram(timeToReadyMs);
+      long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), streamProvisioningTimeMs);
+      if (streamProvisioningTimeMs >= 0) {
+        _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
         // Each is emitted both as an aggregate and keyed by connector name, so the SLO and its misses can
         // be broken down per connector type (for example Espresso vs TiDB).
         String connectorName = ds.getConnectorName();
         _metrics.updateProvisioningSloCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, connectorName);
-        CoordinatorMetrics.Counter slaCounter = timeToReadyMs > _config.getProvisioningSlaThresholdMs()
+        CoordinatorMetrics.Counter slaCounter = streamProvisioningTimeMs > _config.getProvisioningSlaThresholdMs()
             ? CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA
             : CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA;
         _metrics.updateProvisioningSloCounter(slaCounter, connectorName);
@@ -2549,9 +2549,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     }
 
-    public void updateTimeToReadyHistogram(long valueMs) {
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, null, TIME_TO_READY_MS,
-          TIME_TO_READY_HISTOGRAM_WINDOW_MS, valueMs);
+    public void updateStreamProvisioningTimeHistogram(long valueMs) {
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, null, STREAM_PROVISIONING_TIME_MS,
+          STREAM_PROVISIONING_TIME_HISTOGRAM_WINDOW_MS, valueMs);
     }
 
     public static KeyedMeter getKeyedMeter(EventType eventType) {
@@ -2657,7 +2657,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // The metric is created lazily on first update via createOrUpdateSlidingWindowHistogram.
       // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
       // to pick up the metric name.
-      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS),
+      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, STREAM_PROVISIONING_TIME_MS),
           Optional.of(Arrays.asList(
               BrooklinHistogramInfo.COUNT,
               BrooklinHistogramInfo.MAX,

@@ -2492,10 +2492,10 @@ public class TestCoordinator {
   }
 
   @Test
-  public void testTimeToReadyMetricsOnCreate() throws Exception {
-    String testCluster = "testTimeToReadyMetricsOnCreate";
+  public void testStreamProvisioningTimeMetricsOnCreate() throws Exception {
+    String testCluster = "testStreamProvisioningTimeMetricsOnCreate";
     String connectorType = "testConnectorType";
-    String datastreamName = "TestTimeToReadyStream";
+    String datastreamName = "TestStreamProvisioningStream";
 
     Properties override = new Properties();
     override.put(CoordinatorConfig.CONFIG_PROVISIONING_SLA_THRESHOLD_MS, "0");
@@ -2507,7 +2507,7 @@ public class TestCoordinator {
     coordinator.start();
 
     Histogram histogramBefore =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.streamProvisioningTimeMs");
     long histogramCountBefore = histogramBefore == null ? 0L : histogramBefore.getCount();
 
     Counter totalBefore =
@@ -2524,13 +2524,13 @@ public class TestCoordinator {
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
 
     Histogram histogram =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.streamProvisioningTimeMs");
     Assert.assertNotNull(histogram,
-        "Coordinator.timeToReadyMs histogram should be registered after a stream goes READY");
+        "Coordinator.streamProvisioningTimeMs histogram should be registered after a stream goes READY");
     Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, 30000),
-        "timeToReadyMs histogram count did not increase after stream transitioned to READY");
+        "streamProvisioningTimeMs histogram count did not increase after stream transitioned to READY");
     long maxValue = histogram.getSnapshot().getMax();
-    Assert.assertTrue(maxValue >= 0, "timeToReadyMs sample should be non-negative, got: " + maxValue);
+    Assert.assertTrue(maxValue >= 0, "streamProvisioningTimeMs sample should be non-negative, got: " + maxValue);
 
     // The total provisioned counter must increment for every stream that reaches READY.
     Counter total =
@@ -2579,7 +2579,7 @@ public class TestCoordinator {
     long outsideSlaCountBefore = outsideSlaBefore == null ? 0L : outsideSlaBefore.getCount();
 
     Histogram histogramBefore =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.streamProvisioningTimeMs");
     long histogramCountBefore = histogramBefore == null ? 0L : histogramBefore.getCount();
 
     ZkClient zkClient = new ZkClient(_zkConnectionString);
@@ -2587,13 +2587,13 @@ public class TestCoordinator {
     Assert.assertTrue(PollUtils.poll(() -> DatastreamStatus.READY.equals(
         DatastreamTestUtils.getDatastream(zkClient, testCluster, datastreamName).getStatus()), 200, 30000));
 
-    // Wait for the histogram to increment - this proves recordTimeToReadyMs has finished
+    // Wait for the histogram to increment - this proves recordStreamProvisioningTime has finished
     // running, which means the within/outside SLA classification has been made.
     Histogram histogram =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.streamProvisioningTimeMs");
     Assert.assertNotNull(histogram, "Histogram should exist after stream goes READY");
     Assert.assertTrue(PollUtils.poll(() -> histogram.getCount() > histogramCountBefore, 100, 30000),
-        "Histogram count did not increment - recordTimeToReadyMs may not have run yet");
+        "Histogram count did not increment - recordStreamProvisioningTime may not have run yet");
 
     // With a 1-hour threshold the provisioning duration is below SLA, so the within-SLA counter
     // increments and the outside-SLA counter must not.
@@ -2616,13 +2616,13 @@ public class TestCoordinator {
   }
 
   /**
-   * Resuming a datastream STOPPED -> READY must NOT update the timeToReadyMs histogram or any of the
+   * Resuming a datastream STOPPED -> READY must NOT update the streamProvisioningTimeMs histogram or any of the
    * provisioning SLO counters. These metrics are intended to capture only the initial creation
    * flow's INITIALIZING -> READY transition.
    */
   @Test
-  public void testTimeToReadyMetricsNotEmittedOnResume() throws Exception {
-    String testCluster = "testTimeToReadyMetricsNotEmittedOnResume";
+  public void testStreamProvisioningTimeMetricsNotEmittedOnResume() throws Exception {
+    String testCluster = "testStreamProvisioningTimeMetricsNotEmittedOnResume";
     String connectorType = "testConnectorType";
     String datastreamName = "TestResumeStream";
 
@@ -2644,7 +2644,7 @@ public class TestCoordinator {
 
     // Capture counts after the initial creation has settled.
     Histogram histogram =
-        DynamicMetricsManager.getInstance().getMetric("Coordinator.timeToReadyMs");
+        DynamicMetricsManager.getInstance().getMetric("Coordinator.streamProvisioningTimeMs");
     Assert.assertNotNull(histogram, "Histogram should exist after the initial create");
     Counter total =
         DynamicMetricsManager.getInstance().getMetric("Coordinator.numStreamsProvisioned");
@@ -2672,7 +2672,7 @@ public class TestCoordinator {
     // Give the coordinator event loop time to process anything it might (incorrectly) do.
     Thread.sleep(500);
     Assert.assertEquals(histogram.getCount(), histogramCountAfterCreate,
-        "timeToReadyMs histogram count must not increase on resume from STOPPED");
+        "streamProvisioningTimeMs histogram count must not increase on resume from STOPPED");
     Assert.assertEquals(total.getCount(), totalCountAfterCreate,
         "numStreamsProvisioned counter must not increase on resume from STOPPED");
     Assert.assertEquals(outsideSla.getCount(), outsideSlaCountAfterCreate,
