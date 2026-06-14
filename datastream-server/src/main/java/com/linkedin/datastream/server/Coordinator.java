@@ -2657,12 +2657,6 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       // The metric is created lazily on first update via createOrUpdateSlidingWindowHistogram.
       // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
       // to pick up the metric name.
-      //
-      // Advertise the subset of attributes we want exported (Count, Max, Mean and the p50/p95/p99
-      // percentiles) instead of the default p50/p99 only. This is declaration-only and fail-safe: every
-      // attribute below is a valid BrooklinHistogramInfo constant, so no unsupported attribute can be
-      // requested, and any attribute the bridge chooses not to export is simply ignored. Nothing breaks
-      // and the underlying histogram values are unaffected.
       _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS),
           Optional.of(Arrays.asList(
               BrooklinHistogramInfo.COUNT,
