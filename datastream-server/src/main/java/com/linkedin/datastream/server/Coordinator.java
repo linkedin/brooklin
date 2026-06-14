@@ -2541,7 +2541,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     // Increments a provisioning SLO counter both as an aggregate (across all connectors) and, when the
     // connector name is known, keyed by connector. The keyed series enables a per-connector SLO and
-    // per-connector miss breakdown; the aggregate remains the headline SLO.
+    // per-connector miss breakdown.
     public void updateProvisioningSloCounter(Counter metric, String connectorName) {
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), 1);
       if (connectorName != null && !connectorName.isEmpty()) {
@@ -2777,9 +2777,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      */
     public enum Counter {
       NUM_HEARTBEATS("numHeartbeats"),
-      // Provisioning SLO counters. All three are emitted together for every provisioned (READY)
-      // datastream in recordTimeToReadyMs: the total plus exactly one of within/outside SLA.
-      // The provisioning SLO is computed as numStreamsProvisionedWithinSla / numStreamsProvisioned.
+      // Provisioning SLO counters.
       NUM_STREAMS_PROVISIONED("numStreamsProvisioned"),
       NUM_STREAMS_PROVISIONED_WITHIN_SLA("numStreamsProvisionedWithinSla"),
       NUM_STREAMS_PROVISIONED_OUTSIDE_SLA("numStreamsProvisionedOutsideSla");
