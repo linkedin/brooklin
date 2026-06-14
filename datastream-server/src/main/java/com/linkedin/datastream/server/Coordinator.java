@@ -1406,8 +1406,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       if (streamProvisioningTimeMs >= 0) {
         _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
-        // Each is emitted both as an aggregate and keyed by connector name, so the SLO and its misses can
-        // be broken down per connector type (for example Espresso vs TiDB).
+        // Each is emitted both as an aggregate and keyed by connector name
         String connectorName = ds.getConnectorName();
         _metrics.updateProvisioningSloCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, connectorName);
         CoordinatorMetrics.Counter slaCounter = streamProvisioningTimeMs > _config.getProvisioningSlaThresholdMs()
