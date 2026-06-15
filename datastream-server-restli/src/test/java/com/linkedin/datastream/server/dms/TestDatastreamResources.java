@@ -6,6 +6,8 @@
 package com.linkedin.datastream.server.dms;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -46,6 +48,7 @@ import com.linkedin.datastream.server.DatastreamTask;
 import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.EmbeddedDatastreamCluster;
 import com.linkedin.datastream.server.TestDatastreamServer;
+import com.linkedin.datastream.server.api.lifecycle.DatastreamLifecycleEventType;
 import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.ActionResult;
 import com.linkedin.restli.server.BatchUpdateRequest;
@@ -283,6 +286,100 @@ public class TestDatastreamResources {
     Assert.assertEquals(ds.getStatus(), DatastreamStatus.STOPPED);
     // postDatastreamStateChangeAction should be invoked for status STOPPING and STOPPED
     Assert.assertEquals(connector.getPostDSStatechangeActionInvokeCount(), 3);
+  }
+
+  @Test
+  public void testDatastreamLifecycleListenerNotifiedForAllTransitions() {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+
+    // Record (eventType, datastreamName) pairs as the REST verbs fire the listener synchronously.
+    List<String> recorded = Collections.synchronizedList(new ArrayList<>());
+    coordinator.setDatastreamLifecycleListener((eventType, datastream) ->
+        recorded.add(eventType + ":" + datastream.getName()));
+
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+
+    // CREATE
+    Assert.assertNull(resource.create(datastreamToCreate).getError());
+    PollUtils.poll(() -> resource.get(datastreamName).getStatus() == DatastreamStatus.READY, 100, 10000);
+
+    PathKeys pathKey = Mockito.mock(PathKeys.class);
+    Mockito.when(pathKey.getAsString(DatastreamResources.KEY_NAME)).thenReturn(datastreamName);
+
+    // PAUSE -> RESUME -> STOP -> DELETE
+    Assert.assertEquals(resource.pause(pathKey, false).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(resource.resume(pathKey, false).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(resource.stop(pathKey, false).getStatus(), HttpStatus.S_200_OK);
+    Assert.assertEquals(resource.delete(datastreamName).getStatus(), HttpStatus.S_200_OK);
+
+    // Exactly one lifecycle event per verb, in order, all for this datastream. STOP fires once (on the
+    // confirmed STOPPED transition), not for the intermediate STOPPING transition.
+    Assert.assertEquals(recorded, Arrays.asList(
+        DatastreamLifecycleEventType.CREATE + ":" + datastreamName,
+        DatastreamLifecycleEventType.PAUSE + ":" + datastreamName,
+        DatastreamLifecycleEventType.RESUME + ":" + datastreamName,
+        DatastreamLifecycleEventType.STOP + ":" + datastreamName,
+        DatastreamLifecycleEventType.DELETE + ":" + datastreamName));
+  }
+
+  @Test
+  public void testDatastreamLifecycleListenerFailureDoesNotBreakRequest() {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+
+    // A listener that always throws must never affect the outcome of the REST request.
+    coordinator.setDatastreamLifecycleListener((eventType, datastream) -> {
+      throw new RuntimeException("boom");
+    });
+
+    Datastream datastreamToCreate = generateDatastream(0);
+    String datastreamName = datastreamToCreate.getName();
+    datastreamToCreate.setDestination(new DatastreamDestination());
+    Objects.requireNonNull(datastreamToCreate.getDestination())
+        .setConnectionString("kafka://" + _datastreamKafkaCluster.getZkConnection() + "/testDestination");
+    datastreamToCreate.getDestination().setPartitions(1);
+
+    CreateResponse response = resource.create(datastreamToCreate);
+    Assert.assertNull(response.getError());
+    Assert.assertEquals(response.getStatus(), HttpStatus.S_201_CREATED);
+    Assert.assertEquals(resource.delete(datastreamName).getStatus(), HttpStatus.S_200_OK);
+  }
+
+  @Test
+  public void testDefaultDatastreamLifecycleListenerIsNonNullNoOp() {
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+    Assert.assertNotNull(coordinator.getDatastreamLifecycleListener());
+    // No-op default tolerates invocation and a null reset (which restores the no-op).
+    coordinator.getDatastreamLifecycleListener()
+        .onDatastreamLifecycleEvent(DatastreamLifecycleEventType.CREATE, generateDatastream(0));
+    coordinator.setDatastreamLifecycleListener(null);
+    Assert.assertNotNull(coordinator.getDatastreamLifecycleListener());
+  }
+
+  @Test
+  public void testDatastreamLifecycleListenerNotifiedForUpdate() {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+
+    // Create the datastream first, then register the listener so only the UPDATE event is recorded.
+    Datastream datastream = createAndWaitUntilInitialized(resource, generateDatastream(0));
+    String datastreamName = datastream.getName();
+
+    List<String> recorded = Collections.synchronizedList(new ArrayList<>());
+    coordinator.setDatastreamLifecycleListener((eventType, ds) -> recorded.add(eventType + ":" + ds.getName()));
+
+    // A metadata-only update is permitted by the DummyConnector and drives the UPDATE lifecycle event.
+    datastream.getMetadata().put("key", "value");
+    Assert.assertEquals(resource.update(datastreamName, datastream).getStatus(), HttpStatus.S_200_OK);
+
+    Assert.assertEquals(recorded, Collections.singletonList(
+        DatastreamLifecycleEventType.UPDATE + ":" + datastreamName));
   }
 
   @Test

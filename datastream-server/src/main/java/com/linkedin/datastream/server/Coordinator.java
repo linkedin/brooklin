@@ -75,6 +75,7 @@ import com.linkedin.datastream.serde.SerDeSet;
 import com.linkedin.datastream.server.api.connector.Connector;
 import com.linkedin.datastream.server.api.connector.DatastreamDeduper;
 import com.linkedin.datastream.server.api.connector.DatastreamValidationException;
+import com.linkedin.datastream.server.api.lifecycle.DatastreamLifecycleListener;
 import com.linkedin.datastream.server.api.security.AuthorizationException;
 import com.linkedin.datastream.server.api.security.Authorizer;
 import com.linkedin.datastream.server.api.serde.SerdeAdmin;
@@ -226,6 +227,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private final Map<String, SerdeAdmin> _serdeAdmins = new HashMap<>();
   private final Map<String, Authorizer> _authorizers = new HashMap<>();
+
+  // Optional observability listener notified of datastream lifecycle transitions (create/update/delete/
+  // pause/resume/stop). Defaults to a no-op; typically set once during server bootstrap.
+  private volatile DatastreamLifecycleListener _datastreamLifecycleListener = (eventType, datastream) -> { };
+
   private volatile boolean _shutdown = false;
   // TODO we have _shutdown, eventThread and now _coordinatorEventThreadExiting, for some distinct usage,
   //  we should revisit and refactor to have less variation
@@ -474,6 +480,23 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   public String getInstanceName() {
     return _adapter.getInstanceName();
+  }
+
+  /**
+   * Set the {@link DatastreamLifecycleListener} notified of datastream lifecycle transitions. Optional;
+   * when not set (or set to {@code null}), lifecycle notifications are a no-op. Typically invoked once
+   * during server bootstrap.
+   * @param listener the listener to notify, or {@code null} to disable notifications
+   */
+  public void setDatastreamLifecycleListener(DatastreamLifecycleListener listener) {
+    _datastreamLifecycleListener = listener == null ? (eventType, datastream) -> { } : listener;
+  }
+
+  /**
+   * @return the configured {@link DatastreamLifecycleListener}; never {@code null} (a no-op by default)
+   */
+  public DatastreamLifecycleListener getDatastreamLifecycleListener() {
+    return _datastreamLifecycleListener;
   }
 
   public Collection<DatastreamTask> getDatastreamTasks() {
