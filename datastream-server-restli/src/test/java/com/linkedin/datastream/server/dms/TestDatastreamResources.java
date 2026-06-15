@@ -363,6 +363,26 @@ public class TestDatastreamResources {
   }
 
   @Test
+  public void testDatastreamLifecycleListenerNotifiedForUpdate() {
+    DatastreamResources resource = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
+    Coordinator coordinator = _datastreamKafkaCluster.getPrimaryDatastreamServer().getCoordinator();
+
+    // Create the datastream first, then register the listener so only the UPDATE event is recorded.
+    Datastream datastream = createAndWaitUntilInitialized(resource, generateDatastream(0));
+    String datastreamName = datastream.getName();
+
+    List<String> recorded = Collections.synchronizedList(new ArrayList<>());
+    coordinator.setDatastreamLifecycleListener((eventType, ds) -> recorded.add(eventType + ":" + ds.getName()));
+
+    // A metadata-only update is permitted by the DummyConnector and drives the UPDATE lifecycle event.
+    datastream.getMetadata().put("key", "value");
+    Assert.assertEquals(resource.update(datastreamName, datastream).getStatus(), HttpStatus.S_200_OK);
+
+    Assert.assertEquals(recorded, Collections.singletonList(
+        DatastreamLifecycleEventType.UPDATE + ":" + datastreamName));
+  }
+
+  @Test
   public void testSimultaneousStopDatastreamRequests() {
     DatastreamResources resource1 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
     DatastreamResources resource2 = new DatastreamResources(_datastreamKafkaCluster.getPrimaryDatastreamServer());
