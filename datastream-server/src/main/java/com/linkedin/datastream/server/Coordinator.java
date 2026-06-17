@@ -184,8 +184,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   // With a 5-min sliding window and sparse provisioning events (typically minutes-to-hours apart),
   // each event lands as an isolated ~5-min plateau in the exported .99thPercentile time series —
   // effectively a per-event scatter view.
-  private static final String TIME_TO_READY_MS = "timeToReadyMs";
-  private static final long TIME_TO_READY_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(5).toMillis();
+  private static final String STREAM_PROVISIONING_TIME_MS = "streamProvisioningTimeMs";
+  private static final long STREAM_PROVISIONING_TIME_HISTOGRAM_WINDOW_MS = Duration.ofMinutes(5).toMillis();
 
   private static final AtomicLong PAUSED_DATASTREAMS_GROUPS = new AtomicLong(0L);
 
@@ -1377,7 +1377,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
                 + "producing events ", ds.getName());
             shouldRetry = true;
           } else {
-            recordTimeToReadyMs(ds);
+            recordStreamProvisioningTime(ds);
           }
         } catch (Exception e) {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
@@ -1413,30 +1413,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   /**
    * Records the time from {@code system.creation.ms} to the {@code INITIALIZING -> READY}
-   * transition for a newly created datastream. Updates the {@code timeToReadyMs} histogram and,
-   * when the duration exceeds {@link CoordinatorConfig#getSlowProvisioningThresholdMs()},
-   * increments the {@code slowProvisioningRate} meter.
-   *
-   * <p> {@code system.creation.ms} is written in the request by Nuage before calling the create datastream API. As a
-   * fallback, it is written by the coordinator if the property is not already present via {@code putIfAbsent}
-   *
-   * <p>The {@link NumberFormatException} catch defends against externally-supplied or
-   * operator-edited values: because {@code CREATION_MS} is set via {@code putIfAbsent}, any
-   * earlier writer (for example, a buggy REST caller or a manual ZK edit) wins.
+   * transition for a newly created datastream. Updates the {@code streamProvisioningTimeMs} histogram and the
+   * provisioning SLO counters: {@code numStreamsProvisioned} (total) plus exactly one of
+   * {@code numStreamsProvisionedWithinSla} / {@code numStreamsProvisionedOutsideSla} depending on
+   * whether the duration exceeds {@link CoordinatorConfig#getProvisioningSlaThresholdMs()}.
    */
-  private void recordTimeToReadyMs(Datastream ds) {
+  private void recordStreamProvisioningTime(Datastream ds) {
     String creationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATION_MS);
     if (creationMsStr == null) {
       return;
     }
     try {
-      long timeToReadyMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
-      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), timeToReadyMs);
-      if (timeToReadyMs >= 0) {
-        _metrics.updateTimeToReadyHistogram(timeToReadyMs);
-        if (timeToReadyMs > _config.getSlowProvisioningThresholdMs()) {
-          _metrics.updateMeter(CoordinatorMetrics.Meter.SLOW_PROVISIONING_RATE, 1);
-        }
+      long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), streamProvisioningTimeMs);
+      if (streamProvisioningTimeMs >= 0) {
+        _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
+        // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
+        // Each is emitted both as an aggregate and keyed by connector name
+        String connectorName = ds.getConnectorName();
+        _metrics.updateProvisioningSloCounter(CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED, connectorName);
+        CoordinatorMetrics.Counter slaCounter = streamProvisioningTimeMs > _config.getProvisioningSlaThresholdMs()
+            ? CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA
+            : CoordinatorMetrics.Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA;
+        _metrics.updateProvisioningSloCounter(slaCounter, connectorName);
       }
     } catch (NumberFormatException e) {
       _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
@@ -2516,6 +2515,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       registerKeyedMeterMetrics();
       registerGaugeMetrics();
       registerCounterMetrics();
+      registerKeyedCounterMetrics();
       registerHistogramMetrics();
     }
 
@@ -2561,9 +2561,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), value);
     }
 
-    public void updateTimeToReadyHistogram(long valueMs) {
-      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, null, TIME_TO_READY_MS,
-          TIME_TO_READY_HISTOGRAM_WINDOW_MS, valueMs);
+    // Increments a provisioning SLO counter both as an aggregate (across all connectors) and, when the
+    // connector name is known, keyed by connector. The keyed series enables a per-connector SLO and
+    // per-connector miss breakdown.
+    public void updateProvisioningSloCounter(Counter metric, String connectorName) {
+      _dynamicMetricsManager.createOrUpdateCounter(MODULE, metric.getName(), 1);
+      if (connectorName != null && !connectorName.isEmpty()) {
+        _dynamicMetricsManager.createOrUpdateCounter(MODULE, connectorName, metric.getName(), 1);
+      }
+    }
+
+    public void updateStreamProvisioningTimeHistogram(long valueMs) {
+      _dynamicMetricsManager.createOrUpdateSlidingWindowHistogram(MODULE, null, STREAM_PROVISIONING_TIME_MS,
+          STREAM_PROVISIONING_TIME_HISTOGRAM_WINDOW_MS, valueMs);
     }
 
     public static KeyedMeter getKeyedMeter(EventType eventType) {
@@ -2654,11 +2664,29 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       Arrays.stream(Counter.values()).forEach(this::registerCounter);
     }
 
+    private void registerKeyedCounterMetrics() {
+      // The per-connector provisioning SLO counters are created lazily on first update via the keyed
+      // createOrUpdateCounter (key = connector name). Register regex-based BrooklinCounterInfo objects so
+      // the external metrics bridge picks up the Coordinator.<connectorName>.<counter> series for each
+      // connector. The aggregate (unkeyed) counters are covered separately by registerCounter.
+      String prefix = _coordinator.getDynamicMetricPrefixRegex();
+      _metricInfos.add(new BrooklinCounterInfo(prefix + Counter.NUM_STREAMS_PROVISIONED.getName()));
+      _metricInfos.add(new BrooklinCounterInfo(prefix + Counter.NUM_STREAMS_PROVISIONED_WITHIN_SLA.getName()));
+      _metricInfos.add(new BrooklinCounterInfo(prefix + Counter.NUM_STREAMS_PROVISIONED_OUTSIDE_SLA.getName()));
+    }
+
     private void registerHistogramMetrics() {
       // The metric is created lazily on first update via createOrUpdateSlidingWindowHistogram.
       // Registering the BrooklinHistogramInfo here is required for the external metrics bridge
-      // to pick up the metric name
-      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, TIME_TO_READY_MS)));
+      // to pick up the metric name.
+      _metricInfos.add(new BrooklinHistogramInfo(_coordinator.buildMetricName(MODULE, STREAM_PROVISIONING_TIME_MS),
+          Optional.of(Arrays.asList(
+              BrooklinHistogramInfo.COUNT,
+              BrooklinHistogramInfo.MAX,
+              BrooklinHistogramInfo.MEAN,
+              BrooklinHistogramInfo.PERCENTILE_50,
+              BrooklinHistogramInfo.PERCENTILE_95,
+              BrooklinHistogramInfo.PERCENTILE_99))));
     }
 
     private void registerMeter(Meter metric) {
@@ -2695,8 +2723,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       NUM_PARTITION_ASSIGNMENTS("numPartitionAssignments"),
       NUM_PARTITION_MOVEMENTS("numPartitionMovements"),
       NUM_ORPHAN_CONNECTOR_TASKS("numOrphanConnectorTasks"),
-      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks"),
-      SLOW_PROVISIONING_RATE("slowProvisioningRate");
+      NUM_ORPHAN_CONNECTOR_TASK_LOCKS("numOrphanConnectorTaskLocks");
 
       private final String _name;
 
@@ -2765,7 +2792,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
      * Coordinator metrics of type {@link com.codahale.metrics.Counter}
      */
     public enum Counter {
-      NUM_HEARTBEATS("numHeartbeats");
+      NUM_HEARTBEATS("numHeartbeats"),
+      // Provisioning SLO counters.
+      NUM_STREAMS_PROVISIONED("numStreamsProvisioned"),
+      NUM_STREAMS_PROVISIONED_WITHIN_SLA("numStreamsProvisionedWithinSla"),
+      NUM_STREAMS_PROVISIONED_OUTSIDE_SLA("numStreamsProvisionedOutsideSla");
 
       private final String _name;
 
