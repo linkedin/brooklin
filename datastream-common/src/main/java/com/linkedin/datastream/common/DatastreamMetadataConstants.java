@@ -90,6 +90,13 @@ public class DatastreamMetadataConstants {
   public static final String CREATION_MS = "system.creation.ms";
 
   /**
+   * Time spent running create validation in the resource provider, in milliseconds. Added to the
+   * stream provisioning time alongside {@link #CREATION_MS}. Absent for streams created before this
+   * property existed, in which case it is treated as zero.
+   */
+  public static final String CREATE_VALIDATION_TIME_MS = "system.createValidationTime.ms";
+
+  /**
    * Position at which the ingestion should start for the datastream.
    */
   public static final String START_POSITION = "system.start.position";

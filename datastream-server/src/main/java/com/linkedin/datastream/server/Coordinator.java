@@ -86,6 +86,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATE_VALIDATION_TIME_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS;
@@ -1425,7 +1426,25 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
     try {
       long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
-      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), streamProvisioningTimeMs);
+
+      // Include the create-validation time (set by the resource provider via
+      // system.createValidationTime.ms) so the provisioning metric reflects validation time plus
+      // creation time. Absent or malformed is treated as 0, keeping the creation-time measurement
+      // intact for streams created before this property existed.
+      String validationMsStr = ds.getMetadata().get(CREATE_VALIDATION_TIME_MS);
+      if (validationMsStr != null) {
+        try {
+          long createValidationTimeMs = Long.parseLong(validationMsStr);
+          if (createValidationTimeMs > 0) {
+            streamProvisioningTimeMs += createValidationTimeMs;
+          }
+        } catch (NumberFormatException e) {
+          _log.warn("Invalid {} for datastream {}: {}", CREATE_VALIDATION_TIME_MS, ds.getName(), validationMsStr);
+        }
+      }
+
+      _log.info("Datastream {} transitioned to READY in {} ms (creation + create-validation)",
+          ds.getName(), streamProvisioningTimeMs);
       if (streamProvisioningTimeMs >= 0) {
         _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
