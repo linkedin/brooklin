@@ -1429,19 +1429,22 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
       // Include the create-validation time (set by the resource provider via
       // system.createValidationTime.ms) so the provisioning metric reflects validation time plus
-      // creation time. Absent or malformed is treated as 0, keeping the creation-time measurement
-      // intact for streams created before this property existed.
+      // creation time. Read it from the metadata: add the value when present and greater than 0,
+      // otherwise add 0. This keeps the creation-time measurement intact for streams created before
+      // this property existed.
+      long createValidationTimeMs = 0L;
       String validationMsStr = ds.getMetadata().get(CREATE_VALIDATION_TIME_MS);
       if (validationMsStr != null) {
         try {
-          long createValidationTimeMs = Long.parseLong(validationMsStr);
-          if (createValidationTimeMs > 0) {
-            streamProvisioningTimeMs += createValidationTimeMs;
+          long parsedValidationTimeMs = Long.parseLong(validationMsStr);
+          if (parsedValidationTimeMs > 0) {
+            createValidationTimeMs = parsedValidationTimeMs;
           }
         } catch (NumberFormatException e) {
           _log.warn("Invalid {} for datastream {}: {}", CREATE_VALIDATION_TIME_MS, ds.getName(), validationMsStr);
         }
       }
+      streamProvisioningTimeMs += createValidationTimeMs;
 
       _log.info("Datastream {} transitioned to READY in {} ms (creation + create-validation)",
           ds.getName(), streamProvisioningTimeMs);
