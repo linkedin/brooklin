@@ -1428,19 +1428,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
 
       // Include the create-validation time in the stream provisioning time
-      long createValidationTimeMs = 0L;
-      String validationMsStr = ds.getMetadata().get(CREATE_VALIDATION_TIME_MS);
-      if (validationMsStr != null) {
-        try {
-          long parsedValidationTimeMs = Long.parseLong(validationMsStr);
-          if (parsedValidationTimeMs > 0) {
-            createValidationTimeMs = parsedValidationTimeMs;
-          }
-        } catch (NumberFormatException e) {
-          _log.warn("Invalid {} for datastream {}: {}", CREATE_VALIDATION_TIME_MS, ds.getName(), validationMsStr);
-        }
-      }
-      streamProvisioningTimeMs += createValidationTimeMs;
+      streamProvisioningTimeMs += getCreateValidationTimeMs(ds);
 
       _log.info("Total stream provisioning time for Datastream {} - {} ms", ds.getName(), streamProvisioningTimeMs);
       if (streamProvisioningTimeMs >= 0) {
@@ -1456,6 +1444,25 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     } catch (NumberFormatException e) {
       _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
+    }
+  }
+
+  /**
+   * Returns the create-validation time in milliseconds that is recorded in the
+   * datastream metadata under {@code system.createValidationTime.ms}, or 0 when the property is
+   * absent, not positive, or not a valid long.
+   */
+  @VisibleForTesting
+  static long getCreateValidationTimeMs(Datastream ds) {
+    String validationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATE_VALIDATION_TIME_MS);
+    if (validationMsStr == null) {
+      return 0L;
+    }
+    try {
+      long createValidationTimeMs = Long.parseLong(validationMsStr);
+      return createValidationTimeMs > 0 ? createValidationTimeMs : 0L;
+    } catch (NumberFormatException e) {
+      return 0L;
     }
   }
 
