@@ -1427,11 +1427,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     try {
       long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
 
-      // Include the create-validation time (set by the resource provider via
-      // system.createValidationTime.ms) so the provisioning metric reflects validation time plus
-      // creation time. Read it from the metadata: add the value when present and greater than 0,
-      // otherwise add 0. This keeps the creation-time measurement intact for streams created before
-      // this property existed.
+      // Include the create-validation time in the stream provisioning time
       long createValidationTimeMs = 0L;
       String validationMsStr = ds.getMetadata().get(CREATE_VALIDATION_TIME_MS);
       if (validationMsStr != null) {
@@ -1446,8 +1442,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
       streamProvisioningTimeMs += createValidationTimeMs;
 
-      _log.info("Datastream {} transitioned to READY in {} ms (creation + create-validation)",
-          ds.getName(), streamProvisioningTimeMs);
+      _log.info("Total stream provisioning time for Datastream {} - {} ms", ds.getName(), streamProvisioningTimeMs);
       if (streamProvisioningTimeMs >= 0) {
         _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
