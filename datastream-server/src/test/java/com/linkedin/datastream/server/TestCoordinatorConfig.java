@@ -5,6 +5,7 @@
  */
 package com.linkedin.datastream.server;
 
+import java.time.Duration;
 import java.util.Properties;
 
 import org.testng.Assert;
@@ -58,6 +59,19 @@ public class TestCoordinatorConfig {
     CoordinatorConfig config = createCoordinatorConfig(props);
     Assert.assertEquals(CoordinatorConfig.DEFAULT_TASK_STOP_CHECK_RETRY_PERIOD_MS, config.getTaskStopCheckRetryPeriodMs());
     Assert.assertEquals(CoordinatorConfig.DEFAULT_TASK_STOP_CHECK_TIMEOUT_MS, config.getTaskStopCheckTimeoutMs());
+  }
+
+  @Test
+  public void testProvisioningSlaThresholdConfig() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    Assert.assertEquals(config.getProvisioningSlaThresholdMs(),
+        CoordinatorConfig.DEFAULT_PROVISIONING_SLA_THRESHOLD_MS);
+    Assert.assertEquals(config.getProvisioningSlaThresholdMs(), Duration.ofMinutes(10).toMillis());
+
+    props.put(CoordinatorConfig.CONFIG_PROVISIONING_SLA_THRESHOLD_MS, "1000");
+    CoordinatorConfig overridden = createCoordinatorConfig(props);
+    Assert.assertEquals(overridden.getProvisioningSlaThresholdMs(), 1000L);
   }
 
   @Test

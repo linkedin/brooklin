@@ -86,6 +86,7 @@ import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 
+import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATE_VALIDATION_TIME_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.CREATION_MS;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.SYSTEM_DESTINATION_PREFIX;
 import static com.linkedin.datastream.common.DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS;
@@ -1424,8 +1425,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       return;
     }
     try {
-      long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
-      _log.info("Datastream {} transitioned to READY in {} ms", ds.getName(), streamProvisioningTimeMs);
+      long creationTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      long createValidationTimeMs = getCreateValidationTimeMs(ds);
+      // Total stream provisioning time is the creation time plus the create-validation time.
+      long streamProvisioningTimeMs = creationTimeMs + createValidationTimeMs;
+
+      _log.info("Stream provisioning time for Datastream {} - {} ms (creation {} ms + create-validation {} ms)",
+          ds.getName(), streamProvisioningTimeMs, creationTimeMs, createValidationTimeMs);
       if (streamProvisioningTimeMs >= 0) {
         _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
@@ -1439,6 +1445,25 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
     } catch (NumberFormatException e) {
       _log.warn("Invalid {} for datastream {}: {}", CREATION_MS, ds.getName(), creationMsStr);
+    }
+  }
+
+  /**
+   * Returns the create-validation time in milliseconds that is recorded in the
+   * datastream metadata under {@code system.createValidationTime.ms}, or 0 when the property is
+   * absent, not positive, or not a valid long.
+   */
+  @VisibleForTesting
+  static long getCreateValidationTimeMs(Datastream ds) {
+    String validationMsStr = Objects.requireNonNull(ds.getMetadata()).get(CREATE_VALIDATION_TIME_MS);
+    if (validationMsStr == null) {
+      return 0L;
+    }
+    try {
+      long createValidationTimeMs = Long.parseLong(validationMsStr);
+      return createValidationTimeMs > 0 ? createValidationTimeMs : 0L;
+    } catch (NumberFormatException e) {
+      return 0L;
     }
   }
 
