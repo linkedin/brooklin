@@ -1425,12 +1425,13 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       return;
     }
     try {
-      long streamProvisioningTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      long creationTimeMs = System.currentTimeMillis() - Long.parseLong(creationMsStr);
+      long createValidationTimeMs = getCreateValidationTimeMs(ds);
+      // Total stream provisioning time is the creation time plus the create-validation time.
+      long streamProvisioningTimeMs = creationTimeMs + createValidationTimeMs;
 
-      // Include the create-validation time in the stream provisioning time
-      streamProvisioningTimeMs += getCreateValidationTimeMs(ds);
-
-      _log.info("Total stream provisioning time for Datastream {} - {} ms", ds.getName(), streamProvisioningTimeMs);
+      _log.info("Stream provisioning time for Datastream {} - {} ms (creation {} ms + create-validation {} ms)",
+          ds.getName(), streamProvisioningTimeMs, creationTimeMs, createValidationTimeMs);
       if (streamProvisioningTimeMs >= 0) {
         _metrics.updateStreamProvisioningTimeHistogram(streamProvisioningTimeMs);
         // Emit the SLO counters atomically: the total provisioned and exactly one of within/outside SLA.
