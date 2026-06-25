@@ -9,7 +9,7 @@ ext {
     checkstyleVersion = "10.12.7"
     guavaVersion = "25.0-jre"
     intellijAnnotationsVersion = "12.0"
-    jacksonVersion = "2.10.0"
+    jacksonVersion = "2.18.8"
     jsr305Version = "3.0.2"
     kafkaVersion = "2.4.1.66"
     log4j2Version = "2.20.0"
