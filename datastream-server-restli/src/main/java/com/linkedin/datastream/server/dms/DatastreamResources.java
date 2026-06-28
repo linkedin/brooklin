@@ -240,8 +240,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
                   + " old: %s new: %s", key, oldDatastream, datastream));
         }
 
-        if (datastream.getMetadata().containsKey(NUM_TASKS) &&
-            !datastream.getMetadata().get(NUM_TASKS).equals(oldDatastream.getMetadata().get(NUM_TASKS))) {
+        if (datastream.getMetadata().containsKey(NUM_TASKS)
+            && !datastream.getMetadata().get(NUM_TASKS).equals(oldDatastream.getMetadata().get(NUM_TASKS))) {
           throw new DatastreamValidationException(String.format("Failed to update %s. Can't update numTasks."
               + " old: %s new: %s", key, oldDatastream, datastream));
         }
@@ -560,8 +560,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
           "Datastream to resume does not exist: " + datastreamName);
     }
 
-    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus()) &&
-        !DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
+    if (!DatastreamStatus.PAUSED.equals(datastream.getStatus())
+        && !DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
       _errorLogger.logAndThrowRestLiServiceException(HttpStatus.S_405_METHOD_NOT_ALLOWED,
           "Datastream is not paused or stopped, cannot resume: " + datastreamName);
     }
@@ -571,8 +571,8 @@ public class DatastreamResources extends CollectionResourceTemplate<String, Data
     LOG.info("Resuming datastreams {}", datastreamsToResume);
     for (Datastream d : datastreamsToResume) {
       try {
-        if (DatastreamStatus.PAUSED.equals(datastream.getStatus()) ||
-            DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
+        if (DatastreamStatus.PAUSED.equals(datastream.getStatus())
+            || DatastreamStatus.STOPPED.equals(datastream.getStatus())) {
           d.setStatus(DatastreamStatus.READY);
           _store.updateDatastream(d.getName(), d, true);
           // invoke post datastream state change action for recently resumed datastream

@@ -125,12 +125,12 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
     AtomicLong numTopics = NUM_TOPICS_PER_METRIC_KEY.computeIfAbsent(_fullMetricsKey, k -> new AtomicLong(0));
     DYNAMIC_METRICS_MANAGER.registerGauge(_className, _key, NUM_TOPICS, numTopics::get);
 
-    _pollDurationMsMetric = enableAdditionalMetrics ?
-        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
-    _timeSpentBetweenPollsMsMetric = enableAdditionalMetrics ?
-        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS, Histogram.class) : null;
-    _perEventProcessingTimeNanosMetric = enableAdditionalMetrics ?
-        DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, PER_EVENT_PROCESSING_TIME_NANOS, Histogram.class) : null;
+    _pollDurationMsMetric = enableAdditionalMetrics
+        ? DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, POLL_DURATION_MS, Histogram.class) : null;
+    _timeSpentBetweenPollsMsMetric = enableAdditionalMetrics
+        ? DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, TIME_SPENT_BETWEEN_POLLS_MS, Histogram.class) : null;
+    _perEventProcessingTimeNanosMetric = enableAdditionalMetrics
+        ? DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, PER_EVENT_PROCESSING_TIME_NANOS, Histogram.class) : null;
 
     AtomicLong aggNumConfigPausedPartitions =
         AGGREGATED_NUM_CONFIG_PAUSED_PARTITIONS.computeIfAbsent(className, k -> new AtomicLong(0));

@@ -123,9 +123,9 @@ public class BroadcastStrategy implements AssignmentStrategy {
   }
 
   private DatastreamTask getOrCreateDatastreamTask(List<DatastreamTask> reuseTasksPerDg, DatastreamGroup dg) {
-    return (!reuseTasksPerDg.isEmpty()) ?
-        reuseTasksPerDg.remove(reuseTasksPerDg.size() - 1) :
-        new DatastreamTaskImpl(dg.getDatastreams());
+    return (!reuseTasksPerDg.isEmpty())
+        ? reuseTasksPerDg.remove(reuseTasksPerDg.size() - 1)
+        : new DatastreamTaskImpl(dg.getDatastreams());
   }
 
   private int getNumTasks(DatastreamGroup dg, int numInstances) {

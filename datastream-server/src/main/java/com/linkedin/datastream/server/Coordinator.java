@@ -801,8 +801,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     if (queueEvent) {
       _log.warn("Queuing onAssignmentChange event");
-      CoordinatorEvent event = isDatastreamUpdate ? CoordinatorEvent.createHandleDatastreamChangeEvent() :
-          CoordinatorEvent.createHandleAssignmentChangeEvent();
+      CoordinatorEvent event = isDatastreamUpdate ? CoordinatorEvent.createHandleDatastreamChangeEvent()
+          : CoordinatorEvent.createHandleAssignmentChangeEvent();
       queueHandleAssignmentOrDatastreamChangeEvent(event, false);
     }
   }
@@ -1098,8 +1098,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         if (retryAndSaveError) {
           err += " Queuing up a new onAssignmentChange event for retry.";
           _eventQueue.put(CoordinatorEvent.createHandleInstanceErrorEvent(ExceptionUtils.getRootCauseMessage(ex)));
-          CoordinatorEvent event = isDatastreamUpdate ? CoordinatorEvent.createHandleDatastreamChangeEvent() :
-              CoordinatorEvent.createHandleAssignmentChangeEvent();
+          CoordinatorEvent event = isDatastreamUpdate ? CoordinatorEvent.createHandleDatastreamChangeEvent()
+              : CoordinatorEvent.createHandleAssignmentChangeEvent();
           queueHandleAssignmentOrDatastreamChangeEvent(event, false);
         }
         _log.warn(err, ex);
@@ -1151,8 +1151,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     boolean customCheckpointing = _connectors.get(task.getConnectorType()).isCustomCheckpointing();
 
     Datastream datastream = task.getDatastreams().get(0);
-    if (datastream.hasMetadata() &&
-        Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
+    if (datastream.hasMetadata()
+        && Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.CUSTOM_CHECKPOINT)) {
       customCheckpointing = Boolean.parseBoolean(
           datastream.getMetadata().get(DatastreamMetadataConstants.CUSTOM_CHECKPOINT));
       _log.info(String.format("Custom checkpointing overridden by metadata to be: %b for datastream: %s",
@@ -1638,8 +1638,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
         Thread.currentThread().getName(), streamNames);
     // Poll the zookeeper to ensure that hosts claimed assignment tokens for stopping streams
     Set<String> failedStreams = Collections.emptySet();
-    if (_config.getEnableAssignmentTokens() &&
-        !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
+    if (_config.getEnableAssignmentTokens()
+        && !PollUtils.poll(() -> _adapter.getNumUnclaimedTokensForDatastreams(stoppingDatastreamGroups) == 0,
             STOP_PROPAGATION_RETRY_MS, _config.getStopPropagationTimeoutMs())) {
       Map<String, List<AssignmentToken>> unclaimedTokens =
           _adapter.getUnclaimedAssignmentTokensForDatastreams(stoppingDatastreamGroups);
@@ -1654,8 +1654,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
         _metrics.updateMeter(CoordinatorMetrics.Meter.NUM_FAILED_STOPS, failedStreams.size());
       } else if (!failedStreams.isEmpty()) {
-        _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was " +
-                "expecting the hosts {} to claim tokens but they didn't",
+        _log.warn("Stop may have failed to propagate within {}ms for streams: {}. The newly elected leader was "
+                + "expecting the hosts {} to claim tokens but they didn't",
             _config.getStopPropagationTimeoutMs(), failedStreams, hosts);
       }
       revokeUnclaimedAssignmentTokens(unclaimedTokens, stoppingDatastreamGroups);
@@ -1778,8 +1778,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           DatastreamGroupPartitionsMetadata subscribes = connectorInstance.getDatastreamPartitions()
               .get(toProcessDatastream.getName())
               .orElseThrow(() ->
-                  new DatastreamTransientException("Subscribed partition is not ready yet for datastream " +
-                      toProcessDatastream.getName()));
+                  new DatastreamTransientException("Subscribed partition is not ready yet for datastream "
+                      + toProcessDatastream.getName()));
 
           assignmentByInstance = strategy.assignPartitions(assignmentByInstance, subscribes);
         } else {

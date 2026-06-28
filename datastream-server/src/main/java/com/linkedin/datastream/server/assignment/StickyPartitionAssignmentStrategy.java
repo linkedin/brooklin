@@ -544,8 +544,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   @Override
   protected int constructExpectedNumberOfTasks(DatastreamGroup dg, int totalInstances) {
     boolean enableElasticTaskAssignment = isElasticTaskAssignmentEnabled(dg);
-    int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix()) :
-        getNumTasks(dg, totalInstances);
+    int numTasks = enableElasticTaskAssignment ? getNumTasksFromCacheOrZK(dg.getTaskPrefix())
+        : getNumTasks(dg, totalInstances);
 
     // Case 1: If elastic task assignment is disabled set the expected number of tasks to numTasks.
     int expectedNumberOfTasks = numTasks;
@@ -618,8 +618,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     LOG.info("Calculating number of tasks needed based on partitions per task: calculated->{}:config->{}, "
             + "fullness percentage: calculated->{}:config->{}", partitionsPerTask, _partitionsPerTask,
         partitionFullnessFactorPct, _partitionFullnessFactorPct);
-    int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) >= 100 ?
-        (partitionsPerTask * partitionFullnessFactorPct) / 100 : 1;
+    int allowedPartitionsPerTask = (partitionsPerTask * partitionFullnessFactorPct) >= 100
+        ? (partitionsPerTask * partitionFullnessFactorPct) / 100 : 1;
     int totalPartitions = datastreamPartitions.getPartitions().size();
     int numTasksNeeded = (totalPartitions / allowedPartitionsPerTask)
         + (((totalPartitions % allowedPartitionsPerTask) == 0) ? 0 : 1);

@@ -183,8 +183,8 @@ public class DatastreamTaskImpl implements DatastreamTask {
     _dependencies = new ArrayList<>();
     if (!predecessor._partitionsV2.isEmpty()) {
       if (!predecessor.isLocked()) {
-        throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, " +
-            "the previous assignment has not been picked up");
+        throw new DatastreamTransientException("task " + predecessor.getDatastreamTaskName() + " is not locked, "
+            + "the previous assignment has not been picked up");
       }
       _dependencies.add(predecessor.getDatastreamTaskName());
     }

@@ -179,8 +179,8 @@ public class KafkaMirrorMakerConnectorTask extends AbstractKafkaBasedConnectorTa
     VerifiableProperties connectorProperties = config.getConnectorProps();
     Properties topicManagerProperties = new Properties();
     String topicManagerFactoryName = DEFAULT_TOPIC_MANAGER_FACTORY;
-    if (null != connectorProperties &&
-        null != connectorProperties.getProperty(TOPIC_MANAGER_FACTORY)) {
+    if (null != connectorProperties
+        && null != connectorProperties.getProperty(TOPIC_MANAGER_FACTORY)) {
       topicManagerProperties = connectorProperties.getDomainProperties(DOMAIN_TOPIC_MANAGER);
       topicManagerFactoryName = connectorProperties.getProperty(TOPIC_MANAGER_FACTORY);
       // Propagate the destinationTopicPrefix config to the topic manager so that it can create destination topics
