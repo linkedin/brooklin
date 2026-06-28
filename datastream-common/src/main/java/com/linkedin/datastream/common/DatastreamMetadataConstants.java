@@ -10,6 +10,9 @@ package com.linkedin.datastream.common;
  */
 public class DatastreamMetadataConstants {
 
+  private DatastreamMetadataConstants() {
+  }
+
   /**
    * Represents whether the datastream has an User managed destination (a.k.a BYOT - Bring your own topic)
    */

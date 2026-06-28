@@ -68,7 +68,7 @@ public class CommonConnectorMetrics {
     final Meter _aggregatedErrorRate;
     final Meter _aggregatedProcessingAboveThreshold;
 
-    public EventProcMetrics(String className, String key) {
+    EventProcMetrics(String className, String key) {
       super(className, key);
       _lastEventReceivedTime = Instant.now();
       _eventsProcessedRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENTS_PROCESSED_RATE,
@@ -139,7 +139,7 @@ public class CommonConnectorMetrics {
     final Counter _aggregatedClientPollOverTimeout;
     final Counter _aggregatedClientPollIntervalOverSessionTimeout;
 
-    public PollMetrics(String className, String key) {
+    PollMetrics(String className, String key) {
       super(className, key);
       _numPolls = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, NUM_POLLS, Meter.class);
       _eventCountsPerPoll = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, EVENT_COUNTS_PER_POLL,
@@ -203,7 +203,7 @@ public class CommonConnectorMetrics {
     private final AtomicLong _numPartitions;
     private final AtomicLong _numStuckPartitions;
 
-    public PartitionMetrics(String className, String key) {
+    PartitionMetrics(String className, String key) {
       super(className, key);
       _fullMetricsKey = MetricRegistry.name(_className, _key);
       _rebalanceRate = DYNAMIC_METRICS_MANAGER.registerMetric(_className, _key, REBALANCE_RATE, Meter.class);

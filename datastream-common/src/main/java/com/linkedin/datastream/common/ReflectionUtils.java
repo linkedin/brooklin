@@ -19,6 +19,10 @@ import org.slf4j.LoggerFactory;
  * Utility class to simplify usage of Java reflection.
  */
 public class ReflectionUtils {
+
+  private ReflectionUtils() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(ReflectionUtils.class);
 
   private static final Class<?>[][] COMPATIBLE_TYPES = {

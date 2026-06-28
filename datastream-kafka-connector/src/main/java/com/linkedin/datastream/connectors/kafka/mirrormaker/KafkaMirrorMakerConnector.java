@@ -268,7 +268,7 @@ public class KafkaMirrorMakerConnector extends AbstractKafkaConnector {
    *  PartitionDiscoveryThread listens to Kafka partitions periodically using the _consumer.listTopic()
    *  to fetch the latest subscribed partitions for a given datastreamGroup
    */
-  class PartitionDiscoveryThread extends Thread {
+  final class PartitionDiscoveryThread extends Thread {
     // The datastream group that this partitionDiscoveryThread is responsible to handle
     private final DatastreamGroup _datastreamGroup;
 

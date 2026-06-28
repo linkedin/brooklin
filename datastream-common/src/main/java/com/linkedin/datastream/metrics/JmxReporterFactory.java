@@ -22,6 +22,10 @@ import com.codahale.metrics.jmx.ObjectNameFactory;
  * names are decided according to {@link BrooklinObjectNameFactory}.
  */
 public class JmxReporterFactory {
+
+  private JmxReporterFactory() {
+  }
+
   private static final ObjectNameFactory OBJECT_NAME_FACTORY = new BrooklinObjectNameFactory();
 
   /**

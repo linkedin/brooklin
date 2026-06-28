@@ -10,6 +10,9 @@ package com.linkedin.datastream.tools;
  */
 public class OptionConstants {
 
+  private OptionConstants() {
+  }
+
   public static final String OPT_SHORT_MGMT_URI = "u";
   public static final String OPT_LONG_MGMT_URI = "uri";
   public static final String OPT_ARG_MGMT_URI = "MANAGEMENT_URI";

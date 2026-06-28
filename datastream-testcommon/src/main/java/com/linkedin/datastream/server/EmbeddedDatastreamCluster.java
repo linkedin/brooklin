@@ -28,7 +28,7 @@ import com.linkedin.datastream.testutil.EmbeddedZookeeper;
 /**
  * Provides a Datastream cluster, including a ZooKeeper cluster and Kafka cluster (if necessary), for testing purposes.
  */
-public class EmbeddedDatastreamCluster {
+public final class EmbeddedDatastreamCluster {
 
   public static final String CONFIG_ZK_CONNECT = "zookeeper.connect";
   public static final String BOOTSTRAP_SERVERS_CONFIG = "bootstrap.servers";

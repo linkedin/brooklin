@@ -33,6 +33,9 @@ import org.apache.avro.specific.SpecificRecord;
  */
 public class AvroUtils {
 
+  private AvroUtils() {
+  }
+
   /**
    * Encode an Avro record into byte array
    *

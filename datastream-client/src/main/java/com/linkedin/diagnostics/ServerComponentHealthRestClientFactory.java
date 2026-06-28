@@ -21,6 +21,10 @@ import com.linkedin.restli.client.RestClient;
  * Factory class for obtaining {@link ServerComponentHealthRestClient} objects.
  */
 public final class ServerComponentHealthRestClientFactory {
+
+  private ServerComponentHealthRestClientFactory() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClientFactory.class);
   private static final BaseRestClientFactory<ServerComponentHealthRestClient> FACTORY =
       new BaseRestClientFactory<>(ServerComponentHealthRestClient.class, LOG);

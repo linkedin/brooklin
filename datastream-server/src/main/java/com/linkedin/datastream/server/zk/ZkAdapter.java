@@ -1699,7 +1699,7 @@ public class ZkAdapter {
     /**
      * Sets up a watch on the {@code /{cluster}/dms} tree, so it can be notified of future changes.
      */
-    public ZkBackedDMSDatastreamList() {
+    ZkBackedDMSDatastreamList() {
       _path = KeyBuilder.datastreams(_cluster);
       _zkclient.ensurePath(KeyBuilder.datastreams(_cluster));
       LOG.info("ZkBackedDMSDatastreamList::Subscribing to the changes under the path " + _path);
@@ -1768,7 +1768,7 @@ public class ZkAdapter {
      * Sets up a watch on the {@code /{cluster}/liveinstances} tree, so it can be notified
      * of future changes.
      */
-    public ZkBackedLiveInstanceListProvider() {
+    ZkBackedLiveInstanceListProvider() {
       _path = KeyBuilder.liveInstances(_cluster);
       _zkclient.ensurePath(_path);
       LOG.info("ZkBackedLiveInstanceListProvider::Subscribing to the under the path " + _path);
@@ -1850,7 +1850,7 @@ public class ZkAdapter {
      * Constructor
      * @param instanceName Instance for which the datastream task assignment is to be watched.
      */
-    public ZkBackedTaskListProvider(String cluster, String instanceName) {
+    ZkBackedTaskListProvider(String cluster, String instanceName) {
       _path = KeyBuilder.instanceAssignments(cluster, instanceName);
       LOG.info("ZkBackedTaskListProvider::Subscribing to the changes under the path " + _path);
       _zkclient.subscribeChildChanges(_path, this);
@@ -1901,7 +1901,7 @@ public class ZkAdapter {
     /**
      * Constructor
      */
-    public ZkTargetAssignmentProvider(Set<String> connectorTypes) {
+    ZkTargetAssignmentProvider(Set<String> connectorTypes) {
       for (String connectorType : connectorTypes) {
         String path = KeyBuilder.getTargetAssignmentBase(_cluster, connectorType);
         _zkclient.subscribeDataChanges(path, this);
@@ -1956,7 +1956,7 @@ public class ZkAdapter {
         new ThreadFactoryBuilder().setDaemon(true).setNameFormat("SessionExpiryScheduler-%d").build());
     private Future<?> _zkSessionExpiryFuture = CompletableFuture.completedFuture("completed");
 
-    public ZkStateChangeListener() {
+    ZkStateChangeListener() {
       _zkclient.subscribeStateChanges(this);
     }
 

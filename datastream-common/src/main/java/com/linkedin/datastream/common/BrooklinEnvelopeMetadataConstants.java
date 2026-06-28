@@ -10,6 +10,9 @@ package com.linkedin.datastream.common;
  */
 public class BrooklinEnvelopeMetadataConstants {
 
+  private BrooklinEnvelopeMetadataConstants() {
+  }
+
   /**
    * Codes to identify the different data change operations
    */

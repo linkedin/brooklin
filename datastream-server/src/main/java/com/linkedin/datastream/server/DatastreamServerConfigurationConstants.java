@@ -10,6 +10,9 @@ package com.linkedin.datastream.server;
  */
 public final class DatastreamServerConfigurationConstants {
 
+  private DatastreamServerConfigurationConstants() {
+  }
+
   public static final String CONFIG_PREFIX = "brooklin.server.";
   public static final String CONFIG_CONNECTOR_NAMES = CONFIG_PREFIX + "connectorNames";
   public static final String CONFIG_HTTP_PORT = CONFIG_PREFIX + "httpPort";

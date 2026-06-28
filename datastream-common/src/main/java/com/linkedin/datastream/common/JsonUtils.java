@@ -32,6 +32,10 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  * for checking the
  */
 public final class JsonUtils {
+
+  private JsonUtils() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(JsonUtils.class.getName());
 
   private static final ObjectMapper MAPPER = new ObjectMapper();

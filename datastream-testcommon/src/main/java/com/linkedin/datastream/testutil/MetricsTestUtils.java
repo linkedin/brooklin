@@ -35,7 +35,7 @@ import com.linkedin.datastream.metrics.MetricsAware;
  * Test utilities for verifying metrics
  * @see MetricsAware
  */
-public class MetricsTestUtils {
+public final class MetricsTestUtils {
   // Mapping of BrooklinMetricInfo sub-types -> com.codahale.metrics types
   private static final Map<Class<? extends BrooklinMetricInfo>, Class<? extends Metric>> METRICS_TYPE_MAPPING = ImmutableMap.of(
       BrooklinCounterInfo.class, Counter.class,

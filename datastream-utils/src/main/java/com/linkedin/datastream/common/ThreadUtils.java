@@ -16,6 +16,10 @@ import org.slf4j.Logger;
  * Utility methods for dealing with threading-related concerns.
  */
 public final class ThreadUtils {
+
+  private ThreadUtils() {
+  }
+
   /**
    * Gracefully shutdown an executor service and force terminate if the worker threads
    * do not exit within the specified time out. Adapted from JDK javadoc:

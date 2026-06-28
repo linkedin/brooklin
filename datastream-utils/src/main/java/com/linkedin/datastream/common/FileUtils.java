@@ -19,6 +19,9 @@ import org.slf4j.LoggerFactory;
  */
 public class FileUtils {
 
+  private FileUtils() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(FileUtils.class.getName());
 
   /**

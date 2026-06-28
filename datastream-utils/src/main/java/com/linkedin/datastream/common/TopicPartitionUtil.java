@@ -13,6 +13,9 @@ import org.apache.kafka.common.TopicPartition;
  */
 public class TopicPartitionUtil {
 
+  private TopicPartitionUtil() {
+  }
+
   /**
    * Create a topic partition instance from String
    */

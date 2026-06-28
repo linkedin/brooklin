@@ -13,6 +13,9 @@ import org.apache.commons.lang3.StringUtils;
  */
 public class OptionUtils {
 
+  private OptionUtils() {
+  }
+
   /**
    * Create a command line option
    * @param shortOpt short representation of the option

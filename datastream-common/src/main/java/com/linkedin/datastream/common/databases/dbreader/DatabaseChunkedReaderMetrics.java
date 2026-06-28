@@ -52,7 +52,7 @@ class DatabaseChunkedReaderMetrics extends BrooklinMetrics {
    * @param source Aggregate metrics for source .i.e. at the Database table level
    * @param key Metrics at the reader level, identified by key
    */
-  public DatabaseChunkedReaderMetrics(String source, String key) {
+  DatabaseChunkedReaderMetrics(String source, String key) {
     super(CLASS_NAME, key);
     _source = source;
 

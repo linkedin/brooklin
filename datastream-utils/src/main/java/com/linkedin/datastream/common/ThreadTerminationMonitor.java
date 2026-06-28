@@ -26,6 +26,9 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
  */
 public class ThreadTerminationMonitor {
 
+  private ThreadTerminationMonitor() {
+  }
+
   private static final String ABNORMAL_TERMINATIONS = "abnormalTerminations";
 
   private static final String MODULE = ThreadTerminationMonitor.class.getSimpleName();

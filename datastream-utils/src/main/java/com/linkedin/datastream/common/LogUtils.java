@@ -21,6 +21,10 @@ import org.slf4j.LoggerFactory;
  * Util class for logging-related methods
  */
 public class LogUtils {
+
+  private LogUtils() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(LogUtils.class.getName());
   private static final double BUFFER_1KB =  1024;
 
