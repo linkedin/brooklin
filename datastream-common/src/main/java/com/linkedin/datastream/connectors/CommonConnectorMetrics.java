@@ -492,8 +492,7 @@ public class CommonConnectorMetrics {
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getEventProcessingMetrics(String prefix) {
-    prefix = Strings.nullToEmpty(prefix);
-    return EventProcMetrics.getMetricInfos(prefix);
+    return EventProcMetrics.getMetricInfos(Strings.nullToEmpty(prefix));
   }
 
   /**
@@ -502,8 +501,7 @@ public class CommonConnectorMetrics {
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getEventPollMetrics(String prefix) {
-    prefix = Strings.nullToEmpty(prefix);
-    return PollMetrics.getMetricInfos(prefix);
+    return PollMetrics.getMetricInfos(Strings.nullToEmpty(prefix));
   }
 
   /**
@@ -512,7 +510,6 @@ public class CommonConnectorMetrics {
    * @return List of exposed Brooklin metrics for the connector activity
    */
   public static List<BrooklinMetricInfo> getPartitionSpecificMetrics(String prefix) {
-    prefix = Strings.nullToEmpty(prefix);
-    return PartitionMetrics.getMetricInfos(prefix);
+    return PartitionMetrics.getMetricInfos(Strings.nullToEmpty(prefix));
   }
 }

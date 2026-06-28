@@ -173,11 +173,12 @@ public class ZkClient extends org.apache.helix.zookeeper.impl.client.ZkClient {
     Stack<String> pstack = new Stack<>();
 
     // push paths in stack because we need to create from parent to children
-    while (!exists(path)) {
-      pstack.push(path);
-      path = path.substring(0, path.lastIndexOf(ZK_PATH_SEPARATOR));
-      if (path.isEmpty()) {
-        path = ZK_PATH_SEPARATOR;
+    String current = path;
+    while (!exists(current)) {
+      pstack.push(current);
+      current = current.substring(0, current.lastIndexOf(ZK_PATH_SEPARATOR));
+      if (current.isEmpty()) {
+        current = ZK_PATH_SEPARATOR;
       }
     }
 

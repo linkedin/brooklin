@@ -232,7 +232,7 @@ public class DatastreamTaskImpl implements DatastreamTask {
 
   @JsonIgnore
   public String getDatastreamTaskName() {
-    return _id.equals("") ? _taskPrefix : _taskPrefix + "_" + _id;
+    return "".equals(_id) ? _taskPrefix : _taskPrefix + "_" + _id;
   }
 
   @JsonIgnore

@@ -26,12 +26,12 @@ public final class RestliUtils {
    *         a {@code "/"} appended to it unless it already has one.
    */
   public static String sanitizeUri(String uri) {
-    uri = uri.toLowerCase();
-    if (!uri.startsWith(URI_SCHEME) && !uri.startsWith(URI_SCHEME_SSL)) {
+    String sanitized = uri.toLowerCase();
+    if (!sanitized.startsWith(URI_SCHEME) && !sanitized.startsWith(URI_SCHEME_SSL)) {
       // use plaintext by default
-      uri = URI_SCHEME + uri;
+      sanitized = URI_SCHEME + sanitized;
     }
-    return StringUtils.appendIfMissing(uri, "/");
+    return StringUtils.appendIfMissing(sanitized, "/");
   }
 
   /**
@@ -41,14 +41,15 @@ public final class RestliUtils {
    * @param <T> type of elements in the Stream
    */
   public static <T> Stream<T> withPaging(Stream<T> stream, final PagingContext pagingContext) {
+    Stream<T> paged = stream;
     if (pagingContext.hasStart()) {
-      stream = stream.skip(pagingContext.getStart());
+      paged = paged.skip(pagingContext.getStart());
     }
 
     if (pagingContext.hasCount()) {
-      stream = stream.limit(pagingContext.getCount());
+      paged = paged.limit(pagingContext.getCount());
     }
 
-    return stream;
+    return paged;
   }
 }

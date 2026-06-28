@@ -57,11 +57,9 @@ public class FieldMetadata {
    */
   public static Map<String, String> parseMetadata(String meta) {
     // cut off the trailing delimiter ";"
-    if (meta.endsWith(META_LIST_DELIMITER)) {
-      meta = meta.substring(0, meta.length() - 1);
-    }
+    String trimmedMeta = meta.endsWith(META_LIST_DELIMITER) ? meta.substring(0, meta.length() - 1) : meta;
 
-    String[] parts = meta.split(META_LIST_DELIMITER);
+    String[] parts = trimmedMeta.split(META_LIST_DELIMITER);
     Map<String, String> metas = new HashMap<>(parts.length);
     for (String part : parts) {
       String[] keyValuePair = part.split(META_VALUE_DELIMITER);
