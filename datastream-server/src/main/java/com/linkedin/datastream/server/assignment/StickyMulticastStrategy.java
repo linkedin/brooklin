@@ -185,8 +185,8 @@ public class StickyMulticastStrategy implements AssignmentStrategy {
       while (pendingTasks > 0) {
         // round-robin to the instances
         for (String instance : instancesBySize) {
-          DatastreamTask task = unallocatedTasks.size() > 0 ? unallocatedTasks.remove(unallocatedTasks.size() - 1) :
-              new DatastreamTaskImpl(dg.getDatastreams());
+          DatastreamTask task = unallocatedTasks.size() > 0 ? unallocatedTasks.remove(unallocatedTasks.size() - 1)
+              : new DatastreamTaskImpl(dg.getDatastreams());
           newAssignment.get(instance).add(task);
           pendingTasks--;
           if (pendingTasks == 0) {

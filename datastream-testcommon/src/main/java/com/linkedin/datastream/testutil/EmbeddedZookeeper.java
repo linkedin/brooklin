@@ -104,10 +104,10 @@ public class EmbeddedZookeeper {
     } catch (InterruptedException e) {
       throw new IOException(e);
     }
-    LOG.info("Zookeeper started with ..." +
-        "\n  Port: " + this._port +
-        "\n  Snapshot Dir Path: " + this._snapshotDirPath +
-        "\n  Log Dir Path: " + this._logDirPath);
+    LOG.info("Zookeeper started with ..."
+        + "\n  Port: " + this._port
+        + "\n  Snapshot Dir Path: " + this._snapshotDirPath
+        + "\n  Log Dir Path: " + this._logDirPath);
   }
 
   /**

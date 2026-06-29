@@ -86,8 +86,8 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     LOG.info("Task capacity : {}MBps, task capacity utilization : {}%, Throughput info fetch timeout : {} ms, "
         + "throughput info fetch retry period : {} ms, throughput based partition assignment : {}, "
         + "partition num based task count estimation : {}", _taskCapacityMBps, _taskCapacityUtilizationPct,
-        _throughputInfoFetchTimeoutMs, _throughputInfoFetchRetryPeriodMs, _enableThroughputBasedPartitionAssignment ?
-            "enabled" : "disabled", _enablePartitionNumBasedTaskCountEstimation ? "enabled" : "disabled");
+        _throughputInfoFetchTimeoutMs, _throughputInfoFetchRetryPeriodMs, _enableThroughputBasedPartitionAssignment
+            ? "enabled" : "disabled", _enablePartitionNumBasedTaskCountEstimation ? "enabled" : "disabled");
     _assigner = new LoadBasedPartitionAssigner(defaultPartitionBytesInKBRate, defaultPartitionMsgsInRate);
   }
 

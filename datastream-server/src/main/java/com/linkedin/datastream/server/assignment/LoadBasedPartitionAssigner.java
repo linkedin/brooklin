@@ -246,8 +246,8 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
       int maxPartitionsPerTask) {
     // conversion to long to avoid integer overflow
     if (numTasks * (long) maxPartitionsPerTask < numPartitions) {
-      String message = String.format("Not enough tasks to fit partitions. Datastream: %s, Number of tasks: %d, " +
-          "number of partitions: %d, max partitions per task: %d", datastream, numTasks, numPartitions,
+      String message = String.format("Not enough tasks to fit partitions. Datastream: %s, Number of tasks: %d, "
+          + "number of partitions: %d, max partitions per task: %d", datastream, numTasks, numPartitions,
           maxPartitionsPerTask);
       throw new DatastreamRuntimeException(message);
     }

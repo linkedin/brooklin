@@ -69,9 +69,9 @@ public class DirectoryTransportProvider implements TransportProvider {
   }
 
   private static void copyPathToDir(Path sourcePath, Path destinationDir) {
-    ThrowingBinFunction<File, File> copyFn = Files.isDirectory(sourcePath) ?
-        FileUtils::copyDirectoryToDirectory :
-        FileUtils::copyFileToDirectory;
+    ThrowingBinFunction<File, File> copyFn = Files.isDirectory(sourcePath)
+        ? FileUtils::copyDirectoryToDirectory
+        : FileUtils::copyFileToDirectory;
 
     try {
       copyFn.apply(sourcePath.toFile(), destinationDir.toFile());

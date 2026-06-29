@@ -164,8 +164,8 @@ public class DatastreamProducerRecord {
     }
     DatastreamProducerRecord record = (DatastreamProducerRecord) o;
     return Objects.equals(_partition, record._partition) && Objects.equals(_partitionKey, record._partitionKey)
-        && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint) &&
-        Objects.equals(_destination, record._destination);
+        && Objects.equals(_events, record._events) && Objects.equals(_checkpoint, record._checkpoint)
+        && Objects.equals(_destination, record._destination);
   }
 
   @Override

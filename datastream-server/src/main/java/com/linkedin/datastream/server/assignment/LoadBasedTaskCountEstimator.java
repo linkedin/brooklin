@@ -83,8 +83,8 @@ public class LoadBasedTaskCountEstimator {
         assignedPartitions.size(), unassignedPartitions.size());
 
     double taskCapacityUtilizationCoefficient = _taskCapacityUtilizationPct / 100.0;
-    int taskCountEstimate = (int) Math.ceil((double) totalThroughput /
-        (_taskCapacityMBps * 1024 * taskCapacityUtilizationCoefficient));
+    int taskCountEstimate = (int) Math.ceil((double) totalThroughput
+        / (_taskCapacityMBps * 1024 * taskCapacityUtilizationCoefficient));
     taskCountEstimate = Math.min(allPartitions.size(), taskCountEstimate);
     LOG.info("Estimated number of tasks for datastream {} required to handle the throughput: {}", datastreamName, taskCountEstimate);
     return taskCountEstimate;
