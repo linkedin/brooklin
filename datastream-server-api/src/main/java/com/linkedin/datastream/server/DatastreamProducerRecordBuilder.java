@@ -67,9 +67,9 @@ public class DatastreamProducerRecordBuilder {
    * Add the event with key and value to the DatastreamProducerRecord. Datastream producer record can have multiple events.
    */
   public void addEvent(Object key, Object value, Object previousValue, Map<String, String> metadata) {
-    key = key == null ? new byte[0] : key;
-    value = value == null ? new byte[0] : value;
-    _events.add(new BrooklinEnvelope(key, value, previousValue, metadata));
+    Object eventKey = key == null ? new byte[0] : key;
+    Object eventValue = value == null ? new byte[0] : value;
+    _events.add(new BrooklinEnvelope(eventKey, eventValue, previousValue, metadata));
   }
 
   /**

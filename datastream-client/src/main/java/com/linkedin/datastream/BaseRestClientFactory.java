@@ -113,8 +113,8 @@ public final class BaseRestClientFactory<T> {
    * @param restClient custom R2 RestClient
    */
   public synchronized void registerRestClient(String uri, RestClient restClient) {
-    uri = RestliUtils.sanitizeUri(uri);
-    _restClients.put(getKey(uri, Collections.emptyMap()), restClient);
+    String sanitizedUri = RestliUtils.sanitizeUri(uri);
+    _restClients.put(getKey(sanitizedUri, Collections.emptyMap()), restClient);
   }
 
   /**
@@ -124,16 +124,16 @@ public final class BaseRestClientFactory<T> {
    */
   public synchronized void addOverride(String uri, T restliClient) {
     Validate.notNull(restliClient, "null RestClient");
-    uri = RestliUtils.sanitizeUri(uri);
-    if (_overrides.containsKey(uri)) {
-      _logger.warn("Replacing existing RestliClient override for URI: " + uri);
+    String sanitizedUri = RestliUtils.sanitizeUri(uri);
+    if (_overrides.containsKey(sanitizedUri)) {
+      _logger.warn("Replacing existing RestliClient override for URI: " + sanitizedUri);
     }
-    _overrides.put(uri, restliClient);
+    _overrides.put(sanitizedUri, restliClient);
   }
 
   private T getOverride(String uri) {
-    uri = RestliUtils.sanitizeUri(uri);
-    return _overrides.getOrDefault(uri, null);
+    String sanitizedUri = RestliUtils.sanitizeUri(uri);
+    return _overrides.getOrDefault(sanitizedUri, null);
   }
 
   private static String getKey(String uri, Map<String, Object> httpConfig) {

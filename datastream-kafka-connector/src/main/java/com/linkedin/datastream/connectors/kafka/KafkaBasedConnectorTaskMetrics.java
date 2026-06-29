@@ -324,19 +324,19 @@ public class KafkaBasedConnectorTaskMetrics extends CommonConnectorMetrics {
    */
   public static List<BrooklinMetricInfo> getKafkaBasedConnectorTaskSpecificMetrics(String prefix) {
     List<BrooklinMetricInfo> metrics = new ArrayList<>();
-    prefix = Strings.nullToEmpty(prefix);
+    String safePrefix = Strings.nullToEmpty(prefix);
     // Specify the attributes to expose to the final metric registry.
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_CONFIG_PAUSED_PARTITIONS));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS));
-    metrics.add(new BrooklinGaugeInfo(prefix + NUM_TOPICS));
-    metrics.add(new BrooklinGaugeInfo(prefix + CONSUMER_OFFSET_WATERMARK_SPAN));
-    metrics.add(new BrooklinGaugeInfo(prefix + CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION));
-    metrics.add(new BrooklinHistogramInfo(prefix + POLL_DURATION_MS));
-    metrics.add(new BrooklinHistogramInfo(prefix + TIME_SPENT_BETWEEN_POLLS_MS));
-    metrics.add(new BrooklinHistogramInfo(prefix + PER_EVENT_PROCESSING_TIME_NANOS));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + NUM_CONFIG_PAUSED_PARTITIONS));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + NUM_AUTO_PAUSED_PARTITIONS_ON_ERROR));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + NUM_AUTO_PAUSED_PARTITIONS_ON_INFLIGHT_MESSAGES));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_FOR_DEST_TOPIC));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + NUM_AUTO_PAUSED_PARTITIONS_WAITING_SOURCE_TOPIC_ACCESS));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + NUM_TOPICS));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + CONSUMER_OFFSET_WATERMARK_SPAN));
+    metrics.add(new BrooklinGaugeInfo(safePrefix + CONSUMER_LICLOSEST_DATA_LOSS_ESTIMATION));
+    metrics.add(new BrooklinHistogramInfo(safePrefix + POLL_DURATION_MS));
+    metrics.add(new BrooklinHistogramInfo(safePrefix + TIME_SPENT_BETWEEN_POLLS_MS));
+    metrics.add(new BrooklinHistogramInfo(safePrefix + PER_EVENT_PROCESSING_TIME_NANOS));
     return Collections.unmodifiableList(metrics);
   }
 }

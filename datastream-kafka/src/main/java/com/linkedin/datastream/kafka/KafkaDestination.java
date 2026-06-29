@@ -50,14 +50,15 @@ public class KafkaDestination {
     Validate.isTrue(uri.startsWith(SCHEME_KAFKA) || uri.startsWith(SCHEME_SECURE_KAFKA),
         "Invalid scheme in URI: " + uri);
 
+    String decodedUri;
     try {
       // Decode URI in case it's escaped
-      uri = URIUtil.decode(uri);
+      decodedUri = URIUtil.decode(uri);
     } catch (Exception e) {
       throw new DatastreamRuntimeException("Failed to decode Kafka destination URI: " + uri, e);
     }
 
-    URI u = URI.create(uri);
+    URI u = URI.create(decodedUri);
     String scheme = u.getScheme();
     String zkAddress = u.getAuthority();
     String path = u.getPath();

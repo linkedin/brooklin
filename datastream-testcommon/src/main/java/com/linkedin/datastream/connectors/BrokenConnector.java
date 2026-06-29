@@ -38,7 +38,7 @@ public class BrokenConnector implements Connector, DiagnosticsAware {
   public BrokenConnector(Properties properties) throws Exception {
     _properties = properties;
     String dummyConfigValue = _properties.getProperty("dummyProperty", "");
-    if (!dummyConfigValue.equals("dummyValue")) {
+    if (!"dummyValue".equals(dummyConfigValue)) {
       throw new Exception("Invalid config value for dummyProperty. Expected: dummyValue");
     }
   }

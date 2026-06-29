@@ -351,11 +351,12 @@ abstract public class AbstractKafkaBasedConnectorTask implements Runnable, Consu
   }
 
   private boolean containsTransientException(Throwable ex) {
-    while (ex instanceof DatastreamRuntimeException) {
-      if (ex instanceof DatastreamTransientException) {
+    Throwable cause = ex;
+    while (cause instanceof DatastreamRuntimeException) {
+      if (cause instanceof DatastreamTransientException) {
         return true;
       }
-      ex = ex.getCause();
+      cause = cause.getCause();
     }
     return false;
   }
