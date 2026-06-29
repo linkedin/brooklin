@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utility class to simplify usage of Java reflection.
  */
-public class ReflectionUtils {
+public final class ReflectionUtils {
 
   private ReflectionUtils() {
   }

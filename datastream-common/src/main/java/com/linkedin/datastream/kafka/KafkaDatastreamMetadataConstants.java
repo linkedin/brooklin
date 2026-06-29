@@ -8,7 +8,7 @@ package com.linkedin.datastream.kafka;
 /**
  * Metadata constants that are specific to Kafka (or Kafka MirrorMaker) datastreams.
  */
-public class KafkaDatastreamMetadataConstants {
+public final class KafkaDatastreamMetadataConstants {
 
   private KafkaDatastreamMetadataConstants() {
   }

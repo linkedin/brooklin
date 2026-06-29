@@ -8,7 +8,7 @@ package com.linkedin.datastream.common;
 /**
  * Various well known config keys used in datastream metadata.
  */
-public class DatastreamMetadataConstants {
+public final class DatastreamMetadataConstants {
 
   private DatastreamMetadataConstants() {
   }

@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Util class for logging-related methods
  */
-public class LogUtils {
+public final class LogUtils {
 
   private LogUtils() {
   }

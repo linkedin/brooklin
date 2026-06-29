@@ -25,7 +25,7 @@ import org.apache.commons.lang.Validate;
 /**
  * Utility class to simplify Avro message encoding
  */
-public class AvroMessageEncoderUtil {
+public final class AvroMessageEncoderUtil {
 
   private AvroMessageEncoderUtil() {
   }

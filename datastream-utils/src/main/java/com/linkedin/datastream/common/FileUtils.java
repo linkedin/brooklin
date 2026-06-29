@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Class that contains the helper utility methods for File system operations.
  */
-public class FileUtils {
+public final class FileUtils {
 
   private FileUtils() {
   }

@@ -17,7 +17,7 @@ import com.linkedin.datastream.common.Datastream;
 /**
  * Utility methods for {@link KafkaTransportProvider}
  */
-public class KafkaTransportProviderUtils {
+public final class KafkaTransportProviderUtils {
 
   private KafkaTransportProviderUtils() {
   }

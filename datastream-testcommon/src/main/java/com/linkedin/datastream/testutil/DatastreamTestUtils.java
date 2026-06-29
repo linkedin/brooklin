@@ -27,7 +27,7 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 /**
  * Utility class for writing tests that deal with Datastream objects.
  */
-public class DatastreamTestUtils {
+public final class DatastreamTestUtils {
 
   private DatastreamTestUtils() {
   }

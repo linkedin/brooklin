@@ -21,7 +21,7 @@ import com.codahale.metrics.jmx.ObjectNameFactory;
  * A factory for {@link JmxReporter} objects that generates metrics whose
  * names are decided according to {@link BrooklinObjectNameFactory}.
  */
-public class JmxReporterFactory {
+public final class JmxReporterFactory {
 
   private JmxReporterFactory() {
   }

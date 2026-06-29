@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Utilities for retrying function invocations
  */
-public class RetryUtils {
+public final class RetryUtils {
 
   private RetryUtils() {
   }

@@ -12,7 +12,7 @@ import java.net.ServerSocket;
 /**
  * Class that contains the helper utility methods for Network operations.
  */
-public class NetworkUtils {
+public final class NetworkUtils {
 
   private NetworkUtils() {
   }

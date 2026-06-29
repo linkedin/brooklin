@@ -8,7 +8,7 @@ package com.linkedin.datastream.tools;
 /**
  * String constants for options used with {@link DatastreamRestClientCli}
  */
-public class OptionConstants {
+public final class OptionConstants {
 
   private OptionConstants() {
   }

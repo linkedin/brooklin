@@ -31,7 +31,7 @@ import org.apache.avro.specific.SpecificRecord;
 /**
  * Utility methods for encoding/decoding data into/from Avro.
  */
-public class AvroUtils {
+public final class AvroUtils {
 
   private AvroUtils() {
   }
