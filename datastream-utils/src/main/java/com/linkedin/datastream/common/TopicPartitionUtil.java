@@ -11,7 +11,10 @@ import org.apache.kafka.common.TopicPartition;
 /**
  * Utility class for converting String to TopicPartitions
  */
-public class TopicPartitionUtil {
+public final class TopicPartitionUtil {
+
+  private TopicPartitionUtil() {
+  }
 
   /**
    * Create a topic partition instance from String

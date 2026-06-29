@@ -778,7 +778,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     private final int _actualPartitionsPerTask;
     private final boolean _needsAdjustment;
 
-    public ElasticTaskAssignmentInfo(int actualPartitionsPerTask, boolean needsAdjustment) {
+    ElasticTaskAssignmentInfo(int actualPartitionsPerTask, boolean needsAdjustment) {
       _actualPartitionsPerTask = actualPartitionsPerTask;
       _needsAdjustment = needsAdjustment;
     }

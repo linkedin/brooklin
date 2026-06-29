@@ -2529,7 +2529,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     private final List<BrooklinMetricInfo> _metricInfos;
     private final DynamicMetricsManager _dynamicMetricsManager;
 
-    public CoordinatorMetrics(Coordinator coordinator) {
+    CoordinatorMetrics(Coordinator coordinator) {
       _coordinator = coordinator;
       _metricInfos = new ArrayList<>();
       _dynamicMetricsManager = DynamicMetricsManager.getInstance();

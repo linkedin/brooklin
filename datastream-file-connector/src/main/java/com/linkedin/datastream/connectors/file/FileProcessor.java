@@ -50,7 +50,7 @@ class FileProcessor implements Runnable {
   private boolean _cancelRequested;
   private boolean _isStopped;
 
-  public FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
+  FileProcessor(DatastreamTask datastreamTask, DatastreamEventProducer producer) throws FileNotFoundException {
     _task = datastreamTask;
     _fileName = datastreamTask.getDatastreamSource().getConnectionString();
     _positionKey = new FilePositionKey(_task.getTaskPrefix(), _task.getDatastreamTaskName(), Instant.now(), _fileName);

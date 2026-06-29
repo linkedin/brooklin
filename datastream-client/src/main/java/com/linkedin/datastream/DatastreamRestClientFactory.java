@@ -23,6 +23,10 @@ import com.linkedin.restli.client.RestClient;
  * DatastreamRestClient, without doing a major refactoring of the code.
  */
 public final class DatastreamRestClientFactory {
+
+  private DatastreamRestClientFactory() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(DatastreamRestClientFactory.class);
   private static final BaseRestClientFactory<DatastreamRestClient> FACTORY =
       new BaseRestClientFactory<>(DatastreamRestClient.class, LOG);

@@ -152,7 +152,7 @@ public final class BaseRestClientFactory<T> {
    * shutdown, hence it is okay for us to make the threads daemon.
    */
   private class DaemonNamedThreadFactory extends NamedThreadFactory {
-    public DaemonNamedThreadFactory(String name) {
+    DaemonNamedThreadFactory(String name) {
       super(name + " " + StringUtils.substringAfterLast(_logger.getName(), "."));
     }
 

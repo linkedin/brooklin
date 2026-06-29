@@ -8,7 +8,10 @@ package com.linkedin.datastream.kafka;
 /**
  * Metadata constants that are specific to Kafka (or Kafka MirrorMaker) datastreams.
  */
-public class KafkaDatastreamMetadataConstants {
+public final class KafkaDatastreamMetadataConstants {
+
+  private KafkaDatastreamMetadataConstants() {
+  }
 
   // Can be used by the transport provider to send to a particular Kafka cluster
   public static final String DESTINATION_KAFKA_BROKERS = "system.destination.KafkaBrokers";

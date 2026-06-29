@@ -22,7 +22,11 @@ import com.linkedin.datastream.common.JsonUtils;
 /**
  * Utility class for Kafka based connectors
  */
-public class KafkaConnectorDiagUtils {
+public final class KafkaConnectorDiagUtils {
+
+  private KafkaConnectorDiagUtils() {
+  }
+
   /**
    * Reduce/Merge the KafkaTopicPartitionStatsResponse responses of a collection of host/instance into one response
    */

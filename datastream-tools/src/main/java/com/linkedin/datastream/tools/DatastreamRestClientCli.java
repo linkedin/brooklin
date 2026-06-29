@@ -35,7 +35,7 @@ import com.linkedin.datastream.common.JsonUtils;
 /**
  * The main class containing the entry point of the Datastream REST client command line utility
  */
-public class DatastreamRestClientCli {
+public final class DatastreamRestClientCli {
 
   private DatastreamRestClientCli() {
   }

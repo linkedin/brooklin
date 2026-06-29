@@ -18,10 +18,10 @@ import com.codahale.metrics.Gauge;
 class ResettableGauge<T> implements Gauge<T> {
   private Supplier<T> _supplier;
 
-  public ResettableGauge() {
+  ResettableGauge() {
   }
 
-  public ResettableGauge(Supplier<T> supplier) {
+  ResettableGauge(Supplier<T> supplier) {
     _supplier = supplier;
   }
 

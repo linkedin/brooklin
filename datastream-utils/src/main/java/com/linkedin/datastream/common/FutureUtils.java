@@ -22,7 +22,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 /**
  * Utilities to work with {@link Future}
  */
-public class FutureUtils {
+public final class FutureUtils {
 
   private static final int EXECUTOR_CORE_POOL_SIZE = 4;
   private static final ScheduledExecutorService SCHEDULED_EXECUTOR_SERVICE = Executors.newScheduledThreadPool(

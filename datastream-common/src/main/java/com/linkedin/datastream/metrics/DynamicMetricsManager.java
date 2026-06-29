@@ -28,7 +28,7 @@ import com.codahale.metrics.Timer;
 /**
  * Manages dynamic metrics and supports creating/updating metrics on the fly.
  */
-public class DynamicMetricsManager {
+public final class DynamicMetricsManager {
   static final String NO_KEY_PLACEHOLDER = "NO_KEY";
   private static final Logger LOG = LoggerFactory.getLogger(DynamicMetricsManager.class);
   private static DynamicMetricsManager _instance = null;

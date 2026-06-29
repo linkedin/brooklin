@@ -15,6 +15,9 @@ import com.linkedin.datastream.common.Datastream;
  */
 public final class KafkaMirrorMakerDatastreamMetadata {
 
+  private KafkaMirrorMakerDatastreamMetadata() {
+  }
+
   public static final String IDENTITY_PARTITIONING_ENABLED = "system.destination.identityPartitioningEnabled";
 
   /**

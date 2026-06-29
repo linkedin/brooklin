@@ -27,7 +27,11 @@ import com.linkedin.datastream.server.zk.KeyBuilder;
 /**
  * Utility class for writing tests that deal with Datastream objects.
  */
-public class DatastreamTestUtils {
+public final class DatastreamTestUtils {
+
+  private DatastreamTestUtils() {
+  }
+
   /**
    * Creates variable number of Datastreams from a list of names with
    * fields populated with default values except for name and connector type.

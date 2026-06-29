@@ -11,7 +11,10 @@ import org.apache.commons.lang3.StringUtils;
 /**
  * Utility class for creating command line {@link Option}s
  */
-public class OptionUtils {
+public final class OptionUtils {
+
+  private OptionUtils() {
+  }
 
   /**
    * Create a command line option

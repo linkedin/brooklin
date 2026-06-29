@@ -17,7 +17,11 @@ import com.linkedin.datastream.common.Datastream;
 /**
  * Utility methods for {@link KafkaTransportProvider}
  */
-public class KafkaTransportProviderUtils {
+public final class KafkaTransportProviderUtils {
+
+  private KafkaTransportProviderUtils() {
+  }
+
   private static final Logger LOG = LoggerFactory.getLogger(KafkaTransportProviderUtils.class.getName());
   // Mapping destination URI to topic name
   private final static Map<String, String> URI_TOPICS = new ConcurrentHashMap<>();

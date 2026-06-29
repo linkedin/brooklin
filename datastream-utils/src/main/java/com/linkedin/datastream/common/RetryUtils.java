@@ -15,7 +15,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Utilities for retrying function invocations
  */
-public class RetryUtils {
+public final class RetryUtils {
+
+  private RetryUtils() {
+  }
 
   private static final Logger LOG = LoggerFactory.getLogger(RetryUtils.class.getName());
 
@@ -45,7 +48,7 @@ public class RetryUtils {
     private U _value;
     private Exception _lastException;
 
-    public ExceptionTrackingMethodCaller(Supplier<U> func) {
+    ExceptionTrackingMethodCaller(Supplier<U> func) {
       _func = func;
     }
 

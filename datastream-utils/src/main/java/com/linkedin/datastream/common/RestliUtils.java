@@ -16,6 +16,10 @@ import com.linkedin.restli.server.PagingContext;
  * Utility class to simplify usage of Restli.
  */
 public final class RestliUtils {
+
+  private RestliUtils() {
+  }
+
   private static final String URI_SCHEME = "http://";
   private static final String URI_SCHEME_SSL = "https://";
 

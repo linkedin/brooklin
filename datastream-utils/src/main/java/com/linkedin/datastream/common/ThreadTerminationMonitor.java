@@ -24,7 +24,10 @@ import com.linkedin.datastream.metrics.DynamicMetricsManager;
  * reports abnormal terminations and reports them as metric.
  * However, it doesn't attempt to recover the condition.
  */
-public class ThreadTerminationMonitor {
+public final class ThreadTerminationMonitor {
+
+  private ThreadTerminationMonitor() {
+  }
 
   private static final String ABNORMAL_TERMINATIONS = "abnormalTerminations";
 

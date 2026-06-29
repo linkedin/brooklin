@@ -16,6 +16,9 @@ import java.util.function.BooleanSupplier;
  */
 public final class PollUtils {
 
+  private PollUtils() {
+  }
+
   /**
    * Interruptable version of {@link java.util.function.Supplier} for use with Poll functions
    *

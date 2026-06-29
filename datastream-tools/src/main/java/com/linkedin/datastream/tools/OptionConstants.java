@@ -8,7 +8,10 @@ package com.linkedin.datastream.tools;
 /**
  * String constants for options used with {@link DatastreamRestClientCli}
  */
-public class OptionConstants {
+public final class OptionConstants {
+
+  private OptionConstants() {
+  }
 
   public static final String OPT_SHORT_MGMT_URI = "u";
   public static final String OPT_LONG_MGMT_URI = "uri";
