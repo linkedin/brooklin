@@ -16,7 +16,6 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.Version;
 import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.KeyDeserializer;
@@ -106,9 +105,9 @@ public class KafkaDatastreamStatesResponse {
     simpleModule.addKeyDeserializer(FlushlessEventProducerHandler.SourcePartition.class, SourcePartitionDeserializer.getInstance());
     simpleModule.addKeyDeserializer(TopicPartition.class, TopicPartitionKeyDeserializer.getInstance());
     simpleModule.addDeserializer(TopicPartition.class, TopicPartitionDeserializer.getInstance());
-    ObjectMapper mapper = new ObjectMapper();
+    // JsonUtils.newObjectMapper() already disables FAIL_ON_UNKNOWN_PROPERTIES.
+    ObjectMapper mapper = JsonUtils.newObjectMapper();
     mapper.registerModule(simpleModule);
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     return JsonUtils.fromJson(json, KafkaDatastreamStatesResponse.class, mapper);
   }
 
