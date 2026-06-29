@@ -34,13 +34,33 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 public final class JsonUtils {
   private static final Logger LOG = LoggerFactory.getLogger(JsonUtils.class.getName());
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final ObjectMapper MAPPER = newObjectMapper();
   static {
-    MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
     MAPPER.addMixIn(Datastream.class, IgnoreDatastreamSetPausedMixIn.class);
     MAPPER.addMixIn(DatastreamSource.class, IgnoreDatastreamSourceSetPartitionsMixIn.class);
     MAPPER.addMixIn(DatastreamDestination.class, IgnoreDatastreamDestinationSetPartitionsMixIn.class);
+  }
+
+  private JsonUtils() {
+    // utility class
+  }
+
+  /**
+   * Create a new {@link ObjectMapper} configured with the defaults the Brooklin codebase
+   * applies uniformly: {@link DeserializationFeature#FAIL_ON_UNKNOWN_PROPERTIES} disabled,
+   * so consumers don't crash when newer producers introduce additional JSON fields during
+   * rolling deploys, schema evolution, or cross-version coordination.
+   *
+   * <p>Use this factory instead of {@code new ObjectMapper()} for any mapper construction
+   * outside this class. Centralizing the call lets every Jackson consumer pick up future
+   * default tweaks (new modules, new feature flags) without each caller having to
+   * re-discover the right config.
+   *
+   * @return a fresh, base-configured {@link ObjectMapper}
+   */
+  public static ObjectMapper newObjectMapper() {
+    return new ObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
   }
 
   /**

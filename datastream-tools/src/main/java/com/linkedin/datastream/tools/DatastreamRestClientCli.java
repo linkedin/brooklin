@@ -57,7 +57,7 @@ public class DatastreamRestClientCli {
   }
 
   private static void printDatastreams(boolean noformat, List<Datastream> streams) {
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = JsonUtils.newObjectMapper();
 
     streams.forEach(s -> {
       try {

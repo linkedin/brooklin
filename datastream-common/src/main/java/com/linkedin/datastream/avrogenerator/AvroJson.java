@@ -17,6 +17,8 @@ import org.apache.avro.Schema;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.linkedin.datastream.common.JsonUtils;
 import com.google.common.base.CaseFormat;
 
 
@@ -154,7 +156,7 @@ public class AvroJson {
    */
   public Schema toSchema() throws SchemaGenerationException {
     try {
-      ObjectMapper mapper = new ObjectMapper();
+      ObjectMapper mapper = JsonUtils.newObjectMapper();
       JsonFactory factory = new JsonFactory();
       StringWriter writer = new StringWriter();
       JsonGenerator jgen = factory.createJsonGenerator(writer);

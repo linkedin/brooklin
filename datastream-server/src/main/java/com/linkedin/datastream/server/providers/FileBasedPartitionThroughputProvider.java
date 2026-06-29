@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.linkedin.datastream.common.JsonUtils;
 import com.linkedin.datastream.server.ClusterThroughputInfo;
 import com.linkedin.datastream.server.DatastreamGroup;
 import com.linkedin.datastream.server.PartitionThroughputInfo;
@@ -82,7 +83,7 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
   }
 
   private HashMap<String, ClusterThroughputInfo> readThroughputInfoFromFile(File file) {
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = JsonUtils.newObjectMapper();
     HashMap<String, ClusterThroughputInfo> clusterInfoMap = new HashMap<>();
 
     try {
@@ -102,7 +103,7 @@ public class FileBasedPartitionThroughputProvider implements PartitionThroughput
   }
 
   private ClusterThroughputInfo readThroughputInfoFromFile(File file, String clusterName) {
-    ObjectMapper mapper = new ObjectMapper();
+    ObjectMapper mapper = JsonUtils.newObjectMapper();
     ClusterThroughputInfo clusterInfo = null;
 
     try {

@@ -3,4 +3,9 @@
     "-//Puppy Crawl//DTD Suppressions 1.1//EN"
     "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
 <suppressions>
+  <!-- JsonUtils is the canonical factory for ObjectMapper instances; the RawObjectMapperConstruction
+       rule (RegexpSingleline) intentionally exists to send everyone else to JsonUtils.newObjectMapper()
+       instead. -->
+  <suppress checks="RegexpSingleline" id="RawObjectMapperConstruction"
+            files="[\\/]JsonUtils\.java$"/>
 </suppressions>

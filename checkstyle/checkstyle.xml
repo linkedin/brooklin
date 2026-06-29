@@ -226,6 +226,17 @@ LinkedIn Java style.
     <property name="message" value="Correct misspelled Javadoc tag"/>
   </module>
 
+  <!-- Force every Jackson mapper through JsonUtils.newObjectMapper() so the codebase has a
+       single source of truth for ObjectMapper configuration (FAIL_ON_UNKNOWN_PROPERTIES
+       disabled by default, with room to grow as the Jackson defaults need to evolve).
+       The factory itself (JsonUtils.java) is the only legitimate `new ObjectMapper(` site;
+       it's suppressed via checkstyle/suppressions.xml. -->
+  <module name="RegexpSingleline">
+    <property name="id" value="RawObjectMapperConstruction"/>
+    <property name="format" value="new\s+ObjectMapper\s*\("/>
+    <property name="message" value="Use JsonUtils.newObjectMapper() instead of constructing a raw ObjectMapper. The factory applies the codebase-wide Jackson defaults (FAIL_ON_UNKNOWN_PROPERTIES disabled) so rolling deploys and schema evolution don't crash older consumers."/>
+  </module>
+
   <!-- Read checker suppressions from a file -->
   <module name="SuppressionFilter">
     <property name="file" value="${config_loc}/suppressions.xml"/>
