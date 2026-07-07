@@ -192,6 +192,27 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private static final AtomicLong MAX_PARTITION_COUNT = new AtomicLong(0L);
 
+  // Trigger identifiers and log messages for (re)building the host-level throughput-violating topics cache.
+  private static final String TRIGGER_CREATE = "create";
+  private static final String TRIGGER_UPDATE = "update";
+  private static final String TRIGGER_PERIODIC_REFRESH = "periodic refresh";
+  private static final String POPULATE_VIOLATING_TOPICS_MSG =
+      "Populating the datastream violating topics to host level cache from the datastream objects on the {} trigger";
+  private static final String POPULATE_VIOLATING_TOPICS_EXCEPTION_MSG =
+      "Received an exception while populating the datastream violating topics to host level cache from the datastream "
+          + "objects on the {} trigger";
+  private static final String DROP_UNRESOLVED_TASK_MSG =
+      "Dropping task {} while rebuilding throughput-violating topics map on the {} trigger; its datastream task could "
+          + "not be resolved and will be omitted from this rebuild";
+  private static final String EMPTY_REBUILD_MSG =
+      "Throughput-violating topics map rebuild on the {} trigger produced an EMPTY result from a non-empty assignment "
+          + "of {} task(s); the host-level cache will be cleared. Possible partial assignment during rebalance.";
+  private static final String PARTIAL_REBUILD_MSG =
+      "Throughput-violating topics map rebuild on the {} trigger dropped {} of {} assigned task(s); the rebuild may "
+          + "be partial.";
+  private static final String SCHEDULED_PERIODIC_REFRESH_MSG =
+      "Scheduled periodic throughput-violating topics map refresh every {} ms";
+
   private final CachedDatastreamReader _datastreamCache;
   private final Properties _eventProducerConfig;
   private final CheckpointProvider _cpProvider;
@@ -339,6 +360,18 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     // Queue up one heartbeat per period with a initial delay of 3 periods
     _scheduledExecutor.scheduleAtFixedRate(() -> _eventQueue.put(CoordinatorEvent.HEARTBEAT_EVENT),
         _heartbeatPeriod.toMillis() * 3, _heartbeatPeriod.toMillis(), TimeUnit.MILLISECONDS);
+
+    // Periodically rebuild the throughput-violating topics host-level cache so its freshness is bounded by
+    // the refresh period rather than by rebalance timing. Gated by both the feature flag and the
+    // dedicated periodic-refresh toggle (enableThroughputViolatingTopicsPeriodicRefresh). The scheduled
+    // executor lives for the coordinator's lifetime (created here, shut down in stop()), so this is scheduled
+    // once and is not re-registered in onNewSession().
+    if (isThroughputViolatingTopicsPeriodicRefreshEnabled()) {
+      long refreshPeriodMs = _config.getThroughputViolatingTopicsRefreshPeriodMs();
+      _scheduledExecutor.scheduleAtFixedRate(this::runScheduledThroughputViolatingTopicsRefresh,
+          refreshPeriodMs, refreshPeriodMs, TimeUnit.MILLISECONDS);
+      _log.info(SCHEDULED_PERIODIC_REFRESH_MSG, refreshPeriodMs);
+    }
   }
 
   protected synchronized void createEventThread() {
@@ -569,14 +602,11 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
 
     if (isThroughputViolatingTopicsHandlingEnabled()) {
-      _log.info(
-          "Populating the datastream violating topics to host level cache from the datastream objects on the update trigger");
+      _log.info(POPULATE_VIOLATING_TOPICS_MSG, TRIGGER_UPDATE);
       try {
         populateThroughputViolatingTopicsMap(datastreamGroups);
       } catch (Exception exception) {
-        _log.error(
-            "Received an exception while populating the datastream violating topics to host level cache from the "
-                + "datastream objects on the update trigger", exception);
+        _log.error(POPULATE_VIOLATING_TOPICS_EXCEPTION_MSG, TRIGGER_UPDATE, exception);
       }
     }
     queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleDatastreamChangeEvent(), true);
@@ -631,11 +661,30 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     }
   }
 
+  // Test-only hook to simulate a stale/emptied host-level cache (e.g. after a missed or failed rebuild),
+  // used to verify that the periodic refresh rebuilds it from the current assignment.
+  @VisibleForTesting
+  void clearThroughputViolatingTopicsMapForTesting() {
+    _throughputViolatingTopicsMapWriteLock.lock();
+    try {
+      _throughputViolatingTopicsMap.clear();
+    } finally {
+      _throughputViolatingTopicsMapWriteLock.unlock();
+    }
+  }
+
   // This feature enables handling the management of throughput violating topics.
   // Latency metrics and SLAs would be reported separately for these topics if their
   // per partition throughput is not within brooklin's permissible bounds.
   public boolean isThroughputViolatingTopicsHandlingEnabled() {
     return _config.getEnableThroughputViolatingTopicsHandling();
+  }
+
+  // Periodic rebuild of the throughput-violating topics cache is active only when the feature is enabled
+  // AND the dedicated periodic-refresh toggle has not been turned off via config. When off, the cache is
+  // rebuilt only on assignment / datastream-update events.
+  public boolean isThroughputViolatingTopicsPeriodicRefreshEnabled() {
+    return isThroughputViolatingTopicsHandlingEnabled() && _config.getEnableThroughputViolatingTopicsPeriodicRefresh();
   }
 
   /**
@@ -774,27 +823,64 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   @Override
   public void onAssignmentChange() {
     _log.info("Coordinator::onAssignmentChange is called");
-    queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleAssignmentChangeEvent(), true);
 
+    // Rebuild the throughput-violating topics host-level cache BEFORE queuing the async task-start event.
+    // Queuing first opens a race: a newly started producer could emit before its topic is
+    // present in the map, misrouting its events to the normal-SLA path. This mirrors onDatastreamUpdate,
+    // which also populates before queuing.
     if (isThroughputViolatingTopicsHandlingEnabled()) {
       try {
-        // On creating a datastream if the metadata contains any throughput violating topics, we populate the host level cache
-        List<DatastreamGroup> datastreamGroups = _adapter.getInstanceAssignment(_adapter.getInstanceName())
-            .stream()
-            .map(this::getDatastreamTask)
-            .filter(Objects::nonNull)
-            .map(task -> new DatastreamGroup(task.getDatastreams()))
-            .collect(Collectors.toList());
-        _log.info(
-            "Populating the datastream violating topics to host level cache from the datastream objects on the create trigger");
-        populateThroughputViolatingTopicsMap(datastreamGroups);
+        refreshThroughputViolatingTopicsMap(TRIGGER_CREATE);
       } catch (Exception exception) {
-        _log.error(
-            "Received an exception while populating the datastream violating topics to host level cache from the "
-                + "datastream objects on the create trigger", exception);
+        _log.error(POPULATE_VIOLATING_TOPICS_EXCEPTION_MSG, TRIGGER_CREATE, exception);
       }
     }
+
+    queueHandleAssignmentOrDatastreamChangeEvent(CoordinatorEvent.createHandleAssignmentChangeEvent(), true);
+
     _log.info("Coordinator::onAssignmentChange completed successfully");
+  }
+
+  // Rebuilds the throughput-violating topics host-level cache from the current instance assignment.
+  // Shared by onAssignmentChange (create trigger) and the periodic refresh, so map freshness is
+  // decoupled from rebalance timing. Rebuild uses replace-all semantics via populateThroughputViolatingTopicsMap.
+  //
+  // Observability: a task that cannot be resolved (e.g. its ZNode disappeared mid-rebalance so
+  // getDatastreamTask returns null) is silently omitted from the replace-all rebuild; we WARN and count
+  // it so partial rebuilds are detectable. A non-empty assignment that yields no datastream groups
+  // would clear the cache to empty, so we WARN on that too.
+  private void refreshThroughputViolatingTopicsMap(String trigger) {
+    List<String> assignment = _adapter.getInstanceAssignment(_adapter.getInstanceName());
+    List<DatastreamGroup> datastreamGroups = new ArrayList<>();
+    int droppedTasks = 0;
+    for (String taskName : assignment) {
+      DatastreamTask task = getDatastreamTask(taskName);
+      if (task == null) {
+        droppedTasks++;
+        _log.warn(DROP_UNRESOLVED_TASK_MSG, taskName, trigger);
+        continue;
+      }
+      datastreamGroups.add(new DatastreamGroup(task.getDatastreams()));
+    }
+
+    if (!assignment.isEmpty() && datastreamGroups.isEmpty()) {
+      _log.warn(EMPTY_REBUILD_MSG, trigger, assignment.size());
+    } else if (droppedTasks > 0) {
+      _log.warn(PARTIAL_REBUILD_MSG, trigger, droppedTasks, assignment.size());
+    }
+
+    _log.info(POPULATE_VIOLATING_TOPICS_MSG, trigger);
+    populateThroughputViolatingTopicsMap(datastreamGroups);
+  }
+
+  // Wraps refreshThroughputViolatingTopicsMap for the scheduled executor: any thrown exception must be
+  // swallowed here, otherwise scheduleAtFixedRate would silently cancel all future refreshes.
+  private void runScheduledThroughputViolatingTopicsRefresh() {
+    try {
+      refreshThroughputViolatingTopicsMap(TRIGGER_PERIODIC_REFRESH);
+    } catch (Exception exception) {
+      _log.error(POPULATE_VIOLATING_TOPICS_EXCEPTION_MSG, TRIGGER_PERIODIC_REFRESH, exception);
+    }
   }
 
   private int getAssignmentTaskCount(Map<String, List<DatastreamTask>> assignment) {
