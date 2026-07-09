@@ -4042,6 +4042,90 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testThroughputViolatingTopicsPeriodicRefreshRebuildsStaleMap() throws Exception {
+    String testCluster = "testThroughputViolatingTopicsPeriodicRefreshRebuildsStaleMap";
+    String connectorType = "connectorType";
+    String streamName = "testThroughputViolatingTopicsPeriodicRefreshRebuildsStaleMap";
+
+    Properties properties = new Properties();
+    properties.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    // Short refresh period so the scheduled rebuild fires within the test window.
+    properties.put(CoordinatorConfig.CONFIG_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS,
+        String.valueOf(Duration.ofMillis(500).toMillis()));
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster, properties);
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    coordinator.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    Set<String> requestedThroughputViolatingTopics = new HashSet<>(Arrays.asList("OneTopic", "TwoTopic", "ThreeTopic"));
+    Datastream testStream = DatastreamTestUtils.createDatastreams(connectorType, streamName)[0];
+    Objects.requireNonNull(testStream.getMetadata())
+        .put(DatastreamMetadataConstants.THROUGHPUT_VIOLATING_TOPICS,
+            String.join(",", requestedThroughputViolatingTopics));
+    resource.create(testStream);
+
+    // Re-fetches the cache on every poll iteration (unlike validateIfViolatingTopicsAreReflectedInServer,
+    // which snapshots once) so it can observe the async rebuild after the cache is cleared.
+    BooleanSupplier cacheMatchesRequested = () -> {
+      Set<String> fetched = coordinator.getThroughputViolatingTopics(Collections.singletonList(testStream));
+      return fetched.size() == requestedThroughputViolatingTopics.size()
+          && fetched.containsAll(requestedThroughputViolatingTopics);
+    };
+
+    // Cache is populated on the create trigger.
+    Assert.assertTrue(PollUtils.poll(cacheMatchesRequested, Duration.ofMillis(200).toMillis(),
+        Duration.ofSeconds(5).toMillis()));
+
+    // Simulate a stale/emptied cache left behind by a missed or failed rebuild. No further assignment or
+    // datastream-update event occurs, so only the periodic refresh can repopulate it.
+    coordinator.clearThroughputViolatingTopicsMapForTesting();
+
+    // The periodic refresh must rebuild the cache from the current assignment.
+    Assert.assertTrue(PollUtils.poll(cacheMatchesRequested, Duration.ofMillis(200).toMillis(),
+        Duration.ofSeconds(10).toMillis()));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
+  public void testThroughputViolatingTopicsPeriodicRefreshEnablementGating() throws Exception {
+    // Handling on, periodic refresh defaults to on.
+    Properties refreshDefault = new Properties();
+    refreshDefault.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    Coordinator refreshOnByDefault = createCoordinator(_zkConnectionString,
+        "testThroughputViolatingTopicsPeriodicRefreshEnablementGatingDefault", refreshDefault);
+    Assert.assertTrue(refreshOnByDefault.isThroughputViolatingTopicsPeriodicRefreshEnabled());
+    refreshOnByDefault.getDatastreamCache().getZkclient().close();
+
+    // Handling on, periodic refresh explicitly off -> disabled.
+    Properties refreshOff = new Properties();
+    refreshOff.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.TRUE.toString());
+    refreshOff.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH,
+        Boolean.FALSE.toString());
+    Coordinator refreshDisabled = createCoordinator(_zkConnectionString,
+        "testThroughputViolatingTopicsPeriodicRefreshEnablementGatingOff", refreshOff);
+    Assert.assertFalse(refreshDisabled.isThroughputViolatingTopicsPeriodicRefreshEnabled());
+    refreshDisabled.getDatastreamCache().getZkclient().close();
+
+    // Handling off -> periodic refresh is off regardless of the toggle.
+    Properties handlingOff = new Properties();
+    handlingOff.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, Boolean.FALSE.toString());
+    handlingOff.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH,
+        Boolean.TRUE.toString());
+    Coordinator handlingDisabled = createCoordinator(_zkConnectionString,
+        "testThroughputViolatingTopicsPeriodicRefreshEnablementGatingHandlingOff", handlingOff);
+    Assert.assertFalse(handlingDisabled.isThroughputViolatingTopicsPeriodicRefreshEnabled());
+    handlingDisabled.getDatastreamCache().getZkclient().close();
+  }
+
+  @Test
   public void testThroughputViolatingTopicsHandlingForMultipleDatastreams() throws Exception {
     String testCluster = "testThroughputViolatingTopicsHandlingForMultipleDatastreams";
     String connectorType = "connectorType";

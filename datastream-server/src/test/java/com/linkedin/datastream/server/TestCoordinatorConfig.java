@@ -83,4 +83,31 @@ public class TestCoordinatorConfig {
     config = createCoordinatorConfig(props);
     Assert.assertTrue(config.getForceStopStreamsOnFailure());
   }
+
+  @Test
+  public void testThroughputViolatingTopicsRefreshPeriodConfig() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    Assert.assertEquals(config.getThroughputViolatingTopicsRefreshPeriodMs(),
+        CoordinatorConfig.DEFAULT_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS);
+    Assert.assertEquals(config.getThroughputViolatingTopicsRefreshPeriodMs(), Duration.ofMinutes(5).toMillis());
+
+    props.put(CoordinatorConfig.CONFIG_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS, "1000");
+    CoordinatorConfig overridden = createCoordinatorConfig(props);
+    Assert.assertEquals(overridden.getThroughputViolatingTopicsRefreshPeriodMs(), 1000L);
+  }
+
+  @Test
+  public void testEnableThroughputViolatingTopicsPeriodicRefreshConfig() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    // Enabled by default.
+    Assert.assertTrue(config.getEnableThroughputViolatingTopicsPeriodicRefresh());
+    Assert.assertEquals(config.getEnableThroughputViolatingTopicsPeriodicRefresh(),
+        CoordinatorConfig.DEFAULT_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH);
+
+    props.put(CoordinatorConfig.CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH, "false");
+    CoordinatorConfig overridden = createCoordinatorConfig(props);
+    Assert.assertFalse(overridden.getEnableThroughputViolatingTopicsPeriodicRefresh());
+  }
 }
