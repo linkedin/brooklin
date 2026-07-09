@@ -26,6 +26,7 @@ public final class KeyBuilder {
   private static final String DATASTREAM_ASSIGNMENT_TOKEN_FOR_INSTANCE = "/%s/dms/%s/assignmentTokens/%s";
   private static final String CONNECTORS = "/%s/connectors";
   private static final String CONNECTOR = "/%s/connectors/%s";
+  private static final String ASSIGNMENT_ENABLED = "/%s/assignmentEnabled";
 
   // Suppresses default constructor, ensuring non-instantiability.
   private KeyBuilder() {
@@ -249,6 +250,24 @@ public final class KeyBuilder {
    */
   public static String connectors(String cluster) {
     return String.format(CONNECTORS, cluster);
+  }
+
+  /**
+   * Get the ZooKeeper znode that acts as a dynamic flag controlling whether the leader Coordinator is
+   * allowed to perform datastream task assignment.
+   *
+   * <pre>Example: /{cluster}/assignmentEnabled</pre>
+   *
+   * The flag is interpreted as follows:
+   * <ul>
+   *   <li>Absent znode: assignment is enabled (this is the default).</li>
+   *   <li>Znode present with value {@code "false"} (case-insensitive): assignment is disabled.</li>
+   *   <li>Znode present with any other value: assignment is enabled.</li>
+   * </ul>
+   * @param cluster Brooklin cluster name
+   */
+  public static String assignmentEnabled(String cluster) {
+    return String.format(ASSIGNMENT_ENABLED, cluster);
   }
 
   /**

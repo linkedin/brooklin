@@ -57,6 +57,8 @@ public final class CoordinatorConfig {
   // SLA threshold for stream provisioning: a datastream's INITIALIZING -> READY duration at or below this
   // is counted as within SLA, above it as outside SLA
   public static final String CONFIG_PROVISIONING_SLA_THRESHOLD_MS = PREFIX + "provisioningSlaThresholdMs";
+  // how long the leader waits between checks of the ZooKeeper assignment-enabled flag while assignment is disabled
+  public static final String CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS = PREFIX + "assignmentEnabledCheckPeriodMs";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
@@ -68,6 +70,7 @@ public final class CoordinatorConfig {
   public static final long DEFAULT_PROVISIONING_SLA_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
   public static final long DEFAULT_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS = Duration.ofMinutes(5).toMillis();
   public static final boolean DEFAULT_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH = true;
+  public static final long DEFAULT_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS = Duration.ofSeconds(5).toMillis();
 
   private final String _cluster;
   private final String _zkAddress;
@@ -97,6 +100,7 @@ public final class CoordinatorConfig {
   private final boolean _enableThroughputViolatingTopicsPeriodicRefresh;
   private final double _logSizeLimitInBytes;
   private final long _provisioningSlaThresholdMs;
+  private final long _assignmentEnabledCheckPeriodMs;
 
 
   /**
@@ -144,6 +148,8 @@ public final class CoordinatorConfig {
     _logSizeLimitInBytes = _properties.getDouble(CONFIG_LOG_SIZE_LIMIT_IN_BYTES, DEFAULT_LOG_SIZE_LIMIT_IN_BYTES);
     _provisioningSlaThresholdMs = _properties.getLong(CONFIG_PROVISIONING_SLA_THRESHOLD_MS,
         DEFAULT_PROVISIONING_SLA_THRESHOLD_MS);
+    _assignmentEnabledCheckPeriodMs = _properties.getLong(CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS,
+        DEFAULT_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS);
   }
 
   public Properties getConfigProperties() {
@@ -254,5 +260,9 @@ public final class CoordinatorConfig {
 
   public long getProvisioningSlaThresholdMs() {
     return _provisioningSlaThresholdMs;
+  }
+
+  public long getAssignmentEnabledCheckPeriodMs() {
+    return _assignmentEnabledCheckPeriodMs;
   }
 }

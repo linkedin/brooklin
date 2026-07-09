@@ -135,6 +135,51 @@ public class TestZkAdapter {
   }
 
   @Test
+  public void testIsAssignmentEnabled() {
+    String testCluster = "test_adapter_assignment_enabled";
+
+    ZkAdapter adapter = createZkAdapter(testCluster);
+    adapter.connect();
+
+    String flagPath = KeyBuilder.assignmentEnabled(testCluster);
+    ZkClient client = new ZkClient(_zkConnectionString);
+
+    // No znode means assignment is enabled (the default).
+    Assert.assertFalse(client.exists(flagPath));
+    Assert.assertTrue(adapter.isAssignmentEnabled());
+
+    // Explicit "false" disables assignment.
+    client.ensurePath(flagPath);
+    client.writeData(flagPath, "false");
+    Assert.assertFalse(adapter.isAssignmentEnabled());
+
+    // Case-insensitive "false" also disables assignment.
+    client.writeData(flagPath, "FALSE");
+    Assert.assertFalse(adapter.isAssignmentEnabled());
+
+    // "true" re-enables assignment.
+    client.writeData(flagPath, "true");
+    Assert.assertTrue(adapter.isAssignmentEnabled());
+
+    // Any other/unrecognized value is treated as enabled.
+    client.writeData(flagPath, "yes");
+    Assert.assertTrue(adapter.isAssignmentEnabled());
+
+    // Empty value is treated as enabled.
+    client.writeData(flagPath, "");
+    Assert.assertTrue(adapter.isAssignmentEnabled());
+
+    // Deleting the znode restores the enabled default.
+    client.writeData(flagPath, "false");
+    Assert.assertFalse(adapter.isAssignmentEnabled());
+    client.delete(flagPath);
+    Assert.assertTrue(adapter.isAssignmentEnabled());
+
+    adapter.disconnect();
+    client.close();
+  }
+
+  @Test
   public void testLeaderElection() {
     String testCluster = "test_adapter_leader";
 

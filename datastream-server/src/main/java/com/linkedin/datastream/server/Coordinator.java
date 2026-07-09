@@ -1680,6 +1680,12 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
     _log.info("START: Coordinator::handleLeaderDoAssignment.");
+
+    // Honor the dynamic ZooKeeper assignment-enabled flag. If assignment is disabled, block here and keep
+    // re-checking at a fixed interval until it is re-enabled (or the flag znode is deleted), we lose leadership,
+    // or the coordinator is shutting down.
+    blockUntilAssignmentEnabled();
+
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = Collections.emptyMap();
@@ -1749,6 +1755,36 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       scheduleLeaderDoAssignmentRetry(isNewlyElectedLeader);
     }
     _log.info("END: Coordinator::handleLeaderDoAssignment.");
+  }
+
+  /**
+   * Block the leader Coordinator while datastream task assignment is disabled via the dynamic ZooKeeper flag
+   * (see {@link com.linkedin.datastream.server.zk.KeyBuilder#assignmentEnabled(String)}).
+   *
+   * The flag defaults to enabled, so this method returns immediately when the flag znode is absent or does not
+   * hold the value {@code "false"}. When assignment is disabled, this method re-checks the flag at a fixed
+   * interval ({@link CoordinatorConfig#getAssignmentEnabledCheckPeriodMs()}) and returns once assignment is
+   * re-enabled, the flag znode is deleted, this instance is no longer the leader, or the thread is interrupted.
+   */
+  private void blockUntilAssignmentEnabled() {
+    boolean wasDisabled = false;
+    while (_adapter.isLeader() && !_adapter.isAssignmentEnabled()) {
+      wasDisabled = true;
+      _log.warn("Datastream task assignment is disabled via the ZooKeeper assignment-enabled flag. "
+          + "Skipping assignment and re-checking in {} ms.", _config.getAssignmentEnabledCheckPeriodMs());
+      try {
+        Thread.sleep(_config.getAssignmentEnabledCheckPeriodMs());
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        _log.warn("Interrupted while waiting for datastream task assignment to be re-enabled. "
+            + "Proceeding without further waiting.");
+        return;
+      }
+    }
+
+    if (wasDisabled) {
+      _log.info("Datastream task assignment is enabled again. Resuming assignment.");
+    }
   }
 
   private void scheduleLeaderDoAssignmentRetry(boolean isNewlyElectedLeader) {

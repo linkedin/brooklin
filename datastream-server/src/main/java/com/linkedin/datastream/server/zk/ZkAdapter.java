@@ -468,6 +468,32 @@ public class ZkAdapter {
   }
 
   /**
+   * Check whether the leader Coordinator is currently allowed to perform datastream task assignment,
+   * based on a dynamic flag stored in ZooKeeper at {@link KeyBuilder#assignmentEnabled(String)}.
+   *
+   * The flag defaults to enabled. Assignment is considered disabled only when the znode exists and holds
+   * the value {@code "false"} (case-insensitive). An absent znode, an empty/null value, or any other value
+   * is treated as enabled.
+   * @return true if assignment is enabled, false if it is explicitly disabled
+   */
+  public boolean isAssignmentEnabled() {
+    String path = KeyBuilder.assignmentEnabled(_cluster);
+    if (!_zkclient.exists(path)) {
+      // No znode means assignment is enabled (the default).
+      return true;
+    }
+
+    // Use returnNullIfPathNotExists=true to gracefully handle the node being deleted between the
+    // exists() check and this read.
+    String data = _zkclient.readData(path, true);
+    if (data == null || data.trim().isEmpty()) {
+      return true;
+    }
+
+    return !Boolean.FALSE.toString().equalsIgnoreCase(data.trim());
+  }
+
+  /**
    * Update ZooKeeper znode of a datastream
    * @param datastream Datastream name
    * @return true if the update is successful
