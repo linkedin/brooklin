@@ -477,15 +477,9 @@ public class ZkAdapter {
    * @return true if assignment is enabled, false if it is explicitly disabled
    */
   public boolean isAssignmentEnabled() {
-    String path = KeyBuilder.assignmentEnabled(_cluster);
-    if (!_zkclient.exists(path)) {
-      // No znode means assignment is enabled (the default).
-      return true;
-    }
-
-    // Use returnNullIfPathNotExists=true to gracefully handle the node being deleted between the
-    // exists() check and this read.
-    String data = _zkclient.readData(path, true);
+    // Pass returnNullIfPathNotExists=true so an absent znode returns null instead of throwing; a null or
+    // empty value means assignment is enabled (the default).
+    String data = _zkclient.readData(KeyBuilder.assignmentEnabled(_cluster), true);
     if (data == null || data.trim().isEmpty()) {
       return true;
     }
