@@ -127,10 +127,20 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
     unassignedPartitions.removeAll(assignedPartitions);
 
     ClusterThroughputInfo clusterThroughputInfo = new ClusterThroughputInfo(StringUtils.EMPTY, Collections.emptyMap());
+    // Throughput info is fetched (and true load-based, throughput-balanced assignment performed) only on the initial
+    // assignment for the datastream group, i.e. when no partitions are currently assigned (STOPPED -> READY
+    // transition, first assignment, or restart). On incremental assignments (partitions already assigned) throughput
+    // is NOT refetched, so newly unassigned partitions are placed round-robin rather than balanced by byte rate.
     if (assignedPartitions.isEmpty()) {
+      LOG.info("Initial assignment for datastream {}: no partitions currently assigned, {} unassigned partitions, "
+              + "{} tasks. Fetching throughput info to perform load-based (throughput-balanced) partition assignment.",
+          datastreamGroupName, unassignedPartitions.size(), taskCount);
       try {
         // Attempting to retrieve partition throughput info on initial assignment
         clusterThroughputInfo = fetchPartitionThroughputInfo(datastreamGroup);
+        LOG.info("Fetched throughput info for datastream {} from provider {}: clusterName={}, partitionEntries={}",
+            datastreamGroupName, _throughputProvider.getClass().getSimpleName(),
+            clusterThroughputInfo.getClusterName(), clusterThroughputInfo.getPartitionInfoMap().size());
       } catch (RetriesExhaustedException ex) {
         LOG.warn("Attempts to fetch partition throughput timed out");
         LOG.info("Throughput information unavailable during initial assignment. Falling back to sticky partition assignment");
@@ -164,6 +174,13 @@ public class LoadBasedPartitionAssignmentStrategy extends StickyPartitionAssignm
       if (numTasksNeeded > taskCount) {
         updateNumTasksAndForceTaskCreation(datastreamPartitions, numTasksNeeded, taskCount);
       }
+    } else {
+      // Incremental assignment: throughput info is not refetched, so clusterThroughputInfo stays empty and the
+      // assigner treats every unassigned partition as unrecognized (round-robin), not throughput-balanced.
+      LOG.info("Incremental assignment for datastream {}: {} partitions already assigned, {} unassigned partitions. "
+              + "Throughput info is NOT refetched on incremental assignments; the {} unassigned partitions will be "
+              + "placed round-robin (not throughput-balanced).", datastreamGroupName, assignedPartitions.size(),
+          unassignedPartitions.size(), unassignedPartitions.size());
     }
 
     // Doing assignment

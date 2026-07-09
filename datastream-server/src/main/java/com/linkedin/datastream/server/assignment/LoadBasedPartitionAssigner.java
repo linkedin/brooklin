@@ -48,6 +48,7 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
   private static final String MIN_PARTITIONS_ACROSS_TASKS = "minPartitionsAcrossTasks";
   private static final String MAX_PARTITIONS_ACROSS_TASKS = "maxPartitionsAcrossTasks";
+  private static final int KEY_SAMPLE_SIZE = 10;
 
   private final int _defaultPartitionBytesInKBRate;
   private final int _defaultPartitionMsgsInRate;
@@ -121,9 +122,12 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
 
     ArrayList<String> recognizedPartitions = new ArrayList<>(); // partitions with throughput info
     ArrayList<String> unrecognizedPartitions = new ArrayList<>(); // partitions without throughput info
+    int partitionLevelMatchCount = 0; // partitions matched by an exact partition-level throughput key
+    int topicLevelFallbackMatchCount = 0; // partitions matched only via the topic-level throughput fallback
     for (String partition : unassignedPartitions) {
       if (partitionInfoMap.containsKey(partition)) {
         recognizedPartitions.add(partition);
+        partitionLevelMatchCount++;
       } else {
         // If the partition level information is not found, try finding topic level information. It is always better
         // than no information about the partition. Update the map with that information so that it can be used in later
@@ -132,10 +136,36 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
         if (partitionInfoMap.containsKey(topic)) {
           partitionInfoMap.put(partition, partitionInfoMap.get(topic));
           recognizedPartitions.add(partition);
+          topicLevelFallbackMatchCount++;
         } else {
           unrecognizedPartitions.add(partition);
         }
       }
+    }
+
+    // Throughput coverage determines whether partitions are load-balanced by byte rate (recognized) or placed
+    // round-robin (unrecognized). A high recognized ratio indicates the throughput provider returned usable data.
+    // topicLevelFallback isolates partitions recognized only via the per-topic fallback rung.
+    LOG.info("Throughput coverage for datastream={}: unassignedPartitions={}, recognized={} "
+            + "(partitionLevel={}, topicLevelFallback={}), unrecognized(round-robin)={}, providerPartitionEntries={}",
+        datastreamGroupName, unassignedPartitions.size(), recognizedPartitions.size(), partitionLevelMatchCount,
+        topicLevelFallbackMatchCount, unrecognizedPartitions.size(), throughputInfo.getPartitionInfoMap().size());
+
+    // When the provider returned data but some partitions still matched no throughput key, log a bounded sample of
+    // unmatched partition names alongside a sample of provider keys. Comparing the two formats surfaces key mismatches
+    // (e.g. a source keying partitions differently from the actual partition names) that would otherwise silently fall
+    // back to round-robin.
+    if (!unrecognizedPartitions.isEmpty() && !throughputInfo.getPartitionInfoMap().isEmpty()) {
+      List<String> unmatchedPartitionSample = unrecognizedPartitions.stream()
+          .limit(KEY_SAMPLE_SIZE)
+          .collect(Collectors.toList());
+      List<String> providerKeySample = throughputInfo.getPartitionInfoMap().keySet().stream()
+          .limit(KEY_SAMPLE_SIZE)
+          .collect(Collectors.toList());
+      LOG.info("Throughput key match diagnostics for datastream={}: {}/{} partitions matched no provider key. "
+              + "Sample unmatched partitions (max {}): {}. Sample provider keys (max {}): {}. Compare the two "
+              + "formats to spot throughput key mismatches.", datastreamGroupName, unrecognizedPartitions.size(),
+          unassignedPartitions.size(), KEY_SAMPLE_SIZE, unmatchedPartitionSample, KEY_SAMPLE_SIZE, providerKeySample);
     }
 
     LOG.info("Sorting recognized partitions on byte rate");
@@ -213,6 +243,20 @@ public class LoadBasedPartitionAssigner implements MetricsAware {
     metrics.maxPartitionsAcrossTasks(stats.getMax());
     LOG.info("Assignment stats for {}. Min partitions across tasks: {}, max partitions across tasks: {}", taskPrefix,
         stats.getMin(), stats.getMax());
+
+    // Log the resulting per-task load (throughput) distribution. This is the primary signal that load-based
+    // assignment balanced throughput across tasks: when balancing works, min/max/avg task throughput are close and
+    // maxMinusMin is small. Unlike the partition-count stats above, this reflects byte rate, which is what the
+    // algorithm actually balances on. Note: this covers throughput-recognized partitions; round-robin partitions
+    // with unknown throughput are not included here.
+    if (!taskThroughputMap.isEmpty()) {
+      IntSummaryStatistics throughputStats = taskThroughputMap.values().stream()
+          .collect(Collectors.summarizingInt(Integer::intValue));
+      LOG.info("Load balance stats for {} across {} tasks. Task throughput (KBps) -> min: {}, max: {}, avg: {}, "
+              + "total: {}, maxMinusMin: {}", taskPrefix, throughputStats.getCount(), throughputStats.getMin(),
+          throughputStats.getMax(), String.format("%.1f", throughputStats.getAverage()), throughputStats.getSum(),
+          throughputStats.getMax() - throughputStats.getMin());
+    }
 
     LOG.info("END: assignPartitions for datastream={}", datastreamGroupName);
     return newAssignments;
