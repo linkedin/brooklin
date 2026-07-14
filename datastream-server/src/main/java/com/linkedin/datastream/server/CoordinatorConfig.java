@@ -47,6 +47,12 @@ public final class CoordinatorConfig {
   public static final String CONFIG_MARK_DATASTREAMS_STOPPED_RETRY_PERIOD_MS = PREFIX + "markDatastreamsStoppedRetryPeriodMs";
 
   public static final String CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING = PREFIX + "enableThroughputViolatingTopicsHandling";
+  // how often the host-level throughput-violating topics cache is rebuilt from the current assignment,
+  // independent of rebalance timing. Bounds any staleness window to this period.
+  public static final String CONFIG_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS = PREFIX + "throughputViolatingTopicsRefreshPeriodMs";
+  // whether the periodic rebuild of the host-level throughput-violating topics cache is enabled. When
+  // disabled, the cache is only rebuilt on assignment / datastream-update events.
+  public static final String CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH = PREFIX + "enableThroughputViolatingTopicsPeriodicRefresh";
   public static final String CONFIG_LOG_SIZE_LIMIT_IN_BYTES = PREFIX + "logSizeLimitInBytes";
   // SLA threshold for stream provisioning: a datastream's INITIALIZING -> READY duration at or below this
   // is counted as within SLA, above it as outside SLA
@@ -60,6 +66,8 @@ public final class CoordinatorConfig {
   public static final int DEFAULT_MARK_DATASTREMS_STOPPED_RETRY_PERIOD_MS = 10 * 1000;
   public static final int DEFAULT_LOG_SIZE_LIMIT_IN_BYTES = 1024 * 1024;
   public static final long DEFAULT_PROVISIONING_SLA_THRESHOLD_MS = Duration.ofMinutes(10).toMillis();
+  public static final long DEFAULT_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS = Duration.ofMinutes(5).toMillis();
+  public static final boolean DEFAULT_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH = true;
 
   private final String _cluster;
   private final String _zkAddress;
@@ -85,6 +93,8 @@ public final class CoordinatorConfig {
   private final long _markDatastreamsStoppedTimeoutMs;
   private final long _markDatastreamsStoppedRetryPeriodMs;
   private final boolean _enableThroughputViolatingTopicsHandling;
+  private final long _throughputViolatingTopicsRefreshPeriodMs;
+  private final boolean _enableThroughputViolatingTopicsPeriodicRefresh;
   private final double _logSizeLimitInBytes;
   private final long _provisioningSlaThresholdMs;
 
@@ -125,6 +135,12 @@ public final class CoordinatorConfig {
         DEFAULT_MARK_DATASTREMS_STOPPED_RETRY_PERIOD_MS);
     _enableThroughputViolatingTopicsHandling = _properties.getBoolean(
         CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_HANDLING, false);
+    _throughputViolatingTopicsRefreshPeriodMs = _properties.getLong(
+        CONFIG_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS,
+        DEFAULT_THROUGHPUT_VIOLATING_TOPICS_REFRESH_PERIOD_MS);
+    _enableThroughputViolatingTopicsPeriodicRefresh = _properties.getBoolean(
+        CONFIG_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH,
+        DEFAULT_ENABLE_THROUGHPUT_VIOLATING_TOPICS_PERIODIC_REFRESH);
     _logSizeLimitInBytes = _properties.getDouble(CONFIG_LOG_SIZE_LIMIT_IN_BYTES, DEFAULT_LOG_SIZE_LIMIT_IN_BYTES);
     _provisioningSlaThresholdMs = _properties.getLong(CONFIG_PROVISIONING_SLA_THRESHOLD_MS,
         DEFAULT_PROVISIONING_SLA_THRESHOLD_MS);
@@ -192,6 +208,14 @@ public final class CoordinatorConfig {
 
   public boolean getEnableThroughputViolatingTopicsHandling() {
     return _enableThroughputViolatingTopicsHandling;
+  }
+
+  public long getThroughputViolatingTopicsRefreshPeriodMs() {
+    return _throughputViolatingTopicsRefreshPeriodMs;
+  }
+
+  public boolean getEnableThroughputViolatingTopicsPeriodicRefresh() {
+    return _enableThroughputViolatingTopicsPeriodicRefresh;
   }
 
   // Configuration properties for Assignment Tokens Feature
