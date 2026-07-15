@@ -110,4 +110,17 @@ public class TestCoordinatorConfig {
     CoordinatorConfig overridden = createCoordinatorConfig(props);
     Assert.assertFalse(overridden.getEnableThroughputViolatingTopicsPeriodicRefresh());
   }
+
+  @Test
+  public void testAssignmentEnabledCheckPeriodConfig() {
+    Properties props = new Properties();
+    CoordinatorConfig config = createCoordinatorConfig(props);
+    Assert.assertEquals(config.getAssignmentEnabledCheckPeriodMs(),
+        CoordinatorConfig.DEFAULT_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS);
+    Assert.assertEquals(config.getAssignmentEnabledCheckPeriodMs(), Duration.ofSeconds(5).toMillis());
+
+    props.put(CoordinatorConfig.CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS, "1000");
+    CoordinatorConfig overridden = createCoordinatorConfig(props);
+    Assert.assertEquals(overridden.getAssignmentEnabledCheckPeriodMs(), 1000L);
+  }
 }

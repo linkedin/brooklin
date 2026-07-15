@@ -1680,6 +1680,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   private void handleLeaderDoAssignment(boolean isNewlyElectedLeader) {
     boolean succeeded = true;
     _log.info("START: Coordinator::handleLeaderDoAssignment.");
+
+    // Honor the dynamic ZooKeeper assignment-enabled flag. If assignment is disabled, skip this cycle and
+    // reschedule a LEADER_DO_ASSIGNMENT event after the configured check period instead of blocking the
+    // Coordinator event thread. This keeps the event loop (heartbeats, partition ops, this leader's own
+    // assignment changes, shutdown) responsive while assignment is paused.
+    if (!_adapter.isAssignmentEnabled()) {
+      _log.warn("Datastream task assignment is disabled via the ZooKeeper assignment-enabled flag. "
+          + "Skipping assignment and re-checking in {} ms.", _config.getAssignmentEnabledCheckPeriodMs());
+      scheduleLeaderDoAssignmentWhenReEnabled(isNewlyElectedLeader);
+      _log.info("END: Coordinator::handleLeaderDoAssignment.");
+      return;
+    }
+
     List<String> liveInstances = Collections.emptyList();
     Map<String, Set<DatastreamTask>> previousAssignmentByInstance = Collections.emptyMap();
     Map<String, List<DatastreamTask>> newAssignmentsByInstance = Collections.emptyMap();
@@ -1749,6 +1762,26 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       scheduleLeaderDoAssignmentRetry(isNewlyElectedLeader);
     }
     _log.info("END: Coordinator::handleLeaderDoAssignment.");
+  }
+
+  /**
+   * Reschedule a {@code LEADER_DO_ASSIGNMENT} event after the configured assignment-enabled check period
+   * (see {@link CoordinatorConfig#getAssignmentEnabledCheckPeriodMs()}) so the leader re-evaluates the dynamic
+   * ZooKeeper assignment-enabled flag (see {@link com.linkedin.datastream.server.zk.KeyBuilder#assignmentEnabled(String)})
+   * without blocking the Coordinator event thread.
+   *
+   * The rescheduled event is only handled while this instance is still the leader (see {@link #handleEvent}),
+   * so leadership loss or shutdown naturally stops the re-check loop. This is a no-op if a
+   * {@code LEADER_DO_ASSIGNMENT} is already scheduled, avoiding piling up redundant futures.
+   */
+  private void scheduleLeaderDoAssignmentWhenReEnabled(boolean isNewlyElectedLeader) {
+    if (!_leaderDoAssignmentScheduled.compareAndSet(false, true)) {
+      return;
+    }
+    _leaderDoAssignmentScheduledFuture = _scheduledExecutor.schedule(() -> {
+      _eventQueue.putFirst(CoordinatorEvent.createLeaderDoAssignmentEvent(isNewlyElectedLeader));
+      _leaderDoAssignmentScheduled.set(false);
+    }, _config.getAssignmentEnabledCheckPeriodMs(), TimeUnit.MILLISECONDS);
   }
 
   private void scheduleLeaderDoAssignmentRetry(boolean isNewlyElectedLeader) {
