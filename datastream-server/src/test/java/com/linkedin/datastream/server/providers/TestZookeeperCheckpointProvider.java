@@ -10,6 +10,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Map;
 
+import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -30,6 +31,12 @@ import com.linkedin.datastream.server.DummyTransportProviderAdminFactory;
 import com.linkedin.datastream.server.zk.KeyBuilder;
 import com.linkedin.datastream.server.zk.ZkAdapter;
 import com.linkedin.datastream.testutil.EmbeddedZookeeper;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 
 /**
@@ -114,6 +121,38 @@ public class TestZookeeperCheckpointProvider {
 
     Assert.assertEquals(committedCheckpoints1.get(0), "checkpoint1");
     Assert.assertEquals(committedCheckpoints2.get(0), "checkpoint2");
+  }
+
+  @Test
+  public void testFlush() {
+    ZkAdapter adapter = spy(new ZkAdapter(_zookeeper.getConnection(), "testcluster", defaultTransportProviderName, ZkClient.DEFAULT_SESSION_TIMEOUT,
+        ZkClient.DEFAULT_CONNECTION_TIMEOUT, null));
+    adapter.connect();
+    ZookeeperCheckpointProvider checkpointProvider = new ZookeeperCheckpointProvider(adapter);
+    DatastreamTaskImpl datastreamTask1 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(1)));
+    datastreamTask1.setId("dt1");
+
+    DatastreamTaskImpl datastreamTask2 = new DatastreamTaskImpl(Collections.singletonList(generateDatastream(2)));
+    datastreamTask2.setId("dt2");
+
+    checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint1");
+    checkpointProvider.updateCheckpoint(datastreamTask2, 0, "checkpoint2");
+
+    Map<Integer, String> committedCheckpoints1 = checkpointProvider.getSafeCheckpoints(datastreamTask1);
+    Map<Integer, String> committedCheckpoints2 = checkpointProvider.getSafeCheckpoints(datastreamTask2);
+    Assert.assertEquals(committedCheckpoints1.size(), 1);
+
+    Assert.assertEquals(committedCheckpoints1.get(0), "checkpoint1");
+    Assert.assertEquals(committedCheckpoints2.get(0), "checkpoint2");
+
+    verify(adapter, times(2)).setDatastreamTaskStateForKey(any(), anyString(), anyString());
+    Mockito.reset(adapter);
+    checkpointProvider.flush();
+    verify(adapter, times(0)).setDatastreamTaskStateForKey(any(), anyString(), anyString());
+    checkpointProvider.updateCheckpoint(datastreamTask1, 0, "checkpoint3");
+    Mockito.reset(adapter);
+    checkpointProvider.flush();
+    verify(adapter, times(1)).setDatastreamTaskStateForKey(any(), anyString(), anyString());
   }
 
   /**
