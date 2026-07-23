@@ -51,6 +51,7 @@ import com.linkedin.datastream.testutil.MetricsTestUtils;
 import static com.linkedin.datastream.server.assignment.StickyMulticastStrategyFactory.DEFAULT_IMBALANCE_THRESHOLD;
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.CLASS_NAME;
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT;
+import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.ESTIMATED_NUM_TASKS;
 import static com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy.NUM_TASKS;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -702,6 +703,10 @@ public class TestStickyPartitionAssignmentStrategy {
     Assert.assertEquals(gauge.getValue(), maxTasks);
     gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
     Assert.assertEquals(gauge.getValue(), 1.0);
+    // The estimated number of tasks gauge reports the uncapped estimate calculated for the datastream, even though the
+    // actual number of tasks (NUM_TASKS) is capped at maxTasks.
+    gauge = _metricsManager.getMetric(MetricRegistry.name(CLASS_NAME, datastreams.get(0).getName(), ESTIMATED_NUM_TASKS));
+    Assert.assertEquals(gauge.getValue(), numTasksNeeded);
   }
 
   @Test

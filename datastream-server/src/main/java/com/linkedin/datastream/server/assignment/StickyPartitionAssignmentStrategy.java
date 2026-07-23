@@ -80,6 +80,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   static final String ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT = "elasticTaskParametersNeedAdjustment";
   @VisibleForTesting
   static final String NUM_TASKS_CAPPED_BY_MAX_TASKS = "numTasksCappedByMaxTasks";
+  @VisibleForTesting
+  static final String ESTIMATED_NUM_TASKS = "estimatedNumTasks";
 
   private static final Logger LOG = LoggerFactory.getLogger(StickyPartitionAssignmentStrategy.class.getName());
   private static final DynamicMetricsManager DYNAMIC_METRICS_MANAGER = DynamicMetricsManager.getInstance();
@@ -92,6 +94,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   private final ZkClient _zkClient;
   private final String _clusterName;
   private final ConcurrentHashMap<String, ElasticTaskAssignmentInfo> _elasticTaskAssignmentInfoHashMap = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, Integer> _estimatedNumTasksHashMap = new ConcurrentHashMap<>();
 
   /**
    * Constructor for StickyPartitionAssignmentStrategy
@@ -536,6 +539,7 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     metrics.add(new BrooklinGaugeInfo(prefix + NUM_TASKS));
     metrics.add(new BrooklinGaugeInfo(prefix + ACTUAL_PARTITIONS_PER_TASK));
     metrics.add(new BrooklinGaugeInfo(prefix + ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT));
+    metrics.add(new BrooklinGaugeInfo(prefix + ESTIMATED_NUM_TASKS));
     metrics.add(new BrooklinMeterInfo(prefix + NUM_TASKS_CAPPED_BY_MAX_TASKS));
 
     return Collections.unmodifiableList(metrics);
@@ -630,13 +634,20 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
   }
 
   protected int validateNumTasksAgainstMaxTasks(DatastreamGroupPartitionsMetadata datastreamPartitions, int numTasks) {
+    String taskPrefix = datastreamPartitions.getDatastreamGroup().getTaskPrefix();
+    // Track and emit the estimated number of tasks calculated for this datastream (before any maxTasks capping) as an
+    // informational per-datastream gauge metric. This is emitted for every stream, unlike NUM_TASKS_CAPPED_BY_MAX_TASKS
+    // which is only emitted when the estimate exceeds maxTasks.
+    _estimatedNumTasksHashMap.put(taskPrefix, numTasks);
+    LOG.info("Estimated number of tasks calculated for datastream {}: {}", taskPrefix, numTasks);
+
     int maxTasks = resolveConfigWithMetadata(datastreamPartitions.getDatastreamGroup(), CFG_MAX_TASKS, 0);
     if (maxTasks > 0 && numTasks > maxTasks) {
       // Only have the maxTasks override kick in if it's present as part of the datastream metadata.
       LOG.warn("The number of tasks needed {} is higher than maxTasks {}. Setting numTasks to maxTasks",
           numTasks, maxTasks);
       DYNAMIC_METRICS_MANAGER.createOrUpdateMeter(CLASS_NAME,
-          datastreamPartitions.getDatastreamGroup().getTaskPrefix(),
+          taskPrefix,
           NUM_TASKS_CAPPED_BY_MAX_TASKS, 1);
       return maxTasks;
     }
@@ -759,6 +770,9 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
             && _elasticTaskAssignmentInfoHashMap.get(taskPrefix).getNeedsAdjustment()) ? 1.0 : 0.0;
     DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT,
         needsAdjustmentSupplier);
+
+    Supplier<Integer> estimatedNumTasksSupplier = () -> _estimatedNumTasksHashMap.getOrDefault(taskPrefix, 0);
+    DYNAMIC_METRICS_MANAGER.registerGauge(CLASS_NAME, taskPrefix, ESTIMATED_NUM_TASKS, estimatedNumTasksSupplier);
   }
 
   /**
@@ -768,6 +782,8 @@ public class StickyPartitionAssignmentStrategy extends StickyMulticastStrategy i
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, NUM_TASKS);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ACTUAL_PARTITIONS_PER_TASK);
     DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ELASTIC_TASK_PARAMETERS_NEED_ADJUSTMENT);
+    DYNAMIC_METRICS_MANAGER.unregisterMetric(CLASS_NAME, datastreamTaskPrefix, ESTIMATED_NUM_TASKS);
+    _estimatedNumTasksHashMap.remove(datastreamTaskPrefix);
   }
 
   /**
