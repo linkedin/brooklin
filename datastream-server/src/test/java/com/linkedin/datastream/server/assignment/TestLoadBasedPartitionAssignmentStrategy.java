@@ -22,6 +22,7 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 
 import com.linkedin.datastream.common.Datastream;
@@ -362,6 +363,12 @@ public class TestLoadBasedPartitionAssignmentStrategy {
     Mockito.verify(mockProvider, atLeastOnce()).getThroughputInfo(any(DatastreamGroup.class));
     int expectedCount = enablePartitionCountBasedEstimation ? 1 : 0;
     Mockito.verify(strategy, times(expectedCount)).getTaskCountEstimateBasedOnNumPartitions(any(), anyInt());
+    // The estimated number of tasks is emitted for the load based strategy as well
+    Gauge<?> gauge = DynamicMetricsManager.getInstance().getMetric(MetricRegistry.name(
+        StickyPartitionAssignmentStrategy.CLASS_NAME, taskPrefix,
+        StickyPartitionAssignmentStrategy.ESTIMATED_NUM_TASKS));
+    Assert.assertNotNull(gauge, "estimatedNumTasks gauge was not registered for the datastream");
+    Assert.assertEquals(gauge.getValue(), 1);
     MetricsTestUtils.verifyMetrics(strategy, DynamicMetricsManager.getInstance());
   }
 
