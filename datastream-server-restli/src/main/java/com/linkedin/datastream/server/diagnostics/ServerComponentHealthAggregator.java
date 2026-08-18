@@ -92,8 +92,7 @@ public class ServerComponentHealthAggregator {
         if (!errorMessage.isEmpty()) {
           errorResponses.put(hostName, errorMessage);
         } else {
-          String message = "Received REST response from the host: " + dmsUri + " with status: " + response.getStatus();
-          LOG.info(message);
+          LOG.info("Received REST response from the host: " + dmsUri);
           responses.put(hostName, response.getStatus());
         }
       }
