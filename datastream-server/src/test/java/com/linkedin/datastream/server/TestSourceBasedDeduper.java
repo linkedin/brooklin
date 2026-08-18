@@ -260,6 +260,51 @@ public class TestSourceBasedDeduper {
     Assert.assertTrue(result.isPresent());
   }
 
+  // ---- isCdcBstStreamCaughtUp hook: grace window still active but hook says caught up → dedup ----
+  @Test
+  public void testCdcOnlyNewVsExistingCdcBstCaughtUpEarly() throws DatastreamValidationException {
+    Datastream newStream = generateCdcDatastream(0, false, false, -1);
+    // creationMs = now → grace window (1 hour) has NOT expired
+    Datastream candidate = generateCdcDatastream(0, true, true, System.currentTimeMillis());
+
+    // Subclass overrides hook to report stream as caught up
+    Properties props = new Properties();
+    props.setProperty(SourceBasedDeduper.CONFIG_NEW_STREAM_GRACE_PERIOD_MS, "3600000");
+    props.setProperty(SourceBasedDeduper.CONFIG_SNAPSHOT_WORST_REFRESH_DAYS, "4");
+    SourceBasedDeduper deduper = new SourceBasedDeduper(props) {
+      @Override
+      protected boolean isCdcBstStreamCaughtUp(Datastream cdcBstStream) {
+        return true;
+      }
+    };
+
+    Optional<Datastream> result = deduper.findExistingDatastream(newStream, Collections.singletonList(candidate));
+    Assert.assertTrue(result.isPresent());
+    Assert.assertEquals(result.get(), candidate);
+  }
+
+  // ---- isCdcBstStreamCaughtUp hook: grace window active and hook returns false → new destination ----
+  @Test
+  public void testCdcOnlyNewVsExistingCdcBstNotCaughtUp() throws DatastreamValidationException {
+    Datastream newStream = generateCdcDatastream(0, false, false, -1);
+    Datastream candidate = generateCdcDatastream(0, true, true, System.currentTimeMillis());
+
+    // Hook reports not caught up (same as base behaviour)
+    SourceBasedDeduper deduper;
+    Properties props = new Properties();
+    props.setProperty(SourceBasedDeduper.CONFIG_NEW_STREAM_GRACE_PERIOD_MS, "3600000");
+    props.setProperty(SourceBasedDeduper.CONFIG_SNAPSHOT_WORST_REFRESH_DAYS, "4");
+    deduper = new SourceBasedDeduper(props) {
+      @Override
+      protected boolean isCdcBstStreamCaughtUp(Datastream cdcBstStream) {
+        return false;
+      }
+    };
+
+    Optional<Datastream> result = deduper.findExistingDatastream(newStream, Collections.singletonList(candidate));
+    Assert.assertFalse(result.isPresent());
+  }
+
   // ---- Different source in CDC-aware path → no match ----
   @Test
   public void testCdcAwarePathDifferentSourceNoMatch() throws DatastreamValidationException {
