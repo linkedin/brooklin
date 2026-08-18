@@ -41,6 +41,9 @@ public class KafkaBasedConnectorConfig {
   // how long will the connector wait for a task to shut down before interrupting the task thread
   private static final String CONFIG_TASK_INTERRUPT_TIMEOUT_MS = "taskKillTimeoutMs";
 
+  // how long will the connector task wait for producer flush before committing safe offsets during hard commit
+  private static final String CONFIG_HARD_COMMIT_FLUSH_TIMEOUT = "hardCommitFlushTimeout";
+
   // config value to enable Kafka partition management for KafkaMirrorConnector
   public static final String ENABLE_PARTITION_ASSIGNMENT = "enablePartitionAssignment";
   public static final long DEFAULT_NON_GOOD_STATE_THRESHOLD_MILLIS = Duration.ofMinutes(10).toMillis();
@@ -56,6 +59,7 @@ public class KafkaBasedConnectorConfig {
   private static final boolean DEFAULT_ENABLE_ADDITIONAL_METRICS = Boolean.TRUE;
   private static final boolean DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID = Boolean.FALSE;
   private static final long DEFAULT_TASK_INTERRUPT_TIMEOUT_MS = Duration.ofSeconds(75).toMillis();
+  private static final long DEFAULT_HARD_COMMIT_FLUSH_TIMEOUT_MS = Duration.ofSeconds(10).toMillis();
   private static final long POST_TASK_INTERRUPT_TIMEOUT_MS = Duration.ofSeconds(15).toMillis();
 
   private final Properties _consumerProps;
@@ -79,6 +83,7 @@ public class KafkaBasedConnectorConfig {
   private final long _nonGoodStateThresholdMillis;
   private final boolean _enablePartitionAssignment;
   private final long _taskInterruptTimeoutMs;
+  private final long _hardCommitFlushTimeoutMs;
 
   // Kafka based pub sub framework uses Long as their offset type, hence instantiating a Long parameterized factory
   private final CallbackStatusFactory<Long> _callbackStatusStrategyFactory;
@@ -121,6 +126,7 @@ public class KafkaBasedConnectorConfig {
         INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID, DEFAULT_INCLUDE_DATASTREAM_NAME_IN_CONSUMER_CLIENT_ID);
     _enablePartitionAssignment = verifiableProperties.getBoolean(ENABLE_PARTITION_ASSIGNMENT, Boolean.FALSE);
     _taskInterruptTimeoutMs = verifiableProperties.getLong(CONFIG_TASK_INTERRUPT_TIMEOUT_MS, DEFAULT_TASK_INTERRUPT_TIMEOUT_MS);
+    _hardCommitFlushTimeoutMs = verifiableProperties.getLong(CONFIG_HARD_COMMIT_FLUSH_TIMEOUT, DEFAULT_HARD_COMMIT_FLUSH_TIMEOUT_MS);
 
     String callbackStatusStrategyFactoryClass = verifiableProperties.getString(CONFIG_CALLBACK_STATUS_STRATEGY_FACTORY_CLASS,
         CallbackStatusWithComparableOffsetsFactory.class.getName());
@@ -227,6 +233,9 @@ public class KafkaBasedConnectorConfig {
 
   public long getShutdownExecutorShutdownTimeoutMs() {
     return _taskInterruptTimeoutMs + POST_TASK_INTERRUPT_TIMEOUT_MS;
+  }
+  public long getHardCommitFlushTimeoutMs() {
+    return _hardCommitFlushTimeoutMs;
   }
 
   public CallbackStatusFactory<Long> getCallbackStatusStrategyFactory() {
