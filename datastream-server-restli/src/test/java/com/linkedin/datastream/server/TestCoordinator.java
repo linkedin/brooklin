@@ -482,9 +482,11 @@ public class TestCoordinator {
     ds1.setStatus(DatastreamStatus.PAUSED);
     DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
 
-    // Check that the datastream are running.
-    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
-    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+    // Check that the datastream are running. Datastream3 is deduped into datastream1's task, and with the task's
+    // datastreams list now correctly refreshed to reflect the dedup, datastream3 is an equally valid
+    // representative of that task alongside datastream1.
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, 2, "datastream1", "datastream2", "datastream3");
+    assertConnectorAssignment(connector2, WAIT_TIMEOUT_MS, 2, "datastream1", "datastream2", "datastream3");
 
     // Verify that No Tasks are parked (because DS1 and DS3 are in the same group, and DS3 is not paused)
     Assert.assertEquals(zkClient.getChildren(pausedPath).size(), 0);
@@ -3209,6 +3211,63 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  /**
+   * Test that when a "dedup" datastream is created that reuses the task(s) of an already-assigned
+   * datastream (same taskPrefix/partitions, so the assignment/task name does not change), the already-assigned
+   * task's cached {@link DatastreamTask#getDatastreams()} list is refreshed to include the new datastream, instead
+   * of going stale. Without the fix, the task object survives the dedupe unchanged (same object, per
+   * {@link DatastreamTaskImpl#equals}), but its datastreams list would still only contain the original stream.
+   */
+  @Test
+  public void testTaskDatastreamsRefreshedAfterDedupeReusesExistingTask() throws Exception {
+    String testCluster = "testTaskDatastreamsRefreshedAfterDedupeReusesExistingTask";
+    String connectorType = "connectorType";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+
+    Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream[] datastreams = DatastreamTestUtils.createDatastreams(connectorType, "stream1", "stream2");
+    datastreams[0].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MyPrefix");
+    datastreams[1].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "MyPrefix");
+
+    // Store and wait for stream1 to be assigned; this creates the task that stream2 will later dedupe into
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams[0]);
+    Assert.assertTrue(PollUtils.poll(() -> connector1.getTasks().size() == 1, 50, WAIT_TIMEOUT_MS));
+    DatastreamTask task = connector1.getTasks().get(0);
+    Assert.assertTrue(PollUtils.poll(() -> task.getDatastreams().size() == 1, 50, WAIT_TIMEOUT_MS));
+
+    // Dedupe stream2 against stream1's destination, then store it
+    datastreams[1].setSource(datastreams[0].getSource());
+    datastreams[1].removeDestination();
+    coordinator1.initializeDatastream(datastreams[1]);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams[1]);
+
+    // Wait for stream2 to become READY
+    Assert.assertTrue(PollUtils.poll(() -> {
+      Datastream ds = DatastreamTestUtils.getDatastream(zkClient, testCluster, "stream2");
+      return ds.getStatus() == DatastreamStatus.READY;
+    }, 50, WAIT_TIMEOUT_MS));
+
+    // No new task should have been created for the dedup stream: it must reuse the existing task
+    Assert.assertEquals(connector1.getTasks().size(), 1);
+    Assert.assertEquals(connector1.getTasks().get(0), task);
+
+    // The reused task's datastreams list must be refreshed to include the newly deduped stream
+    Assert.assertTrue(PollUtils.poll(() -> task.getDatastreams().size() == 2, 50, WAIT_TIMEOUT_MS),
+        "Task's datastreams list was not refreshed after dedupe; still contains: " + task.getDatastreams());
+    Assert.assertTrue(task.getDatastreams().stream().anyMatch(ds -> ds.getName().equals("stream2")));
+
+    coordinator1.stop();
+    coordinator1.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
   private static class TestCoordinatorWithSpyZkAdapter extends Coordinator {
 
     TestCoordinatorWithSpyZkAdapter(CachedDatastreamReader testDatastreamCache, Properties testConfig) throws DatastreamException {
@@ -4509,11 +4568,20 @@ public class TestCoordinator {
   // tasks with the specified names.
   private void assertConnectorAssignment(TestHookConnector connector, long timeoutMs, String... datastreamNames)
       throws InterruptedException {
+    assertConnectorAssignment(connector, timeoutMs, datastreamNames.length, datastreamNames);
+  }
+
+  // helper method: assert that within a timeout value, the connector is assigned exactly expectedTaskCount tasks,
+  // each represented (via getDatastreams().get(0)) by one of the given acceptable datastream names. Useful when a
+  // task's representative datastream name may vary across runs (e.g. once its datastreams list is refreshed to
+  // reflect a dedup, the task may equally be represented by any datastream in its group).
+  private void assertConnectorAssignment(TestHookConnector connector, long timeoutMs, int expectedTaskCount,
+      String... datastreamNames) throws InterruptedException {
 
     final long interval = timeoutMs < 100 ? timeoutMs : 100;
 
-    boolean result =
-        PollUtils.poll(() -> validateAssignment(connector.getTasks(), datastreamNames), interval, timeoutMs);
+    boolean result = PollUtils.poll(() -> validateAssignment(connector.getTasks(), expectedTaskCount, datastreamNames),
+        interval, timeoutMs);
 
     LOG.info(
         String.format("assertConnectorAssignment. Connector: %s, Connector Tasks: %s, ASSERT: %s", connector.getName(),
@@ -4534,8 +4602,13 @@ public class TestCoordinator {
   }
 
   private boolean validateAssignment(List<DatastreamTask> assignment, String... datastreamNames) {
-    if (assignment.size() != datastreamNames.length) {
-      LOG.warn("Expected size: " + datastreamNames.length + ", Actual size: " + assignment.size());
+    return validateAssignment(assignment, datastreamNames.length, datastreamNames);
+  }
+
+  private boolean validateAssignment(List<DatastreamTask> assignment, int expectedTaskCount,
+      String... datastreamNames) {
+    if (assignment.size() != expectedTaskCount) {
+      LOG.warn("Expected size: " + expectedTaskCount + ", Actual size: " + assignment.size());
       return false;
     }
 
