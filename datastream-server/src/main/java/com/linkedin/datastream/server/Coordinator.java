@@ -1448,6 +1448,16 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       return;
     }
 
+    // Snapshot of task prefixes that already have an established (non-INITIALIZING, non-deleting/expired)
+    // datastream *before* this batch is processed. Used below to detect a "dedup" datastream: one that is about
+    // to become READY and reuses the task(s) of one of these already-established datastreams (same taskPrefix),
+    // as opposed to a brand-new datastream that will get a brand-new task.
+    Set<String> establishedTaskPrefixes = activeStreams.stream()
+        .filter(ds -> ds.getStatus() != DatastreamStatus.INITIALIZING)
+        .map(Coordinator::getEffectiveTaskPrefix)
+        .collect(Collectors.toSet());
+
+    boolean anyDatastreamJoinedExistingTask = false;
     for (Datastream ds : allStreams) {
       if (ds.getStatus() == DatastreamStatus.INITIALIZING) {
         try {
@@ -1465,6 +1475,9 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
             shouldRetry = true;
           } else {
             recordStreamProvisioningTime(ds);
+            if (establishedTaskPrefixes.contains(getEffectiveTaskPrefix(ds))) {
+              anyDatastreamJoinedExistingTask = true;
+            }
           }
         } catch (Exception e) {
           _log.warn("Failed to update the destination of new datastream {}", ds, e);
@@ -1476,6 +1489,19 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
         hardDeleteDatastream(ds, activeStreams);
       }
+    }
+
+    if (anyDatastreamJoinedExistingTask) {
+      // A newly READY datastream reused the task(s) of an existing, already-assigned datastream (same
+      // taskPrefix/partitions, e.g. destination dedup). In that case, the assignment (task names) does not
+      // change, so the normal assignment diff/rebalance path never touches the affected task's ZK node and the
+      // task's cached _datastreams list on every instance goes stale (see getDatastreams() javadoc). Explicitly
+      // broadcast so every live instance re-reads datastream groups and refreshes the datastreams list of its
+      // already-assigned tasks via onDatastreamUpdate(), the same way an explicit datastream update/
+      // pause-partitions call already does today. We only do this when a task is actually reused (as opposed to
+      // every datastream creation) to avoid an extra onAssignmentChange() dispatch for the common case of a
+      // brand-new datastream getting a brand-new task.
+      broadcastDatastreamUpdate();
     }
 
     if (shouldRetry) {
@@ -1496,6 +1522,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
     _eventQueue.put(CoordinatorEvent.createLeaderDoAssignmentEvent(false));
     _log.info("END: Coordinator::handleDatastreamAddOrDelete.");
+  }
+
+  /**
+   * Get the effective task prefix of a datastream: the explicit {@code system.taskPrefix} metadata if present
+   * (e.g. copied from another datastream during destination dedup), otherwise the datastream's own name.
+   */
+  private static String getEffectiveTaskPrefix(Datastream datastream) {
+    String taskPrefix = Objects.requireNonNull(datastream.getMetadata()).get(DatastreamMetadataConstants.TASK_PREFIX);
+    return taskPrefix != null ? taskPrefix : DatastreamTaskImpl.getTaskPrefix(datastream);
   }
 
   /**
