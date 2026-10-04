@@ -56,6 +56,7 @@ import com.linkedin.datastream.server.dms.DatastreamResources;
 import com.linkedin.datastream.server.dms.DatastreamStore;
 import com.linkedin.datastream.server.dms.ZookeeperBackedDatastreamStore;
 
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ALLOW_BYOT_GROUP_JOIN;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_AUTHORIZER_NAME;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
@@ -344,8 +345,9 @@ public class DatastreamServer {
 
 
     String authorizerName = connectorProps.getString(CONFIG_CONNECTOR_AUTHORIZER_NAME, null);
+    boolean allowByotGroupJoin = connectorProps.getBoolean(CONFIG_CONNECTOR_ALLOW_BYOT_GROUP_JOIN, false);
     _coordinator.addConnector(connectorName, connectorInstance, assignmentStrategy, customCheckpointing, deduper,
-        authorizerName);
+        authorizerName, allowByotGroupJoin);
 
     LOG.info("Connector loaded successfully. Type: " + connectorName);
   }

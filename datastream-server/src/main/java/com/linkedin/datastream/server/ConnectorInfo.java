@@ -35,8 +35,10 @@ public class ConnectorInfo {
    */
   private final Optional<String> _authorizerName;
 
+  private final boolean _byotGroupJoinAllowed;
+
   /**
-   * Constructor for ConnectorInfo
+   * Constructor for ConnectorInfo, which does not allow BYOT group joins
    * @param name Connector name
    * @param connector Connector object
    * @param strategy Assignment strategy associated with {@code connector}
@@ -47,6 +49,24 @@ public class ConnectorInfo {
    */
   public ConnectorInfo(String name, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing,
       CheckpointProvider checkpointProvider, DatastreamDeduper deduper, String authorizerName) {
+    this(name, connector, strategy, customCheckpointing, checkpointProvider, deduper, authorizerName, false);
+  }
+
+  /**
+   * Constructor for ConnectorInfo
+   * @param name Connector name
+   * @param connector Connector object
+   * @param strategy Assignment strategy associated with {@code connector}
+   * @param customCheckpointing true if {@code connector} uses custom checkpointing
+   * @param checkpointProvider Checkpoint provider associated with {@code connector}
+   * @param deduper Datastream deduper associated with {@code connector}
+   * @param authorizerName Name of the authorizer configured by {@code connector} (if any)
+   * @param byotGroupJoinAllowed true if a BYOT datastream of {@code connector} may join the BYOT group that already
+   *                             uses its destination
+   */
+  public ConnectorInfo(String name, Connector connector, AssignmentStrategy strategy, boolean customCheckpointing,
+      CheckpointProvider checkpointProvider, DatastreamDeduper deduper, String authorizerName,
+      boolean byotGroupJoinAllowed) {
     _connector = new ConnectorWrapper(name, connector);
     _assignmentStrategy = strategy;
     _customCheckpointing = customCheckpointing;
@@ -57,6 +77,7 @@ public class ConnectorInfo {
     } else {
       _authorizerName = Optional.of(authorizerName);
     }
+    _byotGroupJoinAllowed = byotGroupJoinAllowed;
   }
 
   public ConnectorWrapper getConnector() {
@@ -85,5 +106,9 @@ public class ConnectorInfo {
 
   public CheckpointProvider getCheckpointProvider() {
     return _checkpointProvider;
+  }
+
+  public boolean isByotGroupJoinAllowed() {
+    return _byotGroupJoinAllowed;
   }
 }
