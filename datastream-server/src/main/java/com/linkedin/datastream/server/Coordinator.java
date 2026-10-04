@@ -36,6 +36,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -50,6 +51,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.linkedin.data.template.GetMode;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamAlreadyExistsException;
 import com.linkedin.datastream.common.DatastreamConstants;
@@ -82,6 +84,8 @@ import com.linkedin.datastream.server.api.serde.SerdeAdmin;
 import com.linkedin.datastream.server.api.strategy.AssignmentStrategy;
 import com.linkedin.datastream.server.api.transport.TransportProvider;
 import com.linkedin.datastream.server.api.transport.TransportProviderAdmin;
+import com.linkedin.datastream.server.assignment.BroadcastStrategyFactory;
+import com.linkedin.datastream.server.assignment.StickyPartitionAssignmentStrategy;
 import com.linkedin.datastream.server.providers.CheckpointProvider;
 import com.linkedin.datastream.server.providers.ZookeeperCheckpointProvider;
 import com.linkedin.datastream.server.zk.ZkAdapter;
@@ -2224,12 +2228,32 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
    */
   public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
       boolean customCheckpointing, DatastreamDeduper deduper, String authorizerName) {
+    addConnector(connectorName, connector, strategy, customCheckpointing, deduper, authorizerName, false);
+  }
+
+  /**
+   * Add a connector to the coordinator. A coordinator can handle multiples type of connectors, but only one
+   * connector per connector type.
+   *
+   * @param connectorName of the connector.
+   * @param connector a connector that implements the Connector interface
+   * @param strategy the assignment strategy deciding how to distribute datastream tasks among instances
+   * @param customCheckpointing whether connector uses custom checkpointing. if the custom checkpointing is set to true
+   *                            Coordinator will not perform checkpointing to ZooKeeper.
+   * @param deduper the deduper used by connector
+   * @param authorizerName name of the authorizer configured by connector
+   * @param allowByotGroupJoin whether a BYOT datastream of this connector may join the BYOT group that already uses
+   *                           its destination (see {@link #findByotGroupJoinConflict})
+   *
+   */
+  public void addConnector(String connectorName, Connector connector, AssignmentStrategy strategy,
+      boolean customCheckpointing, DatastreamDeduper deduper, String authorizerName, boolean allowByotGroupJoin) {
     Validate.notNull(strategy, "strategy cannot be null");
     Validate.notEmpty(connectorName, "connectorName cannot be empty");
     Validate.notNull(connector, "Connector cannot be null");
 
-    _log.info("Add new connector of type {}, strategy {} with custom checkpointing {} to coordinator", connectorName,
-        strategy.getClass().getTypeName(), customCheckpointing);
+    _log.info("Add new connector of type {}, strategy {} with custom checkpointing {} and BYOT group join {} to coordinator",
+        connectorName, strategy.getClass().getTypeName(), customCheckpointing, allowByotGroupJoin);
 
     if (_connectors.containsKey(connectorName)) {
       String err = "A connector of type " + connectorName + " already exists.";
@@ -2241,8 +2265,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _eventQueue.put(CoordinatorEvent.createLeaderPartitionAssignmentEvent(datastreamGroup.getName()))
     );
 
-    ConnectorInfo connectorInfo =
-        new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, _cpProvider, deduper, authorizerName);
+    ConnectorInfo connectorInfo = new ConnectorInfo(connectorName, connector, strategy, customCheckpointing, _cpProvider,
+        deduper, authorizerName, allowByotGroupJoin);
     _connectors.put(connectorName, connectorInfo);
 
     _metrics.addConnectorMetrics(connectorInfo);
@@ -2393,7 +2417,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       }
 
       connector.initializeDatastream(datastream, allDatastreams);
-      initializeDatastreamDestination(connector, datastream, deduper, allDatastreams);
+      initializeDatastreamDestination(connector, datastream, deduper, allDatastreams,
+          connectorInfo.isByotGroupJoinAllowed());
       connector.postDatastreamInitialize(datastream, allDatastreams);
     } catch (Exception e) {
       _metrics.updateKeyedMeter(CoordinatorMetrics.KeyedMeter.INITIALIZE_DATASTREAM_NUM_ERRORS, 1);
@@ -2404,7 +2429,8 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
   }
 
   private void initializeDatastreamDestination(ConnectorWrapper connector, Datastream datastream,
-      DatastreamDeduper deduper, List<Datastream> allDatastreams) throws DatastreamValidationException {
+      DatastreamDeduper deduper, List<Datastream> allDatastreams, boolean allowByotGroupJoin)
+      throws DatastreamValidationException {
     Optional<Datastream> existingDatastream = Optional.empty();
 
     // Dedupe datastream only when its destination is not populated and allows reuse
@@ -2426,8 +2452,21 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
         String errMsg = String.format("Cannot create a BYOT datastream where the destination is being used by other datastream(s): %s",
             datastreamNames);
-        _log.error(errMsg);
-        throw new DatastreamValidationException(errMsg);
+        if (!allowByotGroupJoin) {
+          _log.error(errMsg);
+          throw new DatastreamValidationException(errMsg);
+        }
+
+        String conflict = findByotGroupJoinConflict(datastream, sameDestinationDatastreams, this::isDeletingOrExpired);
+        if (conflict != null) {
+          String refusal = errMsg + ". It cannot join their group: " + conflict;
+          _log.error(refusal);
+          throw new DatastreamValidationException(refusal);
+        }
+
+        // Falls through to the same path as the first BYOT datastream on this destination
+        _log.info("BYOT group join: {} joins group {} on {} with {}", datastream.getName(),
+            DatastreamUtils.getTaskPrefix(datastream), datastream.getDestination().getConnectionString(), datastreamNames);
       }
     }
 
@@ -2450,6 +2489,58 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
       _log.info("Datastream {} has an unique source or topicReuse is set to true, Assigning a new destination {}",
           datastream.getName(), datastream.getDestination());
     }
+  }
+
+  /**
+   * Decides whether a BYOT datastream may join the group of BYOT datastreams that already use its destination.
+   * The new datastream names the group it joins with its task prefix, and joins only if every datastream on the
+   * destination is a joinable member of that group: same source, destination, transport provider and serdes,
+   * and the same task counts, because a group's task count is derived from its members' metadata.
+   * @param datastream the BYOT datastream being created; it is not modified
+   * @param sameDestination the datastreams of the same connector that already use the destination
+   * @param isDeletingOrExpired tells whether a datastream is being deleted or has passed its TTL
+   * @return why the datastream cannot join, naming the datastream in the way, or null if it can join
+   */
+  @VisibleForTesting
+  static String findByotGroupJoinConflict(Datastream datastream, List<Datastream> sameDestination,
+      Predicate<Datastream> isDeletingOrExpired) {
+    String taskPrefix = getMetadata(datastream, DatastreamMetadataConstants.TASK_PREFIX);
+    if (StringUtils.isBlank(taskPrefix)) {
+      return datastream.getName() + " has no " + DatastreamMetadataConstants.TASK_PREFIX + " naming the group to join";
+    }
+
+    for (Datastream member : sameDestination) {
+      String name = member.getName();
+      DatastreamStatus status = member.getStatus(GetMode.NULL);
+      if (!taskPrefix.equals(getMetadata(member, DatastreamMetadataConstants.TASK_PREFIX))) {
+        return name + " is in another group";
+      } else if (!DatastreamUtils.isUserManagedDestination(member)) {
+        return name + " is not a BYOT datastream";
+      } else if (!Objects.equals(member.getSource(GetMode.NULL), datastream.getSource(GetMode.NULL))) {
+        return name + " has a different source or source partition count";
+      } else if (!Objects.equals(member.getDestination().getPartitions(GetMode.NULL),
+          datastream.getDestination().getPartitions(GetMode.NULL))) {
+        return name + " has a different destination partition count";
+      } else if (!Objects.equals(member.getTransportProviderName(GetMode.NULL), datastream.getTransportProviderName(GetMode.NULL))) {
+        return name + " uses a different transport provider";
+      } else if (!AbstractDatastreamDeduper.equalSerdes(datastream, member)) {
+        return name + " uses different serdes";
+      } else if (status != DatastreamStatus.INITIALIZING && status != DatastreamStatus.READY) {
+        return name + " has status " + status + "; only an INITIALIZING or READY group can be joined";
+      } else if (isDeletingOrExpired.test(member)) {
+        return name + " is being deleted or has expired";
+      }
+      for (String key : Arrays.asList(BroadcastStrategyFactory.CFG_MAX_TASKS, StickyPartitionAssignmentStrategy.CFG_MIN_TASKS)) {
+        if (!Objects.equals(getMetadata(member, key), getMetadata(datastream, key))) {
+          return name + " has a different " + key;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static String getMetadata(Datastream datastream, String key) {
+    return datastream.hasMetadata() ? datastream.getMetadata().get(key) : null;
   }
 
   private void populateDatastreamDestinationFromExistingDatastream(Datastream datastream, Datastream existingStream) {

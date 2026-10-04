@@ -21,6 +21,7 @@ import java.util.Properties;
 import java.util.UUID;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -33,6 +34,8 @@ import org.testng.annotations.Test;
 import com.linkedin.datastream.DatastreamRestClient;
 import com.linkedin.datastream.common.Datastream;
 import com.linkedin.datastream.common.DatastreamException;
+import com.linkedin.datastream.common.DatastreamMetadataConstants;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.connectors.BrokenConnector;
@@ -55,6 +58,7 @@ import com.linkedin.datastream.testutil.DatastreamTestUtils;
 import com.linkedin.datastream.testutil.TestUtils;
 
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CLUSTER_NAME;
+import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ALLOW_BYOT_GROUP_JOIN;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_ASSIGNMENT_STRATEGY_FACTORY;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_AUTHORIZER_NAME;
 import static com.linkedin.datastream.server.DatastreamServerConfigurationConstants.CONFIG_CONNECTOR_BOOTSTRAP_TYPE;
@@ -190,6 +194,54 @@ public class TestDatastreamServer {
     restClient.createDatastream(stream);
 
     verify(authz, times(1)).authorize(any(), any(), any());
+  }
+
+  private EmbeddedDatastreamCluster initializeTestDatastreamServerWithByotGroupJoin(String allowByotGroupJoin)
+      throws Exception {
+    Map<String, Properties> connectorProperties = new HashMap<>();
+    connectorProperties.put(DUMMY_CONNECTOR, getDummyConnectorProperties(false));
+    if (allowByotGroupJoin != null) {
+      connectorProperties.get(DUMMY_CONNECTOR).put(CONFIG_CONNECTOR_ALLOW_BYOT_GROUP_JOIN, allowByotGroupJoin);
+    }
+    return EmbeddedDatastreamCluster.newTestDatastreamCluster(connectorProperties, new Properties());
+  }
+
+  private static Datastream createByotGroupMember(String name) {
+    Datastream ds = DatastreamTestUtils.createDatastream(DUMMY_CONNECTOR, name, DummyConnector.VALID_DUMMY_SOURCE,
+        "byotGroupTopic", 4);
+    ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "byotGroup");
+    return ds;
+  }
+
+  @Test
+  public void testByotGroupJoin() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithByotGroupJoin("true");
+    _datastreamCluster.startup();
+    DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
+
+    restClient.createDatastream(createByotGroupMember("A"));
+    restClient.createDatastream(createByotGroupMember("B"));
+
+    Datastream joined = restClient.getDatastream("B");
+    Assert.assertEquals(joined.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY), "true");
+    Assert.assertEquals(joined.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX), "byotGroup");
+    Assert.assertEquals(joined.getDestination().getConnectionString(), "byotGroupTopic");
+  }
+
+  @Test
+  public void testByotGroupJoinIsOffUnlessTheKeyIsSet() throws Exception {
+    _datastreamCluster = initializeTestDatastreamServerWithByotGroupJoin(null);
+    _datastreamCluster.startup();
+    DatastreamRestClient restClient = _datastreamCluster.createDatastreamRestClient();
+
+    restClient.createDatastream(createByotGroupMember("A"));
+    try {
+      restClient.createDatastream(createByotGroupMember("B"));
+      Assert.fail("The second BYOT datastream on the destination should have been refused");
+    } catch (DatastreamRuntimeException e) {
+      Assert.assertTrue(ExceptionUtils.getFullStackTrace(e).contains("Cannot create a BYOT datastream where the "
+          + "destination is being used by other datastream(s): A;"), ExceptionUtils.getFullStackTrace(e));
+    }
   }
 
   @Test

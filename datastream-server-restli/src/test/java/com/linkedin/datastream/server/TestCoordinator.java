@@ -1130,6 +1130,95 @@ public class TestCoordinator {
     coordinator.getDatastreamCache().getZkclient().close();
   }
 
+  private static final String BYOT_JOIN_REFUSAL = "Cannot create a BYOT datastream where the destination is being used by "
+      + "other datastream(s): testDatastream1. It cannot join their group: ";
+
+  private Coordinator startCoordinatorAllowingByotGroupJoin(String testCluster, String testConnectorType)
+      throws Exception {
+    Coordinator coordinator = createCoordinator(_zkConnectionString, testCluster);
+    coordinator.addConnector(testConnectorType, new TestHookConnector("connector1", testConnectorType),
+        new BroadcastStrategy(Optional.empty()), false, new SourceBasedDeduper(), null, true);
+    coordinator.start();
+    return coordinator;
+  }
+
+  private Datastream createByotGroupMember(String testConnectorType, String name, String source, String taskPrefix) {
+    Datastream ds = DatastreamTestUtils.createDatastream(testConnectorType, name, source, "testByotGroupDestination", 32);
+    if (taskPrefix != null) {
+      ds.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
+    }
+    return ds;
+  }
+
+  private void assertByotGroupJoinRefused(String testCluster, Datastream second, String reason) throws Exception {
+    String testConnectorType = "testConnectorType";
+    Coordinator coordinator = startCoordinatorAllowingByotGroupJoin(testCluster, testConnectorType);
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+    resource.create(createByotGroupMember(testConnectorType, "testDatastream1", "testSource1", "testGroup"));
+
+    try {
+      resource.create(second);
+      Assert.fail("RestLiServiceException expected on the join of " + second.getName());
+    } catch (RestLiServiceException e) {
+      Assert.assertTrue(e.getMessage().contains(BYOT_JOIN_REFUSAL + reason), e.getMessage());
+    }
+    Assert.assertNull(store.getDatastream(second.getName()));
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  /**
+   * Test that a BYOT datastream joins the group that uses its destination, when its connector allows it
+   */
+  @Test
+  public void testByotGroupJoin() throws Exception {
+    String testCluster = "testByotGroupJoin";
+    String testConnectorType = "testConnectorType";
+
+    Coordinator coordinator = startCoordinatorAllowingByotGroupJoin(testCluster, testConnectorType);
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    DatastreamResources resource = new DatastreamResources(store, coordinator);
+
+    resource.create(createByotGroupMember(testConnectorType, "testDatastream1", "testSource1", "testGroup"));
+    resource.create(createByotGroupMember(testConnectorType, "testDatastream2", "testSource1", "testGroup"));
+
+    Datastream joined = store.getDatastream("testDatastream2");
+    Assert.assertNotNull(joined);
+    Assert.assertEquals(joined.getMetadata().get(DatastreamMetadataConstants.IS_USER_MANAGED_DESTINATION_KEY), "true");
+    Assert.assertEquals(joined.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX), "testGroup");
+    Assert.assertEquals(joined.getDestination().getConnectionString(), "testByotGroupDestination");
+    Assert.assertEquals((int) joined.getDestination().getPartitions(), 32);
+
+    coordinator.stop();
+    zkClient.close();
+    coordinator.getDatastreamCache().getZkclient().close();
+  }
+
+  /**
+   * Test that a BYOT datastream with a different source cannot join, and that the refusal gives the reason
+   */
+  @Test
+  public void testByotGroupJoinRefusedForDifferentSource() throws Exception {
+    assertByotGroupJoinRefused("testByotGroupJoinRefusedForDifferentSource",
+        createByotGroupMember("testConnectorType", "testDatastream2", "testSource2", "testGroup"),
+        "testDatastream1 has a different source or source partition count");
+  }
+
+  /**
+   * Test that a BYOT datastream that does not name the group it joins is refused, as it is without BYOT group joins
+   */
+  @Test
+  public void testByotGroupJoinRefusedWithoutTaskPrefix() throws Exception {
+    assertByotGroupJoinRefused("testByotGroupJoinRefusedWithoutTaskPrefix",
+        createByotGroupMember("testConnectorType", "testDatastream2", "testSource1", null),
+        "testDatastream2 has no " + DatastreamMetadataConstants.TASK_PREFIX + " naming the group to join");
+  }
+
   private void assertConnectorReceiveDatastreamUpdate(TestHookConnector connector, Datastream updatedDatastream)
       throws Exception {
     assertConnectorAssignment(connector, WAIT_TIMEOUT_MS, updatedDatastream.getName());

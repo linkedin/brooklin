@@ -34,6 +34,7 @@ public final class DatastreamServerConfigurationConstants {
   public static final String DEFAULT_DEDUPER_FACTORY = SourceBasedDeduperFactory.class.getName();
   public static final String DOMAIN_DEDUPER = "deduper";
   public static final String CONFIG_CONNECTOR_AUTHORIZER_NAME = "authorizerName";
+  public static final String CONFIG_CONNECTOR_ALLOW_BYOT_GROUP_JOIN = "allowByotGroupJoin";
   // Restli port and path might be different in the staging or prod fabrics, so make it configurable.
   public static final String DOMAIN_DIAG = CONFIG_PREFIX + "diag";
   public static final String CONFIG_DIAG_PORT = "port";
