@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,9 +35,11 @@ import org.apache.commons.lang3.Validate;
 import org.apache.helix.zookeeper.zkclient.IZkChildListener;
 import org.apache.helix.zookeeper.zkclient.IZkDataListener;
 import org.apache.helix.zookeeper.zkclient.IZkStateListener;
+import org.apache.helix.zookeeper.zkclient.callback.ZkAsyncCallbacks;
 import org.apache.helix.zookeeper.zkclient.exception.ZkException;
 import org.apache.helix.zookeeper.zkclient.exception.ZkNoNodeException;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.Watcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,6 +127,9 @@ public class ZkAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(ZkAdapter.class);
 
   private final String _defaultTransportProviderName;
+  // Maximum number of in-flight asynchronous ZooKeeper requests used by updateAllAssignments. 0 keeps the
+  // legacy path that issues every request synchronously.
+  private int _assignmentWritePipelineSize = 0;
 
   private final ZkAdapterListener _listener;
   private final Random randomGenerator = new Random();
@@ -901,6 +907,14 @@ public class ZkAdapter {
   }
 
   /**
+   * Set the maximum number of in-flight asynchronous ZooKeeper requests the leader uses to persist an assignment.
+   * @param assignmentWritePipelineSize window size; 0 or less uses the legacy synchronous writes
+   */
+  public void setAssignmentWritePipelineSize(int assignmentWritePipelineSize) {
+    _assignmentWritePipelineSize = Math.max(0, assignmentWritePipelineSize);
+  }
+
+  /**
    * Update the task assignment of a given instance
    *
    * This method is only called by the leader Coordinator. To execute the update,
@@ -926,6 +940,21 @@ public class ZkAdapter {
     Map<String, Set<String>> nodesToAdd = new HashMap<>();
     diffAssignmentNodes(assignmentsByInstance, nodesToRemove, nodesToAdd);
 
+    if (_assignmentWritePipelineSize > 0) {
+      writeAssignmentNodesPipelined(nodesToAdd, nodesToRemove, assignmentsMap);
+    } else {
+      writeAssignmentNodes(nodesToAdd, nodesToRemove, assignmentsMap);
+    }
+
+    // Finally, Save the new assignments in the cache.
+    _liveTaskMap = new HashMap<>();
+    for (String instance : nodesToAdd.keySet()) {
+      _liveTaskMap.put(instance, new HashSet<>(assignmentsByInstance.get(instance)));
+    }
+  }
+
+  private void writeAssignmentNodes(Map<String, Set<String>> nodesToAdd, Map<String, Set<String>> nodesToRemove,
+      Map<String, DatastreamTask> assignmentsMap) {
     // Add the new tasks znodes.
     // We need to add the nodes BEFORE removing the old ones, to avoid tasks loss in case of server crash.
     // In case of crash, the new leader will remove duplicate tasks when updating the assignments.
@@ -949,11 +978,173 @@ public class ZkAdapter {
         }
       }
     }
+  }
 
-    // Finally, Save the new assignments in the cache.
-    _liveTaskMap = new HashMap<>();
+  /**
+   * Writes the same znodes and data as {@link #writeAssignmentNodes}, but pipelines the requests on the ZooKeeper
+   * session instead of waiting a full round trip for each one. At most {@code _assignmentWritePipelineSize}
+   * requests are in flight at a time.
+   *
+   * The ordering guarantees of the synchronous path are kept by running the writes in phases, each of which
+   * completes before the next one starts:
+   * <ol>
+   *   <li>connector task nodes, then their config and state children, then the hostname data and task stats</li>
+   *   <li>instance assignment nodes, so a follower never sees a task whose connector task node is missing</li>
+   *   <li>removal of old assignment nodes, only after every add succeeded</li>
+   * </ol>
+   * Any failure throws before the live task cache is updated, so the leader retries the whole assignment.
+   */
+  private void writeAssignmentNodesPipelined(Map<String, Set<String>> nodesToAdd,
+      Map<String, Set<String>> nodesToRemove, Map<String, DatastreamTask> assignmentsMap) {
+    long startMs = System.currentTimeMillis();
+    List<String> addInstances = new ArrayList<>();
+    List<DatastreamTaskImpl> addTasks = new ArrayList<>();
     for (String instance : nodesToAdd.keySet()) {
-      _liveTaskMap.put(instance, new HashSet<>(assignmentsByInstance.get(instance)));
+      Set<String> added = nodesToAdd.get(instance);
+      if (!added.isEmpty()) {
+        LOG.info("Instance: {}, adding assignments: {}", instance, added);
+        for (String name : added) {
+          addInstances.add(instance);
+          addTasks.add((DatastreamTaskImpl) assignmentsMap.get(name));
+        }
+      }
+    }
+
+    // Connector task nodes and their children.
+    addTasks.stream().map(DatastreamTask::getConnectorType).distinct()
+        .forEach(type -> _zkclient.ensurePath(KeyBuilder.connector(_cluster, type)));
+    List<String> taskPaths = new ArrayList<>();
+    List<String> childPaths = new ArrayList<>();
+    for (DatastreamTaskImpl task : addTasks) {
+      taskPaths.add(KeyBuilder.connectorTask(_cluster, task.getConnectorType(), task.getDatastreamTaskName()));
+      childPaths.add(KeyBuilder.datastreamTaskConfig(_cluster, task.getConnectorType(), task.getDatastreamTaskName()));
+      childPaths.add(KeyBuilder.datastreamTaskState(_cluster, task.getConnectorType(), task.getDatastreamTaskName()));
+    }
+    // Parents and children are created in separate phases because the client may resend a request after a
+    // connection loss, which could otherwise reorder a child ahead of its parent.
+    asyncCreateMissing(taskPaths);
+    asyncCreateMissing(childPaths);
+
+    // For debugging partition assignment issues, adding hostnames to zk task nodes.
+    forEachWindow(indices(addTasks.size()), i -> {
+      ZkAsyncCallbacks.SetDataCallbackHandler cb = new ZkAsyncCallbacks.SetDataCallbackHandler();
+      _zkclient.asyncSetData(taskPaths.get(i), addInstances.get(i), -1, cb);
+      return cb;
+    }, (i, cb) -> checkAsyncResult(cb, taskPaths.get(i), null));
+
+    for (DatastreamTaskImpl task : addTasks) {
+      if (!StringUtils.isEmpty(task.getStats())) {
+        task.saveState("stats", task.getStats());
+      }
+    }
+
+    // Instance assignment nodes.
+    for (String instance : new HashSet<>(addInstances)) {
+      _zkclient.ensurePath(KeyBuilder.instance(_cluster, instance));
+      _zkclient.ensurePath(KeyBuilder.instanceAssignments(_cluster, instance));
+    }
+    List<String> jsons = new ArrayList<>(addTasks.size());
+    for (DatastreamTaskImpl task : addTasks) {
+      try {
+        jsons.add(task.toJson());
+      } catch (IOException e) {
+        // This should never happen
+        ErrorLogger.logAndThrowDatastreamRuntimeException(LOG, "Failed to serialize task into JSON.", e);
+      }
+    }
+    forEachWindow(indices(addTasks.size()), i -> {
+      ZkAsyncCallbacks.CreateCallbackHandler cb = new ZkAsyncCallbacks.CreateCallbackHandler();
+      _zkclient.asyncCreate(instanceAssignmentPath(addInstances.get(i), addTasks.get(i)), jsons.get(i),
+          CreateMode.PERSISTENT, cb);
+      return cb;
+    }, (i, cb) -> {
+      String path = instanceAssignmentPath(addInstances.get(i), addTasks.get(i));
+      if (cb.getRc() == KeeperException.Code.NODEEXISTS.intValue()) {
+        // A create resent after a connection loss may already have been applied.
+        _zkclient.writeData(path, jsons.get(i));
+      } else {
+        checkAsyncResult(cb, path, null);
+      }
+    });
+
+    // Remove the old assignment nodes only after every add succeeded.
+    List<String> removePaths = new ArrayList<>();
+    for (String instance : nodesToRemove.keySet()) {
+      Set<String> removed = nodesToRemove.get(instance);
+      if (!removed.isEmpty()) {
+        LOG.info("Instance: {}, removing assignments: {}", instance, removed);
+        removed.forEach(name -> removePaths.add(KeyBuilder.instanceAssignment(_cluster, instance, name)));
+      }
+    }
+    forEachWindow(removePaths, path -> {
+      ZkAsyncCallbacks.DeleteCallbackHandler cb = new ZkAsyncCallbacks.DeleteCallbackHandler();
+      _zkclient.asyncDelete(path, cb);
+      return cb;
+    }, (path, cb) -> {
+      if (cb.getRc() == KeeperException.Code.NOTEMPTY.intValue()) {
+        _zkclient.deleteRecursive(path);
+      } else {
+        checkAsyncResult(cb, path, KeeperException.Code.NONODE);
+      }
+    });
+
+    LOG.info("Pipelined assignment write: added {} and removed {} assignment nodes in {} ms (window {})",
+        addTasks.size(), removePaths.size(), System.currentTimeMillis() - startMs, _assignmentWritePipelineSize);
+  }
+
+  private String instanceAssignmentPath(String instance, DatastreamTaskImpl task) {
+    return KeyBuilder.instanceAssignment(_cluster, instance, task.getDatastreamTaskName());
+  }
+
+  private void asyncCreateMissing(List<String> paths) {
+    List<String> missing = new ArrayList<>();
+    forEachWindow(paths, path -> {
+      ZkAsyncCallbacks.ExistsCallbackHandler cb = new ZkAsyncCallbacks.ExistsCallbackHandler();
+      _zkclient.asyncExists(path, cb);
+      return cb;
+    }, (path, cb) -> {
+      checkAsyncResult(cb, path, KeeperException.Code.NONODE);
+      if (((ZkAsyncCallbacks.ExistsCallbackHandler) cb)._stat == null) {
+        missing.add(path);
+      }
+    });
+    forEachWindow(missing, path -> {
+      ZkAsyncCallbacks.CreateCallbackHandler cb = new ZkAsyncCallbacks.CreateCallbackHandler();
+      _zkclient.asyncCreate(path, null, CreateMode.PERSISTENT, cb);
+      return cb;
+    }, (path, cb) -> checkAsyncResult(cb, path, KeeperException.Code.NODEEXISTS));
+  }
+
+  private static List<Integer> indices(int size) {
+    List<Integer> indices = new ArrayList<>(size);
+    for (int i = 0; i < size; i++) {
+      indices.add(i);
+    }
+    return indices;
+  }
+
+  private <T> void forEachWindow(List<T> items, Function<T, ZkAsyncCallbacks.DefaultCallback> sender,
+      BiConsumer<T, ZkAsyncCallbacks.DefaultCallback> handler) {
+    for (int from = 0; from < items.size(); from += _assignmentWritePipelineSize) {
+      List<T> window = items.subList(from, Math.min(items.size(), from + _assignmentWritePipelineSize));
+      List<ZkAsyncCallbacks.DefaultCallback> callbacks = new ArrayList<>(window.size());
+      window.forEach(item -> callbacks.add(sender.apply(item)));
+      for (int i = 0; i < window.size(); i++) {
+        if (!callbacks.get(i).waitForSuccess()) {
+          ErrorLogger.logAndThrowDatastreamRuntimeException(LOG,
+              "Interrupted while waiting for ZooKeeper request for " + window.get(i), null);
+        }
+        handler.accept(window.get(i), callbacks.get(i));
+      }
+    }
+  }
+
+  private static void checkAsyncResult(ZkAsyncCallbacks.DefaultCallback cb, String path,
+      KeeperException.Code tolerated) {
+    int rc = cb.getRc();
+    if (rc != KeeperException.Code.OK.intValue() && (tolerated == null || rc != tolerated.intValue())) {
+      ErrorLogger.logAndThrowDatastreamRuntimeException(LOG,
+          "ZooKeeper request failed for " + path + ": " + KeeperException.Code.get(rc), null);
     }
   }
 
