@@ -1640,7 +1640,33 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
 
   private List<DatastreamGroup> fetchDatastreamGroups() {
     // Get all streams that are assignable, where status is READY or PAUSED. STOPPED or other datastream status will NOT get assigned
-    return fetchDatastreamGroupsWithStatus(Arrays.asList(DatastreamStatus.READY, DatastreamStatus.PAUSED));
+    List<DatastreamGroup> groups =
+        fetchDatastreamGroupsWithStatus(Arrays.asList(DatastreamStatus.READY, DatastreamStatus.PAUSED));
+    if (!_config.getSkipAssignmentForCompletedBootstrap()) {
+      return groups;
+    }
+    List<String> completedGroups = groups.stream()
+        .filter(Coordinator::isBootstrapCompleteGroup)
+        .map(DatastreamGroup::getTaskPrefix)
+        .collect(Collectors.toList());
+    if (completedGroups.isEmpty()) {
+      return groups;
+    }
+    _log.info("Skipping assignment for {} datastream groups whose bootstrap is complete: {}",
+        completedGroups.size(), completedGroups);
+    return groups.stream().filter(g -> !isBootstrapCompleteGroup(g)).collect(Collectors.toList());
+  }
+
+  /**
+   * A group is bootstrap complete only when every datastream sharing its task prefix is stamped
+   * {@code system.isBootstrapComplete=true}. A deduped sibling that has not been stamped yet keeps the whole
+   * group assignable, because all siblings share the same tasks.
+   */
+  @VisibleForTesting
+  static boolean isBootstrapCompleteGroup(DatastreamGroup group) {
+    return !group.getDatastreams().isEmpty() && group.getDatastreams().stream()
+        .allMatch(ds -> ds.hasMetadata()
+            && Boolean.parseBoolean(ds.getMetadata().get(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE)));
   }
 
   private List<DatastreamGroup> fetchDatastreamGroupsWithStatus(List<DatastreamStatus> requiredStatus) {

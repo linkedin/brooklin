@@ -2921,6 +2921,86 @@ public class TestCoordinator {
   }
 
   @Test
+  public void testSkipAssignmentForCompletedBootstrap() throws Exception {
+    String testCluster = "testSkipAssignmentForCompletedBootstrap";
+    String testConnectorType = "testConnectorType";
+    Properties override = new Properties();
+    override.put(CoordinatorConfig.CONFIG_SKIP_ASSIGNMENT_FOR_COMPLETED_BOOTSTRAP, "true");
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster, override);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, "datastream1",
+        "datastream2");
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+
+    // Stamping bootstrap complete on datastream1 removes its tasks from the assignment
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.getMetadata().put(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE, "true");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream2");
+
+    // A datastream that is not stamped stays assigned
+    Datastream ds2 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream2");
+    ds2.getMetadata().put(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE, "false");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds2);
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream2");
+
+    instance1.stop();
+    zkClient.close();
+  }
+
+  @Test
+  public void testCompletedBootstrapStillAssignedWhenSkipDisabled() throws Exception {
+    String testCluster = "testCompletedBootstrapStillAssignedWhenSkipDisabled";
+    String testConnectorType = "testConnectorType";
+    Coordinator instance1 = createCoordinator(_zkConnectionString, testCluster);
+    TestHookConnector connector1 = new TestHookConnector("connector1", testConnectorType);
+    instance1.addConnector(testConnectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    instance1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    DatastreamTestUtils.createAndStoreDatastreams(zkClient, testCluster, testConnectorType, "datastream1",
+        "datastream2");
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+
+    Datastream ds1 = DatastreamTestUtils.getDatastream(zkClient, testCluster, "datastream1");
+    ds1.getMetadata().put(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE, "true");
+    DatastreamTestUtils.updateDatastreams(zkClient, testCluster, ds1);
+    // Give the leader time to process the update, then confirm nothing was dropped
+    Thread.sleep(Duration.ofSeconds(2).toMillis());
+    assertConnectorAssignment(connector1, WAIT_TIMEOUT_MS, "datastream1", "datastream2");
+
+    instance1.stop();
+    zkClient.close();
+  }
+
+  @Test
+  public void testIsBootstrapCompleteGroup() {
+    Datastream[] streams = DatastreamTestUtils.createDatastreams("testConnectorType", "ds1", "ds2");
+    streams[0].getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, "ds1");
+    streams[1].setMetadata(new StringMap(streams[0].getMetadata()));
+    DatastreamGroup group = new DatastreamGroup(Arrays.asList(streams));
+    Assert.assertFalse(Coordinator.isBootstrapCompleteGroup(group));
+
+    streams[0].getMetadata().put(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE, "true");
+    Assert.assertTrue(Coordinator.isBootstrapCompleteGroup(new DatastreamGroup(Collections.singletonList(streams[0]))));
+
+    // An unstamped deduped sibling keeps the whole group assignable
+    StringMap siblingMetadata = new StringMap(streams[0].getMetadata());
+    siblingMetadata.remove(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE);
+    streams[1].setMetadata(siblingMetadata);
+    Assert.assertFalse(Coordinator.isBootstrapCompleteGroup(new DatastreamGroup(Arrays.asList(streams))));
+
+    streams[1].getMetadata().put(DatastreamMetadataConstants.IS_BOOTSTRAP_COMPLETE, "true");
+    Assert.assertTrue(Coordinator.isBootstrapCompleteGroup(new DatastreamGroup(Arrays.asList(streams))));
+  }
+
+  @Test
   public void testDoNotAssignExpiredStreams() throws Exception {
     TestSetup setup = createTestCoordinator();
 
