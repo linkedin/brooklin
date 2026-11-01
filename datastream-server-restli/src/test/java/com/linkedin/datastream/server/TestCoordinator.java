@@ -3209,6 +3209,65 @@ public class TestCoordinator {
     zkClient.close();
   }
 
+  @Test
+  public void testTaskPrefixUniqueWhenRecreateWithReuseDestinationFalse() throws Exception {
+    String testCluster = "testTaskPrefixUniqueWhenRecreateWithReuseDestinationFalse";
+    String connectorType = "connectorType";
+
+    TestHookConnector connector1 = new TestHookConnector("connector1", connectorType);
+    Coordinator coordinator1 = createCoordinator(_zkConnectionString, testCluster);
+    coordinator1.addConnector(connectorType, connector1, new BroadcastStrategy(Optional.empty()), false,
+        new SourceBasedDeduper(), null);
+    coordinator1.start();
+
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+
+    Datastream[] datastreams = DatastreamTestUtils.createDatastreams(connectorType, "stream1", "dedupe1");
+
+    // Initialize stream1
+    coordinator1.initializeDatastream(datastreams[0]);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams[0]);
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "stream1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+
+    // dedupe1 dedupes with stream1 and acquires taskPrefix = stream1
+    datastreams[1].setSource(datastreams[0].getSource());
+    datastreams[1].removeDestination();
+    coordinator1.initializeDatastream(datastreams[1]);
+    DatastreamTestUtils.storeDatastreams(zkClient, testCluster, datastreams[1]);
+    PollUtils.poll(() -> DatastreamTestUtils.getDatastream(zkClient, testCluster, "dedupe1")
+        .getStatus()
+        .equals(DatastreamStatus.READY), 1000, WAIT_TIMEOUT_MS);
+
+    Assert.assertEquals(datastreams[1].getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX), "stream1");
+
+    // Delete stream1 and wait for it to be removed from coordinator cache
+    DatastreamStore store = new ZookeeperBackedDatastreamStore(_cachedDatastreamReader, zkClient, testCluster);
+    store.deleteDatastream("stream1");
+    String stream1Path = KeyBuilder.datastream(testCluster, "stream1");
+    Assert.assertTrue(PollUtils.poll(() -> !zkClient.exists(stream1Path), 200, WAIT_TIMEOUT_MS));
+    Assert.assertTrue(PollUtils.poll(() -> coordinator1.getDatastreamCache().getAllDatastreams().stream()
+        .noneMatch(ds -> ds.getName().equals("stream1")), 200, WAIT_TIMEOUT_MS));
+
+    // Recreate stream1 with system.reuseExistingDestination=false
+    Datastream recreatedStream1 = DatastreamTestUtils.createDatastreams(connectorType, "stream1")[0];
+    recreatedStream1.getMetadata().put(DatastreamMetadataConstants.REUSE_EXISTING_DESTINATION_KEY, "false");
+    recreatedStream1.setSource(datastreams[0].getSource());
+    recreatedStream1.removeDestination();
+
+    coordinator1.initializeDatastream(recreatedStream1);
+
+    String recreatedPrefix = recreatedStream1.getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX);
+    Assert.assertNotNull(recreatedPrefix);
+    Assert.assertTrue(recreatedPrefix.startsWith("stream1_"));
+    Assert.assertNotEquals(recreatedPrefix, datastreams[1].getMetadata().get(DatastreamMetadataConstants.TASK_PREFIX));
+
+    coordinator1.stop();
+    coordinator1.getDatastreamCache().getZkclient().close();
+    zkClient.close();
+  }
+
   private static class TestCoordinatorWithSpyZkAdapter extends Coordinator {
 
     TestCoordinatorWithSpyZkAdapter(CachedDatastreamReader testDatastreamCache, Properties testConfig) throws DatastreamException {

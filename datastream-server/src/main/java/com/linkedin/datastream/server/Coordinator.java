@@ -2443,8 +2443,15 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
           .initializeDestinationForDatastream(datastream, destinationName);
       // Populate the task prefix if it is not already present.
       if (!Objects.requireNonNull(datastream.getMetadata()).containsKey(DatastreamMetadataConstants.TASK_PREFIX)) {
-        datastream.getMetadata()
-            .put(DatastreamMetadataConstants.TASK_PREFIX, DatastreamTaskImpl.getTaskPrefix(datastream));
+        String defaultPrefix = DatastreamTaskImpl.getTaskPrefix(datastream);
+        String taskPrefix = defaultPrefix;
+        boolean prefixInUse = allDatastreams != null && allDatastreams.stream()
+            .filter(DatastreamUtils::containsTaskPrefix)
+            .anyMatch(ds -> defaultPrefix.equals(DatastreamUtils.getTaskPrefix(ds)));
+        if (prefixInUse) {
+          taskPrefix = defaultPrefix + "_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        }
+        datastream.getMetadata().put(DatastreamMetadataConstants.TASK_PREFIX, taskPrefix);
       }
 
       _log.info("Datastream {} has an unique source or topicReuse is set to true, Assigning a new destination {}",
