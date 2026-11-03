@@ -59,6 +59,10 @@ public final class CoordinatorConfig {
   public static final String CONFIG_PROVISIONING_SLA_THRESHOLD_MS = PREFIX + "provisioningSlaThresholdMs";
   // how long the leader waits between checks of the ZooKeeper assignment-enabled flag while assignment is disabled
   public static final String CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS = PREFIX + "assignmentEnabledCheckPeriodMs";
+  // whether the leader should skip assigning tasks for datastream groups whose datastreams are all marked
+  // bootstrap complete (system.isBootstrapComplete=true). Such tasks have no work left but still cost leader
+  // ZooKeeper writes on every rebalance.
+  public static final String CONFIG_SKIP_ASSIGNMENT_FOR_COMPLETED_BOOTSTRAP = PREFIX + "skipAssignmentForCompletedBootstrap";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
@@ -101,6 +105,7 @@ public final class CoordinatorConfig {
   private final double _logSizeLimitInBytes;
   private final long _provisioningSlaThresholdMs;
   private final long _assignmentEnabledCheckPeriodMs;
+  private final boolean _skipAssignmentForCompletedBootstrap;
 
 
   /**
@@ -150,6 +155,7 @@ public final class CoordinatorConfig {
         DEFAULT_PROVISIONING_SLA_THRESHOLD_MS);
     _assignmentEnabledCheckPeriodMs = _properties.getLong(CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS,
         DEFAULT_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS);
+    _skipAssignmentForCompletedBootstrap = _properties.getBoolean(CONFIG_SKIP_ASSIGNMENT_FOR_COMPLETED_BOOTSTRAP, false);
   }
 
   public Properties getConfigProperties() {
@@ -264,5 +270,9 @@ public final class CoordinatorConfig {
 
   public long getAssignmentEnabledCheckPeriodMs() {
     return _assignmentEnabledCheckPeriodMs;
+  }
+
+  public boolean getSkipAssignmentForCompletedBootstrap() {
+    return _skipAssignmentForCompletedBootstrap;
   }
 }
