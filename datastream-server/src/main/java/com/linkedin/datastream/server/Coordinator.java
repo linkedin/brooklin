@@ -297,6 +297,7 @@ public class Coordinator implements ZkAdapter.ZkAdapterListener, MetricsAware {
     _heartbeatPeriod = Duration.ofMillis(config.getHeartbeatPeriodMs());
 
     _adapter = createZkAdapter();
+    _adapter.setAssignmentWritePipelineSize(_config.getZkAssignmentWritePipelineSize());
     _eventQueue = new CoordinatorEventBlockingQueue(Coordinator.class.getSimpleName());
     createEventThread();
 

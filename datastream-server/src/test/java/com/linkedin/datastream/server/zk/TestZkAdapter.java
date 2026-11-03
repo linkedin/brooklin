@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.zookeeper.CreateMode;
@@ -29,6 +30,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.linkedin.datastream.common.Datastream;
+import com.linkedin.datastream.common.DatastreamRuntimeException;
 import com.linkedin.datastream.common.PollUtils;
 import com.linkedin.datastream.common.zk.ZkClient;
 import com.linkedin.datastream.server.AssignmentToken;
@@ -424,6 +426,119 @@ public class TestZkAdapter {
     //
     // cleanup
     //
+    zkClient.close();
+  }
+
+  @Test
+  public void testPipelinedUpdateAllAssignmentsMatchesSequential() throws Exception {
+    String connectorType = "connectorType";
+    List<DatastreamTaskImpl> tasks = new ArrayList<>();
+    for (int i = 0; i < 7; i++) {
+      DatastreamTaskImpl task = new DatastreamTaskImpl();
+      task.setTaskPrefix("task" + i);
+      task.setConnectorType(connectorType);
+      tasks.add(task);
+    }
+    tasks.get(3).setStats("{\"rate\":5}");
+
+    Map<String, String> sequential = runAssignmentRounds("testPipelinedAssignmentsSeq", 0, tasks);
+    Map<String, String> pipelined = runAssignmentRounds("testPipelinedAssignmentsPipe", 2, tasks);
+    Assert.assertFalse(sequential.isEmpty());
+    Assert.assertEquals(pipelined, sequential);
+    Assert.assertEquals(pipelined.get("connectors/" + tasks.get(3).getDatastreamTaskName() + "/state/stats"),
+        "{\"rate\":5}");
+  }
+
+  /**
+   * Runs three assignment rounds (initial placement, moves with an add and a remove, then a shrink) and returns
+   * every znode the rounds wrote, keyed by path relative to the cluster.
+   */
+  private Map<String, String> runAssignmentRounds(String testCluster, int pipelineSize, List<DatastreamTaskImpl> tasks) {
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter = createZkAdapter(testCluster);
+    adapter.connect();
+    adapter.setAssignmentWritePipelineSize(pipelineSize);
+    tasks.forEach(t -> t.setZkAdapter(adapter));
+    String a = "instanceA";
+    String b = "instanceB";
+    String c = "instanceC";
+
+    Map<String, List<DatastreamTask>> round = new HashMap<>();
+    round.put(a, Arrays.asList(tasks.get(0), tasks.get(1), tasks.get(2)));
+    round.put(b, Arrays.asList(tasks.get(3), tasks.get(4)));
+    adapter.updateAllAssignments(round);
+
+    round = new HashMap<>();
+    round.put(a, Arrays.asList(tasks.get(0), tasks.get(4)));
+    round.put(b, Arrays.asList(tasks.get(1), tasks.get(3), tasks.get(5)));
+    round.put(c, Arrays.asList(tasks.get(2), tasks.get(6)));
+    adapter.updateAllAssignments(round);
+
+    round = new HashMap<>();
+    round.put(a, Arrays.asList(tasks.get(0), tasks.get(1), tasks.get(4)));
+    round.put(b, Collections.singletonList(tasks.get(3)));
+    round.put(c, Collections.singletonList(tasks.get(6)));
+    adapter.updateAllAssignments(round);
+
+    Map<String, String> dump = new TreeMap<>();
+    for (String instance : Arrays.asList(a, b, c)) {
+      String path = KeyBuilder.instanceAssignments(testCluster, instance);
+      for (String child : zkClient.getChildren(path)) {
+        dump.put("instances/" + instance + "/" + child, zkClient.readData(path + "/" + child, true));
+      }
+    }
+    String connectorPath = KeyBuilder.connector(testCluster, tasks.get(0).getConnectorType());
+    for (String task : zkClient.getChildren(connectorPath)) {
+      dump.put("connectors/" + task, zkClient.readData(connectorPath + "/" + task, true));
+      for (String child : zkClient.getChildren(connectorPath + "/" + task)) {
+        String childPath = connectorPath + "/" + task + "/" + child;
+        dump.put("connectors/" + task + "/" + child, zkClient.readData(childPath, true));
+        for (String key : zkClient.getChildren(childPath)) {
+          dump.put("connectors/" + task + "/" + child + "/" + key, zkClient.readData(childPath + "/" + key, true));
+        }
+      }
+    }
+    Assert.assertEquals(adapter.getAllAssignedDatastreamTasks().keySet(), new HashSet<>(Arrays.asList(a, b, c)));
+    adapter.disconnect();
+    zkClient.close();
+    return dump;
+  }
+
+  @Test
+  public void testPipelinedUpdateAllAssignmentsFailureSkipsRemoves() throws Exception {
+    String testCluster = "testPipelinedAssignmentsFailure";
+    String connectorType = "connectorType";
+    ZkClient zkClient = new ZkClient(_zkConnectionString);
+    ZkAdapter adapter = createZkAdapter(testCluster);
+    adapter.connect();
+    adapter.setAssignmentWritePipelineSize(4);
+
+    DatastreamTaskImpl task1 = new DatastreamTaskImpl();
+    task1.setTaskPrefix("task1");
+    task1.setConnectorType(connectorType);
+    DatastreamTaskImpl task2 = new DatastreamTaskImpl();
+    task2.setTaskPrefix("task2");
+    task2.setConnectorType(connectorType);
+
+    Map<String, List<DatastreamTask>> round = new HashMap<>();
+    round.put("instanceA", Arrays.asList(task1, task2));
+    adapter.updateAllAssignments(round);
+
+    // An ephemeral assignments node cannot have children, so adding to instanceB fails.
+    zkClient.ensurePath(KeyBuilder.instance(testCluster, "instanceB"));
+    zkClient.create(KeyBuilder.instanceAssignments(testCluster, "instanceB"), "", CreateMode.EPHEMERAL);
+
+    round = new HashMap<>();
+    round.put("instanceA", Collections.singletonList(task1));
+    round.put("instanceB", Collections.singletonList(task2));
+    Map<String, List<DatastreamTask>> failedRound = round;
+    Assert.expectThrows(DatastreamRuntimeException.class, () -> adapter.updateAllAssignments(failedRound));
+
+    // The remove of task2 from instanceA must not run when an add failed.
+    Assert.assertEquals(new HashSet<>(zkClient.getChildren(KeyBuilder.instanceAssignments(testCluster, "instanceA"))),
+        new HashSet<>(Arrays.asList(task1.getDatastreamTaskName(), task2.getDatastreamTaskName())));
+
+    adapter.disconnect();
     zkClient.close();
   }
 

@@ -59,6 +59,9 @@ public final class CoordinatorConfig {
   public static final String CONFIG_PROVISIONING_SLA_THRESHOLD_MS = PREFIX + "provisioningSlaThresholdMs";
   // how long the leader waits between checks of the ZooKeeper assignment-enabled flag while assignment is disabled
   public static final String CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS = PREFIX + "assignmentEnabledCheckPeriodMs";
+  // maximum number of in-flight asynchronous ZooKeeper requests the leader uses to persist an assignment.
+  // 0 keeps the legacy behavior of issuing each request synchronously.
+  public static final String CONFIG_ZK_ASSIGNMENT_WRITE_PIPELINE_SIZE = PREFIX + "zkAssignmentWritePipelineSize";
 
   public static final int DEFAULT_MAX_ASSIGNMENT_RETRY_COUNT = 100;
   public static final long DEFAULT_STOP_PROPAGATION_TIMEOUT_MS = 60 * 1000;
@@ -101,6 +104,7 @@ public final class CoordinatorConfig {
   private final double _logSizeLimitInBytes;
   private final long _provisioningSlaThresholdMs;
   private final long _assignmentEnabledCheckPeriodMs;
+  private final int _zkAssignmentWritePipelineSize;
 
 
   /**
@@ -150,6 +154,8 @@ public final class CoordinatorConfig {
         DEFAULT_PROVISIONING_SLA_THRESHOLD_MS);
     _assignmentEnabledCheckPeriodMs = _properties.getLong(CONFIG_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS,
         DEFAULT_ASSIGNMENT_ENABLED_CHECK_PERIOD_MS);
+    _zkAssignmentWritePipelineSize = _properties.getIntInRange(CONFIG_ZK_ASSIGNMENT_WRITE_PIPELINE_SIZE, 0, 0,
+        Integer.MAX_VALUE);
   }
 
   public Properties getConfigProperties() {
@@ -264,5 +270,9 @@ public final class CoordinatorConfig {
 
   public long getAssignmentEnabledCheckPeriodMs() {
     return _assignmentEnabledCheckPeriodMs;
+  }
+
+  public int getZkAssignmentWritePipelineSize() {
+    return _zkAssignmentWritePipelineSize;
   }
 }
